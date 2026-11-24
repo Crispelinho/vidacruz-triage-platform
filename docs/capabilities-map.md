@@ -13,7 +13,7 @@ A capability is a unit of behavior that one service owns, that can be specified 
 
 | ID | Capability | Service | Requirements (owner) | Type |
 |---|---|---|---|---|
-| C-01 | `platform-foundation` | Both | Build, runtime and container baseline (NFR, TC sections of D1) | DERIVED |
+| C-01 | `platform-foundation` | Both | Build, runtime, container and delivery baseline: Gradle, Java 21, Docker and docker-compose, CI pipeline, Kubernetes and Azure manifests (NFR, TC sections of D1) | DERIVED |
 | C-02 | `triage-classification` | Triage | RF-01, RN-01, RN-02 (SLA value at registration), VAL-01…VAL-11, API-01, DEC-15 (Idempotency-Key) | EXPLICIT + DERIVED |
 | C-03 | `patient-lifecycle-audit` | Triage | RF-02, RN-04, API-02, API-03 | EXPLICIT + DERIVED |
 | C-04 | `triage-sla-escalation` | Triage | RF-03, RN-02 (evaluation), RN-03, DEC-04, AMB-04 | EXPLICIT |
@@ -22,9 +22,10 @@ A capability is a unit of behavior that one service owns, that can be specified 
 | C-07 | `emergency-state-projection` | Clinical Assistant | RF-04 Part B, API-05, DEC-06 | EXPLICIT |
 | C-08 | `operational-reporting` | Triage | RF-05, API-06, AMB-05, indexes in §11 of D1 | EXPLICIT |
 | C-09 | `medical-escalation-alerts` | Triage (+ channel) | RF-06, DER-03, AMB-10, DEC-09 | EXPLICIT (channel open) |
-| C-10 | `security-observability-delivery` | Both | Authentication, input validation, secrets, probes, logs, metrics, tracing, CI/CD, container and Azure delivery (NFR sections of D1) | DERIVED + PROPOSED |
+| C-10 | `security` | Both | Authentication, authorization, input validation, data protection, secrets handling and access control (NFR security sections of D1) | DERIVED + PROPOSED |
+| C-11 | `observability` | Both | Health probes, structured logs, metrics, tracing and operational diagnostics (NFR observability sections of D1) | DERIVED |
 
-Open decision OD-1 (see §6): C-10 groups three responsibilities (security, observability, delivery). It is kept as one capability here to match `deliverables-plan.md`. The recommended split is `security` and `observability-delivery`; the decision belongs to the developer.
+OD-1 is resolved (see §6): the former `security-observability-delivery` is split into C-10 and C-11. Delivery (CI pipeline, containers, Kubernetes and Azure manifests) moves to C-01, which already owns the build and container baseline. This keeps the count at eleven capabilities. The split of delivery into its own capability is the developer's call; see §6.
 
 ## 3. Requirement coverage
 
@@ -52,11 +53,11 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 
 ### C-01 `platform-foundation`
 - **Services:** both.
-- **Goal:** both services build, run and start in containers with the pinned baseline (Spring Boot 3.5.16, Java 21, Gradle 8.14.8, Spring Cloud 2025.0.3, Spring AI 1.1.1 for the assistant).
-- **Interfaces:** health and readiness probes.
+- **Goal:** both services build, run and start in containers with the pinned baseline (Spring Boot 3.5.16, Java 21, Gradle 8.14.8, Spring Cloud 2025.0.3, Spring AI 1.1.1 for the assistant). It also owns the delivery path: CI pipeline, Docker images, docker-compose, Kubernetes and Azure manifests.
+- **Interfaces:** none beyond the build and deployment definitions.
 - **Persistence:** none by itself.
 - **Depends on:** none. It is the first capability.
-- **Tests:** build succeeds on Java 21; containers start; probes respond.
+- **Tests:** build succeeds on Java 21; containers start; the CI pipeline runs build and tests on each pull request; manifests validate.
 
 ### C-02 `triage-classification`
 - **Service:** Triage.
@@ -122,12 +123,21 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Depends on:** C-04, C-05.
 - **Tests:** a failed delivery is retried; a duplicate escalation event produces one alert.
 
-### C-10 `security-observability-delivery`
+### C-10 `security`
 - **Services:** both.
-- **Goal:** input validation, authentication on `/triage/**` and `/asistente/**` (scope decided in an ADR), secrets from environment variables or Kubernetes Secrets, probes, structured logs, metrics, tracing, CI pipeline, container images, Kubernetes and Azure manifests.
-- **Interfaces:** security headers and authentication mechanism; `/actuator` health endpoints.
-- **Depends on:** C-01. Applies to all other capabilities; it is a cross-cutting capability, so its tests run against every endpoint.
-- **Tests:** unauthenticated request to a protected endpoint is rejected; health probes respond; the pipeline runs build and tests on every pull request.
+- **Goal:** authentication on `/triage/**` and `/asistente/**` (mechanism and scope decided in ADR-07), authorization, input validation, protection of patient data in logs and responses, and secrets read only from environment variables or Kubernetes Secrets.
+- **Interfaces:** the authentication mechanism and the rejection responses it produces.
+- **Persistence:** none of its own.
+- **Depends on:** C-01. Cross-cutting: its tests run against every protected endpoint.
+- **Tests:** an unauthenticated request to a protected endpoint is rejected; a secret is never present in the repository or the image; logs do not contain patient identifiers beyond the agreed field.
+
+### C-11 `observability`
+- **Services:** both.
+- **Goal:** health and readiness probes, structured logs, metrics, traces and the operational signals needed to diagnose a failure (for example, circuit breaker state and event lag).
+- **Interfaces:** `/actuator` health endpoints and the metrics endpoint.
+- **Persistence:** none of its own.
+- **Depends on:** C-01. Cross-cutting: it observes every other capability.
+- **Tests:** probes report the real state of the database, broker and LLM dependency; a metric increments for each published event; a trace links a request to its event.
 
 ## 5. Dependency order
 
@@ -142,7 +152,7 @@ C-01 platform-foundation
  │                                          │
  ├── C-06 clinical-assistant-rag            │
  └── C-07 emergency-state-projection ◄──── C-05
-C-10 security-observability-delivery (cross-cutting, applies to all)
+C-10 security and C-11 observability (cross-cutting, apply to all capabilities)
 ```
 
 The dependency graph has no cycles. C-06 is independent of the Triage capabilities, so it can be developed in parallel with them.
@@ -155,5 +165,6 @@ Completion criteria for this deliverable:
 
 ## 6. Open decisions
 
-- **OD-1 — Split of C-10.** Recommended: `security` and `observability-delivery`. Trade-off: two capabilities give smaller, independently reviewable changes, but add two rows to the traceability matrix. Owner: developer.
+- **OD-1 — Split of security and observability.** Resolved: C-10 `security` and C-11 `observability` are separate capabilities, as approved in review.
+- **OD-1b — Delivery placement.** Delivery (CI, containers, Kubernetes and Azure manifests) is placed in C-01 `platform-foundation`. Trade-off: fewer capabilities, but C-01 grows. Alternative: a separate `delivery` capability (twelve capabilities). Owner: developer.
 - **OD-2 — Naming of the requirement set.** `prompt-init.txt` §5 numbers functional requirements RF-01…RF-09, while `requirements.md` uses RF-01…RF-06 and §5 of the prompt has no capability list anymore. This map follows `requirements.md`. Recommended: align the prompt's §5 numbering with D1 before D5 (traceability), so both documents use one numbering. Owner: developer.
