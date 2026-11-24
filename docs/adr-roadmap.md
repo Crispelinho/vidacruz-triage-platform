@@ -66,7 +66,7 @@ These are open decisions from D2 §6. They are **not approved**. Each one is res
 
 ### 3.3 Order of acceptance
 
-ADR-01, then ADR-10, ADR-14, ADR-03, ADR-02, ADR-13, ADR-12, ADR-07, then the Assistant decisions ADR-04, ADR-05, ADR-09, ADR-08, and last ADR-06 and ADR-11. The reason: foundation and data ownership first, because every capability depends on them; delivery-related choices last, because they depend on Azure access (R-06).
+ADR-01, then ADR-10, ADR-14, ADR-03, ADR-02, ADR-13, ADR-07, ADR-12, then the Assistant decisions ADR-04, ADR-05, ADR-09, ADR-08, and last ADR-06 and ADR-11. The reason: foundation and data ownership first, because every capability depends on them; delivery-related choices last, because they depend on Azure access (R-06).
 
 ## 4. Decisions that need the developer before writing
 
