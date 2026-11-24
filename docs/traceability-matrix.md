@@ -3,7 +3,7 @@
 Status: **draft for review.** Plan level: the chain is complete up to the OpenSpec change. Task, code, test and evidence columns are filled during implementation. Nothing here is marked done.
 Sources: `docs/requirements.md` (D1, §4 RF, §5 RN, §6 VAL, §7 NFR, §8 TC, §9 API, §10 EVT, §14 AMB, §16 DER), `docs/capabilities-map.md` (D2), `docs/openspec-roadmap.md` (D4, change numbers 1…12), `docs/adr-roadmap.md` (D3).
 
-Branch context: stacked on `feature/d4-openspec-roadmap`. Not integrated into `develop`.
+Branch context: part of the D3–D6 planning set proposed in PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). It is not integrated into `develop`.
 
 ## 1. Chain
 

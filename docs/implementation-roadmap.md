@@ -3,7 +3,7 @@
 Status: **draft for review.** Plan only: nothing here is implemented. Each task becomes a row of the change's `tasks.md` when its OpenSpec change is opened.
 Sources: `docs/openspec-roadmap.md` (D4, changes 1…12), `docs/traceability-matrix.md` (D5, requirement rows), `docs/requirements.md` (D1), `docs/adr-roadmap.md` (D3), `deliverables-plan.md` §3 (D6 content plan).
 
-Branch context: stacked on `feature/d5-traceability-matrix`. Not integrated into `develop`.
+Branch context: part of the D3–D6 planning set proposed in PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). It is not integrated into `develop`.
 
 ## 1. Open blocker: the time window
 
@@ -17,6 +17,27 @@ Branch context: stacked on `feature/d5-traceability-matrix`. Not integrated into
 
 Each task has an ID (T-xx), the change it belongs to (D4 number), the requirement IDs it satisfies, and a verifiable result. A task is done only when its result is shown by a test or by evidence.
 
+## 2.1 Decision gates (ADRs accepted before the tasks that depend on them)
+
+Architecture decisions are prerequisites, not a Day 3 writing task. Each ADR is accepted (status `Accepted`, with its two alternatives and verification step) before the first task that depends on it. The order follows `adr-roadmap.md` §3.3.
+
+| Gate | ADR | Must be accepted before | Note |
+|---|---|---|---|
+| G-01 | ADR-01 service decomposition | T-01 | First ADR of the set |
+| G-02 | ADR-10 Boot 3.5.16 and Java 21 | T-01 | Verify the Boot 3.5 support status on spring.io and record it in the ADR (R-02) |
+| G-03 | ADR-14 one PostgreSQL per service | T-03 | |
+| G-04 | ADR-02 Kafka and envelope | T-04 | |
+| G-05 | ADR-03 transactional outbox | T-04 | |
+| G-06 | ADR-07 authentication | T-05 (change 3 requires it) and T-19 | API key proposed in DEC-05 |
+| G-07 | ADR-12 Idempotency-Key replay | T-07 | |
+| G-08 | ADR-13 SLA evaluation mechanism | T-11 | |
+| G-09 | ADR-06 notification channel | T-18 | Confirm the mock receiver in docker-compose is acceptable |
+| G-10 | ADR-04, ADR-05, ADR-09 vector store, LLM provider, circuit breaker | T-14, T-15 | ADR-05 compares against official Spring AI and LangChain4j docs |
+| G-11 | ADR-08 projection store | T-16 | Linked to OD-3 |
+| G-12 | ADR-11 Azure target | T-24 | Blocked by R-06 if access is unavailable |
+
+A gate that is not met blocks its tasks. The gate is recorded as a blocker in the README (T-25), not worked around.
+
 ## 3. Day 1: foundation, ingestion and the Triage chain
 
 | ID | Pri | Change | Task | Components | Requirements | Verifiable result |
@@ -29,6 +50,8 @@ Each task has an ID (T-xx), the change it belongs to (D4 number), the requiremen
 | T-06 | P0 | 3 | Add the registration audit (RN-04-R) and the EVT-01 outbox row in the same transaction | triage | RN-04-R, EVT-01, DER-02 | One transaction test: patient, audit and outbox row commit together or not at all |
 | T-07 | P0 | 3 | Implement `Idempotency-Key` replay (24 h TTL) and the 409 on a reused key with a different body | triage | DEC-15, API-01 | Replay returns the original response; a different body returns 409 |
 | T-08 | P0 | 3 | Standard error body `{code, message, field?, correlationId}` for all endpoints | triage | NFR-20, DER-08 | Test for 400, 404, 409 responses shows the body |
+
+Day 1 entry: gates G-01, G-02 and G-03 are accepted before T-01 starts; G-04 and G-05 before T-04.
 
 Day 1 exit: T-01 to T-08 pass in CI.
 
@@ -60,7 +83,7 @@ Day 2 exit: T-09 to T-18 pass; the full acceptance cases E1…E6 and the PROTO q
 | T-23 | P0 | 12 | Kubernetes manifests: Deployment, Service, probes, ConfigMap, Secret | both | NFR-13 | Manifests validate with a schema check (evidence in the change) |
 | T-24 | P0 | 12 | Azure deployment (AKS or Container Apps, ADR-11) or a documented blocker | infra | NFR-14, AMB-11, R-06 | Deployment URL, or a blocker record that names R-06 |
 | T-25 | P0 | 12 | README with run instructions, decisions index (ADRs), and the blocker list | docs | NFR-18 (process), D3 | README instructions run on a clean checkout |
-| T-26 | P0 | — | Write at least two ADRs from D3 in `docs/adr/` with the D3 §5 template; use the ones that D3 §3.3 places first (ADR-01 and ADR-03 are the candidates) | docs/adr | D3 §5, D3 §6 | Each ADR has at least two alternatives, names its requirement and capability IDs, and states a verification step |
+| T-26 | P0 | — | Write the ADRs of the gates in §2.1 in `docs/adr/` with the D3 §5 template, each before its gate date. This replaces the earlier idea of writing two ADRs on Day 3 | docs/adr | D3 §5, §2.1 | Each ADR is `Accepted`, has at least two alternatives, names its requirement and capability IDs, and states a verification step |
 
 Day 3 exit: P0 complete or each blocked item recorded with its reason.
 

@@ -3,7 +3,7 @@
 Status: **draft for review.** Plan only: the ADRs are not written yet, and no decision here is accepted until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: this deliverable is stacked on `feature/d2-capabilities-map`, which is stacked on `feature/docs-requirements-analysis`. It is not integrated into `develop`.
+Branch context: part of the D3–D6 planning set proposed in PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). It is not integrated into `develop`.
 
 ## 1. Purpose
 
@@ -31,7 +31,7 @@ Not every decision in D1 is architectural. The rule used here: a decision become
 | DEC-14 | Transactional outbox | ADR-03 | Consistency mechanism |
 | DEC-15 | Idempotency-Key replay | ADR-12 | Replay storage and semantics |
 
-The original analysis (D0 §16) listed twelve candidates. This roadmap adds two: ADR-13 for the scheduling mechanism (DEC-04) and ADR-14 for database ownership (DEC-10). D0 should be updated to fourteen when this roadmap is approved.
+The original analysis (D0 §16) listed twelve candidates. This roadmap adds two: ADR-13 for the scheduling mechanism (DEC-04) and ADR-14 for database ownership (DEC-10). Follow-up, not part of this PR: update `docs/analysis.md` §16 from twelve to fourteen candidates. Owner: developer. Closed when D0 §16 lists ADR-01…ADR-14. Until then D0 is known to be out of date on this point.
 
 ## 3. ADR list
 

@@ -3,7 +3,7 @@
 Status: **draft for review.** Plan only: no OpenSpec change folders exist yet, and no change is approved until the developer accepts this roadmap.
 Sources: `docs/capabilities-map.md` (D2, capabilities C-01…C-11 and §5 dependencies), `docs/adr-roadmap.md` (D3, ADR-01…ADR-14 and §3.3 acceptance order), `docs/requirements.md` (D1, requirement IDs), `deliverables-plan.md` §3 (D4 content plan).
 
-Branch context: stacked on `feature/d3-adr-roadmap-v2` (D3), which is stacked on `develop` (PR #2 merged). Not integrated into `develop`.
+Branch context: part of the D3–D6 planning set proposed in PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). It is not integrated into `develop`.
 
 ## 1. Purpose
 
@@ -32,7 +32,7 @@ The order follows the topological order of `capabilities-map.md` §5 and the ADR
 | 7 | `medical-escalation-alerts` | C-09 | RF-06, DER-03, AMB-10, DEC-09 | 2, 5 | ADR-06 | A failed delivery is retried with backoff (test with failing receiver); a duplicate EVT-02 produces one notification; a retry never emits an escalation; delivery attempts are stored per escalation event |
 | 8 | `clinical-assistant-rag` | C-06 | RF-04-A, RN-05, API-04, NFR-03 | 1 | ADR-04, ADR-05, ADR-09 | PROTO-001, PROTO-002 and the diabetes query return the behavior required by RN-05 (test with the corpus); every citation validates against the corpus; no answer contains a claim without a validated citation; the circuit breaker opens and the endpoint returns 503 (test with the LLM stubbed to fail) |
 | 9 | `emergency-state-projection` | C-07 | RF-04-B, API-05, DEC-06 | 1, 2 | ADR-08, ADR-02 | Counts match a replayed event sequence; a replayed event does not double count; a request makes no call to Triage (test with Triage unreachable); after the projection store is emptied, a replay restores the same counts |
-| 10 | `security` | C-10 | Security NFR of D1 | 1, and every protected endpoint (changes 3, 4, 6, 8) | ADR-07 | An unauthenticated request to `/triage/**` and `/asistente/**` is rejected (test for each endpoint); no secret is in the repository or the image (scan evidence); logs carry no patient data beyond the agreed fields |
+| 10 | `security` | C-10 | Security NFR of D1 | 1, and every protected endpoint (changes 3, 4, 6, 8, 9: `GET /asistente/estado-urgencias`) | ADR-07 | An unauthenticated request to `/triage/**` and `/asistente/**` is rejected (test for each endpoint); no secret is in the repository or the image (scan evidence); logs carry no patient data beyond the agreed fields |
 | 11 | `observability` | C-11 | Observability NFR of D1 | 1, 2 | none | Readiness fails when the database is down; readiness stays up when the broker or the LLM is down and the health detail shows it; a metric increments per outbox event published; a trace links a request to its event |
 | 12 | `platform-delivery` | C-01 (delivery part) | DEC-12, DEC-13, ADR-11 | 1…11 | ADR-11 | Docker images build; docker-compose starts both services with their dependencies; Kubernetes manifests validate; Azure deployment is either demonstrated or recorded as blocked by R-06, with the blocker written in the change |
 
