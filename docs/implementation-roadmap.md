@@ -19,24 +19,24 @@ Each task has an ID (T-xx), the change it belongs to (D4 number), the requiremen
 
 ## 2.1 Decision gates (ADRs accepted before the tasks that depend on them)
 
-Architecture decisions are prerequisites, not a Day 3 writing task. Each ADR is accepted (status `Accepted`, with its two alternatives and verification step) before the first task that depends on it. The order follows `adr-roadmap.md` §3.3.
+Architecture decisions are prerequisites, not a Day 3 task. Each ADR is written and accepted (status `Accepted`, with two alternatives and a verification step) before the **change** that requires it starts, which is the first task of that change in D4 §3. The gates are listed in the exact acceptance order of `adr-roadmap.md` §3.3. Writing the ADRs is the developer's responsibility and happens in this order, before the gate it unlocks; it is not scheduled on any day.
 
-| Gate | ADR | Must be accepted before | Note |
+| Gate | ADR (D3 §3.3 order) | Must be accepted before | Note |
 |---|---|---|---|
-| G-01 | ADR-01 service decomposition | T-01 | First ADR of the set |
-| G-02 | ADR-10 Boot 3.5.16 and Java 21 | T-01 | Verify the Boot 3.5 support status on spring.io and record it in the ADR (R-02) |
-| G-03 | ADR-14 one PostgreSQL per service | T-03 | |
-| G-04 | ADR-02 Kafka and envelope | T-04 | |
-| G-05 | ADR-03 transactional outbox | T-04 | |
-| G-06 | ADR-07 authentication | T-05 (change 3 requires it) and T-19 | API key proposed in DEC-05 |
-| G-07 | ADR-12 Idempotency-Key replay | T-07 | |
-| G-08 | ADR-13 SLA evaluation mechanism | T-11 | |
-| G-09 | ADR-06 notification channel | T-18 | Confirm the mock receiver in docker-compose is acceptable |
-| G-10 | ADR-04, ADR-05, ADR-09 vector store, LLM provider, circuit breaker | T-14, T-15 | ADR-05 compares against official Spring AI and LangChain4j docs |
-| G-11 | ADR-08 projection store | T-16 | Linked to OD-3 |
-| G-12 | ADR-11 Azure target | T-24 | Blocked by R-06 if access is unavailable |
+| G-01 | ADR-01 service decomposition | T-01 (change 1) | First ADR of the set |
+| G-02 | ADR-10 Boot 3.5.16 and Java 21 | T-01 (change 1) | Official support evidence in §9 (R-02) |
+| G-03 | ADR-14 one PostgreSQL per service | T-01 (change 1) | Required by change 1, not by T-03 |
+| G-04 | ADR-03 transactional outbox | T-04 (change 2) | |
+| G-05 | ADR-02 Kafka and envelope | T-04 (change 2) | |
+| G-06 | ADR-13 SLA evaluation mechanism | T-11 (change 5) | |
+| G-07 | ADR-07 authentication | T-05 (change 3) | API key proposed in DEC-05 |
+| G-08 | ADR-12 Idempotency-Key replay | T-05 (change 3) | Required by change 3, not by T-07 |
+| G-09 | ADR-04, ADR-05, ADR-09 vector store, LLM provider, circuit breaker | T-14 (change 8) | ADR-05 compares against official Spring AI and LangChain4j docs |
+| G-10 | ADR-08 projection store | T-16 (change 9) | Linked to OD-3 |
+| G-11 | ADR-06 notification channel | T-18 (change 7) | Confirm the mock receiver in docker-compose is acceptable |
+| G-12 | ADR-11 Azure target | T-22 (change 12) | Blocked by R-06 if access is unavailable |
 
-A gate that is not met blocks its tasks. The gate is recorded as a blocker in the README (T-25), not worked around.
+A gate that is not met blocks the whole change, not only its first task. The blocker is recorded in the README (T-25), not worked around.
 
 ## 3. Day 1: foundation, ingestion and the Triage chain
 
@@ -51,7 +51,7 @@ A gate that is not met blocks its tasks. The gate is recorded as a blocker in th
 | T-07 | P0 | 3 | Implement `Idempotency-Key` replay (24 h TTL) and the 409 on a reused key with a different body | triage | DEC-15, API-01 | Replay returns the original response; a different body returns 409 |
 | T-08 | P0 | 3 | Standard error body `{code, message, field?, correlationId}` for all endpoints | triage | NFR-20, DER-08 | Test for 400, 404, 409 responses shows the body |
 
-Day 1 entry: gates G-01, G-02 and G-03 are accepted before T-01 starts; G-04 and G-05 before T-04.
+Day 1 entry: gates G-01, G-02 and G-03 are accepted before T-01 starts; G-04 and G-05 before T-04; G-06 before T-11; G-07 and G-08 before T-05. The ADR writing is not a task of any day (see §2.1).
 
 Day 1 exit: T-01 to T-08 pass in CI.
 
@@ -83,7 +83,6 @@ Day 2 exit: T-09 to T-18 pass; the full acceptance cases E1…E6 and the PROTO q
 | T-23 | P0 | 12 | Kubernetes manifests: Deployment, Service, probes, ConfigMap, Secret | both | NFR-13 | Manifests validate with a schema check (evidence in the change) |
 | T-24 | P0 | 12 | Azure deployment (AKS or Container Apps, ADR-11) or a documented blocker | infra | NFR-14, AMB-11, R-06 | Deployment URL, or a blocker record that names R-06 |
 | T-25 | P0 | 12 | README with run instructions, decisions index (ADRs), and the blocker list | docs | NFR-18 (process), D3 | README instructions run on a clean checkout |
-| T-26 | P0 | — | Write the ADRs of the gates in §2.1 in `docs/adr/` with the D3 §5 template, each before its gate date. This replaces the earlier idea of writing two ADRs on Day 3 | docs/adr | D3 §5, §2.1 | Each ADR is `Accepted`, has at least two alternatives, names its requirement and capability IDs, and states a verification step |
 
 Day 3 exit: P0 complete or each blocked item recorded with its reason.
 
@@ -115,7 +114,7 @@ P0 tasks are not cut. If a P0 task is blocked, its blocker is recorded in T-24 o
 ## 9. Risks that affect the plan
 
 - **R-06 / AMB-11:** Azure access may be unavailable. T-24 records the blocker instead of claiming a deployment.
-- **R-02 / AMB-12:** Spring Boot 3.5 open-source support ended according to one unverified source. Check spring.io before the final build (T-01).
+- **R-02 / AMB-12:** Verified against the official Spring announcement (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/, dated 2026-06-25): Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and Spring says continued OSS support requires moving to 4.0.x or 4.1.x. The baseline is fixed by the brief (Boot 3.x), so the project runs on a line whose OSS support has ended. The developer accepts this risk in ADR-10 (G-02); the risk is not removed. Commercial support is a paid option and is not assumed.
 - **D-4:** the time window is unconfirmed (see §1).
 - **OD-2:** requirement numbering in `prompt-init.txt` (RF-01…RF-09) differs from `requirements.md` (RF-01…RF-06). The tasks follow `requirements.md`.
 - **OD-3 and OD-4:** event retention and report range limit are not decided. T-13 needs OD-4 before implementation; the rebuild test of T-16 needs OD-3.

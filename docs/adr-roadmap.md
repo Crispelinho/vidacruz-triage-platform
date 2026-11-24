@@ -76,7 +76,7 @@ These are choices, not analysis. Each one is blocking for its ADR.
 - **ADR-06 channel.** DEC-09 proposes a webhook. The developer must confirm that a mock receiver in docker-compose is acceptable for the evaluation.
 - **ADR-07 authentication.** DEC-05 proposes an API key in `X-API-Key`. Confirm, or choose JWT with its extra cost.
 - **ADR-11 Azure target.** Container Apps or AKS. Blocked by R-06 (subscription and quota). Record the blocker if access is not available.
-- **ADR-10 support risk.** R-02: Boot 3.5 open-source support has ended according to one source that is not fully verified. The developer must accept the risk, or choose a supported line, which the brief does not allow.
+- **ADR-10 support risk.** R-02 is verified: the official Spring announcement of 2026-06-25 (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/) states that Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and that continued OSS support requires 4.0.x or 4.1.x. The brief requires Boot 3.x, so the developer must accept the end of OSS support in ADR-10 and record the link; the alternative (a supported line) is excluded by the brief.
 
 ## 5. ADR template
 
