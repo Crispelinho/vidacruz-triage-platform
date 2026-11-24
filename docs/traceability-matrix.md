@@ -67,7 +67,7 @@ Each VAL rule has its own row so that the test and evidence can be linked one by
 | §7 | NFR-01 | C-01 (checked in 3, 4, 6, 8) | 1 `platform-foundation` | pending | — | — | — | plan |
 | §7 | NFR-02 | C-05 | 2 `event-driven-integration` | pending | — | — | — | plan |
 | §7 | NFR-03 | C-06 | 8 `clinical-assistant-rag` | pending | — | — | — | plan |
-| §7 | NFR-04 | C-05 (Triage independence), C-07 (Assistant side) | 2 `event-driven-integration` and 9 `emergency-state-projection` | pending | — | — | — | plan |
+| §7 | NFR-04 | C-05 (architecture check), C-04 (functional test), C-07 (Assistant side) | 2 `event-driven-integration` (architecture), 5 `triage-sla-escalation` (functional test, T-12), 9 `emergency-state-projection` | pending | — | — | — | plan |
 | §7 | NFR-05 | C-11 | 11 `observability` | pending | — | — | — | plan |
 | §7 | NFR-06 | C-11 | 11 `observability` | pending | — | — | — | plan |
 | §7 | NFR-07 | C-11 | 11 `observability` | pending | — | — | — | plan |
