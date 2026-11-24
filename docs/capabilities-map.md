@@ -15,7 +15,7 @@ A traceability unit is either a whole requirement or one part of a requirement t
 
 | ID | Capability | Service | Owns (traceability units) | Type |
 |---|---|---|---|---|
-| C-01 | `platform-foundation` | Both | Build, runtime, container and delivery baseline; shared audit table and its append-only constraint (NFR, TC sections of D1) | DERIVED |
+| C-01 | `platform-foundation` | Both | Build, runtime, container and delivery baseline; definition of the Triage audit table and its append-only constraint, shared by C-02 and C-03 inside Triage (NFR, TC sections of D1) | DERIVED |
 | C-02 | `triage-classification` | Triage | RF-01, RN-01, RN-02-A (SLA value at registration), RN-04-R (audit of registration), VAL-01…VAL-11, API-01, DEC-15 | EXPLICIT + DERIVED |
 | C-03 | `patient-lifecycle-audit` | Triage | RF-02, RN-04-T (audit of transitions and state history), API-02, API-03 | EXPLICIT + DERIVED |
 | C-04 | `triage-sla-escalation` | Triage | RF-03, RN-02-B (SLA evaluation), RN-03, DEC-04, AMB-04 | EXPLICIT |
@@ -46,11 +46,11 @@ Each traceability unit has exactly one owner. A requirement without parts has a 
 | RN-02-A | C-02 | — |
 | RN-02-B | C-04 | — |
 | RN-03 | C-04 | — |
-| RN-04-R (registration audit) | C-02 | C-01 (shared audit table) |
-| RN-04-T (transition audit) | C-03 | C-01 (shared audit table) |
+| RN-04-R (registration audit) | C-02 | C-01 (Triage audit table) |
+| RN-04-T (transition audit) | C-03 | C-01 (Triage audit table) |
 | RN-05 | C-06 | — |
 
-RN-04 is split into two units because the registration and the transitions are written by different capabilities. The audit table and its append-only constraint belong to C-01, as shared persistence. Each capability writes its own rows; no capability reads or depends on another capability to write audit.
+RN-04 is split into two units because the registration and the transitions are written by different capabilities. The audit table and its append-only constraint belong to C-01 as Triage persistence, shared by C-02 and C-03 inside Triage only. Each capability writes its own rows; no capability reads or depends on another capability to write audit.
 
 Coverage check: every RF-01…RF-06 and RN-01…RN-05 has at least one unit in this table, and each unit has one owner. Done criterion in §5.
 
@@ -60,14 +60,14 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 
 ### C-01 `platform-foundation`
 - **Services:** both.
-- **Goal:** both services build, run and start in containers with the pinned baseline (Spring Boot 3.5.16, Java 21, Gradle 8.14.8, Spring Cloud 2025.0.3, Spring AI 1.1.1 for the assistant). It owns the delivery path (CI pipeline, Docker images, docker-compose, Kubernetes and Azure manifests) and the shared audit table with its append-only constraint.
+- **Goal:** both services build, run and start in containers with the pinned baseline (Spring Boot 3.5.16, Java 21, Gradle 8.14.8, Spring Cloud 2025.0.3, Spring AI 1.1.1 for the assistant). It owns the delivery path (CI pipeline, Docker images, docker-compose, Kubernetes and Azure manifests) and the definition of the Triage audit table with its append-only constraint.
 - **Interfaces:** none beyond build and deployment definitions.
-- **Persistence:** shared audit table (append-only, no update or delete grant).
+- **Persistence:** the audit table belongs to Triage persistence (append-only, no update or delete grant). It is shared by C-02 and C-03 inside Triage. It is not a table shared between the two services.
 - **Depends on:** none. It is the first capability.
 - **Tests:** build succeeds on Java 21; containers start; CI runs build and tests on each pull request; manifests validate; the audit table rejects update and delete.
 
 ### C-05 `event-driven-integration`
-- **Services:** both. Triage publishes; Clinical Assistant consumes.
+- **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes the events required by C-07. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
 - **Goal:** every successful state change creates exactly one logical outbox event, written in the same transaction as the change. The publisher provides at-least-once delivery. Consumers process duplicate deliveries idempotently, so each event produces only one business effect.
 - **Interfaces:** envelope and payloads of EVT-01…EVT-04 (DEC-03); topic `triaje.eventos`. The outbox writer is used by C-02, C-03 and C-04.
 - **Persistence:** outbox table in Triage (DEC-14); processed-event record in Clinical Assistant.
