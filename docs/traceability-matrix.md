@@ -67,7 +67,7 @@ Each VAL rule has its own row so that the test and evidence can be linked one by
 | §7 | NFR-01 | C-01 (checked in 3, 4, 6, 8) | 1 `platform-foundation` | pending | — | — | — | plan |
 | §7 | NFR-02 | C-05 | 2 `event-driven-integration` | pending | — | — | — | plan |
 | §7 | NFR-03 | C-06 | 8 `clinical-assistant-rag` | pending | — | — | — | plan |
-| §7 | NFR-04 | C-05 (architecture check), C-04 (functional test), C-07 (Assistant side) | 2 `event-driven-integration` (architecture), 5 `triage-sla-escalation` (functional test, T-12), 9 `emergency-state-projection` | pending | — | — | — | plan |
+| §7 | NFR-04 | C-05 (architecture check), C-04 (functional test) | 2 `event-driven-integration` (architecture), 5 `triage-sla-escalation` (functional test, T-12) | pending | — | — | — | plan |
 | §7 | NFR-05 | C-11 | 11 `observability` | pending | — | — | — | plan |
 | §7 | NFR-06 | C-11 | 11 `observability` | pending | — | — | — | plan |
 | §7 | NFR-07 | C-11 | 11 `observability` | pending | — | — | — | plan |
@@ -88,6 +88,7 @@ Each VAL rule has its own row so that the test and evidence can be linked one by
 Notes:
 - NFR-16 (OpenTelemetry) is bonus. It is not in D4 and is listed as P2 in D6. It is not claimed as covered.
 - NFR-18 is a working rule, not code. Its evidence is the commit history of each change.
+- NFR-04 covers only the direction stated in the requirement: Triage must not depend on the Assistant. The reverse guarantee (the Assistant's projection makes no call to Triage, change 9, T-16) is a complementary architectural check. It is not direct coverage of NFR-04 and is not counted in its row.
 
 ## 6. Technical constraints
 
