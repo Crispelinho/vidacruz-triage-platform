@@ -73,9 +73,9 @@ The concrete policy is **not decided here** (Redis durability, gap identifier to
 
 **Proposal:** `TTL ≥ effective Kafka retention + safety margin`, counted from the time the event is processed.
 
-- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on pacienteSequence assignment (no registered gap identifier), which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
+- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on G-T06 (`pacienteSequence` generation and storage, registered in the Draft Triage service analysis), which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
 - The safety margin is a numeric value that is **pending**. It is not decided here.
-- The 30-day retention of OD-3 is a **working value only**. It is not a verified configuration in this branch and it is not an accepted decision.
+- The 30-day retention of OD-3 is recorded as a decision in documents on `develop` (PR #6), but no executable Kafka retention configuration is verified in this branch.
 - This proposal does not accept Option B, and it does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.
 - CA-G-11 remains **Open** until the user confirms the TTL explicitly.
 
@@ -98,7 +98,7 @@ These tests are required before the consumer is considered complete. They are no
 ## Open items (unresolved)
 
 - **CA-G-10:** consumed event list, pending confirmation from the Triage team.
-- **CA-G-18:** version compatibility of Spring Boot 3.5.16, Spring Cloud 2025.0.x and Spring AI 1.1.1, to verify before the first build. G-18 covers these versions. Sub-point, pending verification: compatibility of reactor-kafka with those versions and its maintenance status. G-18 does not cover reactor-kafka by itself.
+- **CA-G-18:** version and documentation consistency: end of open-source support for Spring Boot 3.5 (AMB-12, R-02), compatibility of Spring Boot 3.5.16, Spring Cloud 2025.0.x and Spring AI 1.1.1, and the Java 21 versus Java 25 mismatch between D1 and the skeletons, to verify before the first build. Sub-point, pending verification: compatibility of reactor-kafka with those versions and its maintenance status. G-18 does not cover reactor-kafka by itself.
 - **CA-G-11:** Redis dedupe TTL (`ProcessedEvent`) and its relation to Kafka retention (rebuild completeness: CA-G-24). **Pending.** The TTL value is not decided and is not accepted until the user confirms it explicitly.
 - **Redis durability** (gap identifier to be confirmed): concrete configuration (persistence mode, fsync policy, replication, acknowledgement level). The gap table covers persistence and the TTL in one entry, so the identifier must be confirmed before it is cited.
 - **DLT name and maximum retry count** (CA-G-09, to confirm).
