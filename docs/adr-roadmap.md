@@ -1,9 +1,9 @@
 # VidaCruz — ADR Roadmap (D3)
 
-Status: **draft for review.** ADR-04, ADR-08, ADR-09 and ADR-11 are drafted in `docs/adr/`; the remaining ADRs are still planned. No decision is accepted until the developer approves it.
+Status: **draft for review.** ADR-04, ADR-05, ADR-08, ADR-09 and ADR-11 are on `develop`; ADR-01, ADR-02, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/17) and are not duplicated here; ADR-06, ADR-07, ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`. Every decision is `Proposed` and no decision is accepted until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14).
+Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14); ADR-01, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 together with ADR-02 and Spec C-05, so this branch does not add competing copies of them; ADR-06, ADR-07, ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`.
 
 ## 1. Purpose
 
@@ -71,22 +71,23 @@ ADR-01, then ADR-10, ADR-14, ADR-03, ADR-02, ADR-13, ADR-07, ADR-12, then the As
 
 ADR-11 stays last. C-01 is first in §5 of the capabilities map, so its local delivery part (Dockerfiles, docker-compose, CI) starts before ADR-11; only its Azure manifests wait for it.
 
-### 3.4 Alternatives still missing
+### 3.4 Alternative coverage
 
-The ADR template (§5) requires at least two alternatives. ADR-04, ADR-08, ADR-09 and ADR-11 are drafted in `docs/adr/` with their alternatives. For the choices below, the decision register still does not provide two usable alternatives for the choice the ADR must make, so a second one must be added before drafting:
+The ADR template (§5) requires at least two alternatives. The ADRs added or revised here satisfy that rule; the missing alternatives were added from the source analysis, not attributed to the decision register:
 
-- ADR-05 (DEC-06): the register already has two framework alternatives (Spring AI and LangChain4j). If the ADR keeps «LLM provider» in its title, add a concrete model-provider alternative before drafting. The drafted ADR-04 is about pgvector isolation, not provider choice; its alternatives came from G-14, not DEC-06.
-- ADR-07 (DEC-05): only «JWT with external IdP».
-- ADR-14 (DEC-10): only «Shared database». ADR-08 is drafted from G-11/G-24.
-- ADR-10 (DEC-12, DEC-13): only «Boot 4.x» and «Java 25».
-- ADR-03 (DEC-14): only «Direct publish after commit».
-- ADR-12 (DEC-15): only «No idempotency».
+- ADR-05 (DEC-06): Spring AI and LangChain4j are in the framework comparison sourced from official documentation; concrete model-provider alternatives remain pending acceptance.
+- ADR-07 (DEC-05): "No authentication" was added as the rejected security alternative.
+- ADR-12 (DEC-15): "Global-key-only scope" was added as the rejected replay-scope alternative.
+- ADR-06 and ADR-13 add their alternatives from AMB-10/G-T09/G-T10/G-T11 and DEC-04/C-04 respectively.
+- ADR-01, ADR-03, ADR-10 and ADR-14 are covered by PR #17, which is the single home for those drafts; their alternatives are not restated in this branch.
 
-## 4. Decisions that need the developer before writing
+The open values listed in §4 are still blocking acceptance; an ADR with a pending value remains `Proposed`.
 
-These are choices, not analysis. Each one is blocking for its ADR.
+## 4. Decisions that need the developer before acceptance
 
-- **ADR-05 LLM provider.** The comparison must be made against official documentation of Spring AI and LangChain4j. No equivalence of features is assumed.
+These are choices, not analysis. Each one is blocking acceptance of its ADR.
+
+- **ADR-05 LLM provider.** The Spring AI versus LangChain4j comparison now cites official documentation; model, dimension, hardware, budget and ADR-11 evidence are still pending. No equivalence of features is assumed.
 - **ADR-06 channel.** DEC-09 proposes a webhook. The developer must confirm that a mock receiver in docker-compose is acceptable for the evaluation.
 - **ADR-07 authentication.** DEC-05 proposes an API key in `X-API-Key`. Confirm, or choose JWT with its extra cost.
 - **ADR-11 Azure target.** Container Apps or AKS. Blocked by R-06 (subscription and quota). Record the blocker if access is not available.
