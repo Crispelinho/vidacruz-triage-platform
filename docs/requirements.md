@@ -70,7 +70,7 @@ Objectives of the system:
 
 **Part B — urgency state.** `GET /asistente/estado-urgencias` (API-05).
 - Returns the count of patients not in `ALTA`, grouped by level.
-- Built only from `triaje.eventos` (no calls to the Triage API). Persisted as a projection (Redis or other store, DEC-06).
+- Built only from `triaje.eventos` (no calls to the Triage API). Persisted as a projection under DEC-10 / ADR-08 (Proposed); Redis or equivalent.
 
 ### RF-05 Operations report
 - **Endpoint:** `GET /triage/reportes/operacion?desde=...&hasta=...` (API-06), ISO 8601 range.
