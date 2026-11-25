@@ -53,7 +53,7 @@ Option A is what the current documents describe and is now accepted. G-T29 is cl
 ## What this record does not decide
 
 - The retention period of `EventoHistorico` (OD-5), which needs a clinical data retention and privacy review.
-- The assignment strategy of `pacienteSequence` (G-T06); the rebuild order depends on it.
+- The assignment strategy of `pacienteSequence` (G-T06, closed 2026-11-25 as a per-patient counter in the same transaction); the rebuild order depends on it, and implementation is still pending.
 - The backend of consumer deduplication (ADR-08, Proposed).
 - The republication target topic and the cut point between replayed and live events.
 - The clinical retention and erasure policy for the accepted durable record. Acceptance of Option A fixes which table is durable, not how long clinical history is kept.

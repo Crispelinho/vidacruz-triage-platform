@@ -86,7 +86,7 @@ The concrete policy is **not decided here** (Redis durability, gap identifier to
 
 **Proposal:** `TTL ≥ effective Kafka retention + safety margin`, counted from the time the event is processed.
 
-- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on G-T06 (`pacienteSequence` generation and storage, registered in the Draft Triage service analysis), which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
+- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it. G-T06 (`pacienteSequence` generation and storage) is now accepted as a contract (2026-11-25), but it is not implemented or runtime-verified here; that protection is therefore still not treated as executed evidence. This ADR's TTL proposal remains pending. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
 - The safety margin is a numeric value that is **pending**. It is not decided here.
 - The 30-day retention of OD-3 is recorded as a decision in documents on `develop` (PR #6), but no executable Kafka retention configuration is verified in this branch.
 - Option B was rejected by the closed decision; this proposal does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.

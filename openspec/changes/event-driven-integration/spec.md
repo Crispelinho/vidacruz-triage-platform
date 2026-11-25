@@ -1,8 +1,8 @@
 # Spec: event-driven-integration (C-05)
 
-Requirement IDs are defined in `docs/requirements.md`. Decision documentation lives in `docs/adr/` (ADR-02 and ADR-08 are on `develop`; ADR-01, ADR-03, ADR-10 and ADR-14 are in the consolidation branch and not yet on `develop`) and is summarized in `docs/adr-roadmap.md`. **Every ADR cited here is Proposed, not Accepted.** The durable-record decision is accepted (OPEN-09/OPEN-10: Option A; G-T29: 7 days); OD-5 remains open. This spec therefore states contracts and criteria, and it names the remaining decisions it depends on instead of settling them. Each scenario is verified by one automated test or by recorded evidence.
+Requirement IDs are defined in `docs/requirements.md`. Decision documentation lives in `docs/adr/` (ADR-02 and ADR-08 are on `develop`; ADR-01, ADR-03, ADR-10 and ADR-14 are in the consolidation branch and not yet on `develop`) and is summarized in `docs/adr-roadmap.md`. **Every ADR cited here is Proposed, not Accepted.** The durable-record decision (OPEN-09/OPEN-10: Option A; G-T29: 7 days), the publisher client (G-T25), the `pacienteSequence` contract (G-T06) and the broker-outage posture are accepted; OD-5 remains open. This spec therefore states contracts and criteria, and it names the remaining decisions it depends on instead of settling them. Each scenario is verified by one automated test or by recorded evidence.
 
-Risk IDs cite only the risk register in `docs/requirements.md` §17 (R-01…R-10). Open decisions cite `OD-5` (`docs/capabilities-map.md`) and the gaps `G-T06` and `G-T25` (`docs/services/triage-service.md`); the closed record `docs/decisions/OPEN-09-10-outbox-durability-recovery.md` and `G-T29` (7 days) are cited as accepted decisions, not open ones.
+Risk IDs cite only the risk register in `docs/requirements.md` §17 (R-01…R-10). Open decisions cite `OD-5` (`docs/capabilities-map.md`); the closed record `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`, `G-T29` (7 days), `G-T25` (publisher only), `G-T06` (sequence contract) and the backoff-only posture are cited as accepted decisions, not open ones.
 
 **Decisions this spec depends on and does not settle:**
 
@@ -11,8 +11,8 @@ Risk IDs cite only the risk register in `docs/requirements.md` §17 (R-01…R-10
 | Consumer deduplication backend (PostgreSQL or Redis) | ADR-08 (projection store), ADR-02 (consumer) | Proposed |
 | Durable record and outbox published-row retention | `OPEN-09-10-outbox-durability-recovery.md` (Option A), G-T29 (7 days) | Accepted (2026-11-25) |
 | Retention period of `EventoHistorico` | OD-5 | Open |
-| `pacienteSequence` assignment mechanism | G-T06 | Open |
-| Reactive Kafka client library for the publisher | G-T25 | Open |
+| `pacienteSequence` assignment mechanism | G-T06 (`docs/services/triage-service.md`, §5.1) | Accepted (2026-11-25): per-patient counter in the same transaction |
+| Reactive Kafka client library for the C-05 publisher | G-T25 (`docs/services/triage-service.md`, ADR-03) | Accepted (2026-11-25): spring-kafka async adapter; consumer not included |
 | Publisher behavior during a long broker outage | ADR-03 (backoff only, no circuit breaker) | Accepted (2026-11-25) |
 
 ---
@@ -256,7 +256,7 @@ If the transaction commits, all rows exist. If it rolls back, none exist. **Scen
 
 ### 3.1 Publisher responsibility
 
-The **Outbox Publisher** is a reactive pipeline on R2DBC and a non-blocking Kafka client. It is **not** a blocking `@Scheduled` method, it never calls `.block()`, and it never uses JDBC on an event-loop thread (NFR-01, TC-03). The Kafka client library is open (G-T25). The skeleton declares `spring-boot-starter-kafka` (`spring-kafka`), whose `KafkaTemplate` API is blocking. Calling it directly from the reactive pipeline does **not** meet NFR-01. G-T25 requires `reactor-kafka` or an explicit adapter that keeps the blocking calls off the event loop. The reactive publisher of this section cannot be implemented until G-T25 is closed, and the TST-RXN check (BlockHound or equivalent) applies to whichever client is chosen.
+The **Outbox Publisher** is a reactive pipeline on R2DBC and a non-blocking Kafka client. It is **not** a blocking `@Scheduled` method, it never calls `.block()`, and it never uses JDBC on an event-loop thread (NFR-01, TC-03). **G-T25 is accepted (2026-11-25) for the C-05 publisher:** keep the maintained Spring Kafka `KafkaTemplate` as the Kafka client and use Project Reactor as the composition layer through `Mono.defer(() -> Mono.fromFuture(template.send(record)))` with `suppressCancel = false`. `KafkaTemplate.send(...)` returns `CompletableFuture<SendResult>`; this adapter does not block the event loop. `reactor-kafka` is excluded because it is discontinued and archived, so no new Kafka dependency is introduced. This decision closes only the publisher; the Assistant consumer model stays in ADR-02 and is not decided here. The send starts on subscription, so backpressure is imposed upstream by the claim batch size and a bounded number of in-flight sends, not by the Kafka client. TST-RXN (BlockHound or equivalent) applies to this publisher path.
 
 On each cycle, triggered by a reactive timer at a configurable interval, it does the following:
 1. **Claim** a bounded batch of pending rows (`publicado_en IS NULL AND requiere_revision = FALSE`) in a short R2DBC transaction that stamps `claimado_por`, `claimado_en` and `claim_expira_en`. The claim query uses `FOR UPDATE SKIP LOCKED` only inside that transaction, then commits (ADR-03). Several replicas can run the publisher without holding a valid lease on the same row at the same time.
@@ -264,7 +264,7 @@ On each cycle, triggered by a reactive timer at a configurable interval, it does
 3. **Mark** the row published (`publicado_en`, `publicado_por`) in a separate short transaction after the acknowledgement, guarded by `id` and `claimado_por`. If the update affects 0 rows, the lease expired or another replica won; the possible duplicate is handled by §4.
 4. **Release** the claim on failure (`claimado_por`, `claimado_en`, `claim_expira_en` set to NULL) only if this publisher still owns the row, then **record failures** (§3.4) and continue with the next row.
 
-A row with an expired lease (`claim_expira_en <= CURRENT_TIMESTAMP`) becomes claimable again. At-least-once delivery means a crash or an expired lease can produce a duplicate; ADR-02 deduplicates by `eventId`. The lease duration must exceed `send-timeout-ms` so a live publisher does not lose its own claim while a slow broker acknowledges.
+A row with an expired lease (`claim_expira_en <= CURRENT_TIMESTAMP`) becomes claimable again. At-least-once delivery means a crash or a genuinely expired lease can produce a duplicate; ADR-02 deduplicates by `eventId`. **Lease invariant (accepted with G-T25):** a live publisher must not lose its claim while a row is in flight. The lease either covers the **full publication budget** — all send attempts, accumulated backoff, ACK confirmation and the publish-mark transaction — or it is renewed before expiry while the row remains in flight. `lease-seconds > send-timeout-ms` alone is not sufficient. No other replica may reclaim a row that still has an in-flight send. Cancellation or timeout is not proof that Kafka rejected the send: the row is never marked published without a confirmed ACK, and a later duplicate delivery is safe because `eventId` is the idempotence key.
 
 ### 3.2 Delivery guarantee
 
@@ -288,7 +288,8 @@ A row with an expired lease (`claim_expira_en <= CURRENT_TIMESTAMP`) becomes cla
 
 **Scenarios that hold under the accepted posture:**
 - If the Kafka broker is down, the publisher logs the error without patient identifiers, keeps the row unpublished and retries with backoff; no row is lost.
-- A row that fails for a reason specific to that row (for example a serialization error) does not stop the other rows (§3.4).
+- `retryWhen` retries **only transient Kafka errors**. Serialization failures, record-construction failures, invalid payloads and synchronous exceptions thrown when invoking `send()` are row-level errors (§3.4); they do not enter the infrastructure retry loop and do not block other rows.
+- A cancelled or timed-out send is indeterminate: Kafka may still have received it. The row stays unpublished until an ACK is confirmed; a later re-send can produce a duplicate, which `eventId` makes harmless. A timeout is never evidence that the broker did not receive the event.
 
 ### 3.4 Publish failure handling
 
@@ -300,7 +301,7 @@ A row with an expired lease (`claim_expira_en <= CURRENT_TIMESTAMP`) becomes cla
 
 ### 3.5 Configuration
 
-The names and values below are **illustrative** and not decided, except `published-retention: 7d` (G-T29, accepted 2026-11-25). The publisher uses backoff only (§3.3); no circuit-breaker setting exists for Kafka.
+The names and values below are **illustrative** and not decided, except `published-retention: 7d` (G-T29, accepted 2026-11-25). The publisher uses the accepted spring-kafka async adapter (G-T25) and backoff only (§3.3); no circuit-breaker setting exists for Kafka.
 
 ```yaml
 triage:
@@ -308,9 +309,10 @@ triage:
     publisher:
       interval-seconds: 5          # reactive timer interval
       batch-size: 100              # rows claimed per cycle
+      max-in-flight-sends: 20      # illustrative; upper bound for concurrent sends (G-T25)
       send-timeout-ms: 10000       # bound on one reactive send wait
-      lease-seconds: 30            # illustrative; must exceed send-timeout-ms (§3.1)
-      # Backoff on Kafka error (used by both options of §3.3)
+      lease-seconds: 30            # illustrative; must cover the full publication budget or be renewed (§3.1)
+      # Backoff on transient Kafka errors only; row-level errors follow §3.4
       retry-base-delay-ms: 5000
       retry-max-delay-ms: 60000
       retry-multiplier: 1.5
@@ -364,7 +366,7 @@ The backend of the processed-event record and of the per-patient sequence guard 
 
 **Scenario:** a consumer receives `paciente_registrado` event #1 for patient P123 and updates the projection (count = 1 for level CRITICO). The consumer crashes and restarts. The same event is re-delivered. The consumer recognizes it (C1/C2) and skips it. The projection count remains 1 (not 2).
 
-**Scenario:** a delivery that arrives after a restart, and within the marker retention (C5), is recognized by `eventId`. A delivery that arrives after the marker retention is still rejected by the sequence guard (C2), provided the per-patient sequence record survives. Because the sequence storage is open (G-T06), that protection is not treated as a closed guarantee.
+**Scenario:** a delivery that arrives after a restart, and within the marker retention (C5), is recognized by `eventId`. A delivery that arrives after the marker retention is still rejected by the sequence guard (C2), provided the per-patient sequence record survives. The assignment contract is closed (G-T06, 2026-11-25), but its implementation and runtime verification are still pending; until the tests exist, this protection is not treated as executed evidence.
 
 ---
 
@@ -399,7 +401,16 @@ Order per patient relies on two layers.
 
 The numeric gap timeout and map size remain configuration pending explicit confirmation under ADR-02/ADR-08; the protocol itself is fixed and is tested in §7.9.
 
-**Proposed mechanism (not decided, G-T06):** a per-patient counter column on the patient row (`ultima_secuencia` in `docs/services/triage-service.md`), incremented in the same transaction as each outbox row. The row lock taken by the update serializes concurrent writers of the same patient. An alternative is deriving the next value from the maximum stored sequence and relying on the unique constraint to reject races; it needs a retry on conflict and is slower under contention. The choice stays open until G-T06 is closed.
+**Accepted mechanism (G-T06, developer, 2026-11-25):** a per-patient counter column `paciente.ultima_secuencia BIGINT NOT NULL DEFAULT 0`. Triage's application service assigns the sequence in the **same R2DBC transaction** that persists the state change, the counter, the outbox row, the audit row and the `EventoHistorico` row. Registration inserts the patient with `ultima_secuencia = 1` and EVT-01 with `pacienteSequence = 1`. Later events use `UPDATE ... SET ultima_secuencia = ultima_secuencia + 1 ... RETURNING ultima_secuencia`; the returned value is the assigned sequence. A PostgreSQL `SEQUENCE` is rejected because its increments are not rolled back with the business transaction and would leave gaps among committed events.
+
+**Transaction and result handling:**
+- All writes share the same R2DBC transactional context (`TransactionalOperator`); being in the same reactive flow is not enough. If the outbox, audit or history write fails, the counter increment is rolled back too (criterion §7.11).
+- One returned row: the sequence was obtained; continue the operation.
+- No returned row: the state/escalation guard was not met; follow the G-T24 conflict path. Do not allocate a sequence in this case.
+- Integrity or database error: classify it; never invent a sequence outside the transaction.
+- On a transient database failure, roll back and re-execute the **complete transactional operation**. Do not retry only the event insert after losing the assignment context.
+
+**Concurrency, duplicates and pending publications:** the row lock taken by the guarded `UPDATE` serializes concurrent writers of the same patient; under `READ COMMITTED` a waiting writer re-evaluates its guard against the committed row. `UNIQUE (paciente_id, paciente_sequence)` is a safety net, not the normal allocator. A publisher retry or a G-T25 timeout reuses the original `eventId` and sequence; no renumbering occurs. Committed sequences are contiguous by construction; gaps observed by a consumer are delivery gaps, handled by the pending map and DLT rule above. G-T03 (request idempotency), G-T24 (conflict response) and the ADR-02 consumer model remain separate decisions.
 
 **Scenario:** for patient P123, three events occur in this order:
 1. `paciente_registrado` (time 10:00:00, `pacienteSequence` = 1, eventId = UUID-A)
@@ -572,27 +583,55 @@ Both services use Testcontainers to run PostgreSQL and Kafka (and Redis if ADR-0
 
 **Verification:** DB lock query, outbox row state, Kafka offsets, DLT record and projection counts.
 
+### 7.10 Reactive publisher client (G-T25, accepted 2026-11-25)
+
+Acceptance criteria for the implementation; all unchecked here.
+
+- [ ] A claimed row's `send(...)` is not invoked before subscription to the returned `Mono`.
+- [ ] Each transient retry resubscribes to the deferred `Mono` and invokes `KafkaTemplate.send(...)` again; a row-level error invokes no infrastructure retry.
+- [ ] Cancellation with `suppressCancel = false` does not set `publicado_en`; a late ACK is discarded and the claim is released without marking the row.
+- [ ] A timeout may produce a duplicate delivery, but no logical loss: the row stays unpublished until ACK and `eventId` deduplicates the duplicate.
+- [ ] In-flight sends are bounded by `max-in-flight-sends`; the publisher does not claim more rows while at the cap.
+- [ ] The lease covers the full publication budget or is renewed while the row is in flight; no second replica obtains a valid lease during retries.
+- [ ] Row-level failures (serialization, record construction, invalid payload, synchronous `send()` exceptions) update failure columns and never block other rows.
+- [ ] BlockHound (or equivalent) reports no blocking call on the reactive publisher path.
+
+**Verification:** spy on `KafkaTemplate.send(...)`, cancellation/timeout tests, bounded-concurrency test, lease assertions, outbox row state and a BlockHound run. These are definitions, not executed evidence.
+
+### 7.11 `pacienteSequence` assignment (G-T06, accepted 2026-11-25)
+
+Acceptance criteria for the implementation; all unchecked here.
+
+- [ ] Two concurrent writers of the same patient obtain distinct, contiguous sequences; no `(paciente_id, paciente_sequence)` pair repeats.
+- [ ] A failed transaction leaves the patient counter at its previous value: no increment without the outbox, audit and history writes.
+- [ ] If any associated write fails, the counter remains unchanged and no event is emitted.
+- [ ] A zero-row `UPDATE RETURNING` follows the G-T24 conflict path and does not allocate a sequence.
+- [ ] A transient database failure re-executes the complete transactional operation, not only the event insert.
+- [ ] A re-send keeps the original `eventId` and sequence; reconstruction from `EventoHistorico` preserves order and original values.
+- [ ] Stale and future sequences follow C2 and §5.1; EVT-03/EVT-04 are not applied with an unknown level.
+
+**Verification:** concurrent-transaction test, forced failure between writes, spied `UPDATE ... RETURNING`, outbox and history row assertions. These are definitions, not executed evidence.
+
 ---
 
 ## 8. Acceptance Criteria
 
-**Status:** specification draft. The event contract is aligned with `docs/requirements.md` §10. The durable record (Option A), the 7-day outbox retention and the broker-outage posture (backoff only) are accepted; the remaining decisions named at the top are still open.
+**Status:** specification draft. The event contract is aligned with `docs/requirements.md` §10. The durable record (Option A), the 7-day outbox retention, the broker-outage posture, the G-T25 publisher client and the G-T06 sequence contract are accepted; the ADRs listed below remain Proposed.
 
-**Gates:** implementation does not begin until these are **Accepted** (all are Proposed or Open today):
-- ADR-02 (Kafka envelope, at-least-once, consumer model) and ADR-03 (transactional outbox). The broker-outage posture inside ADR-03 is closed, but the ADR itself is still Proposed.
+**Gates:** implementation does not begin until these are **Accepted** (all are Proposed today):
+- ADR-02 (Kafka envelope, at-least-once, consumer model) and ADR-03 (transactional outbox). The broker-outage posture, G-T25 and G-T06 sub-decisions are closed, but ADR-03 itself is still Proposed. ADR-02's consumer model is a separate decision and is not closed by G-T25 or G-T06.
 - ADR-08, for the idempotence backend (§4.2).
 - The decision record `OPEN-09-10-outbox-durability-recovery.md` and G-T29, for the outbox retention (§2.3): **Accepted** as Option A with 7 days on 2026-11-25; no longer a gate. OD-5 stays open but does not gate C-05 implementation.
-- G-T06, for the `pacienteSequence` mechanism (§5.1), and G-T25, for the reactive Kafka client (§3.1).
 
-**Accepted, not a gate:** the publisher posture of §3.3 (backoff only, no circuit breaker; developer, 2026-11-25, recorded in ADR-03).
+**Accepted, not gates:** the publisher posture of §3.3 (backoff only, no circuit breaker; developer, 2026-11-25, recorded in ADR-03), G-T25 (spring-kafka async adapter for the publisher only, §3.1 and §7.10) and G-T06 (per-patient counter in the same transaction, §5.1 and §7.11).
 
 **Completion criteria for C-05 (unchecked until verified by the evidence below):**
 
 1. [ ] Event envelope (EVT-01…EVT-04) is defined in schema and matches `requirements.md` §10 (including `schemaVersion` as a number).
 2. [ ] Outbox table exists in Triage PostgreSQL with the schema, failure columns and indexes of §2.1.
 3. [ ] State change, audit row, outbox row and `EventoHistorico` row occur in a single R2DBC transaction (accepted Option A; DER-02 verified).
-4. [ ] The publisher is reactive (no blocking `@Scheduled`, no `.block()`), drains unpublished rows to Kafka with at-least-once delivery, and marks rows only after broker acknowledgement.
-5. [ ] Per-patient order is protected by the partition key and by `pacienteSequence` (§5.1).
+4. [ ] The publisher is reactive through the accepted G-T25 adapter (no blocking `@Scheduled`, no `.block()`, bounded in-flight sends), drains unpublished rows to Kafka with at-least-once delivery, and marks rows only after broker acknowledgement.
+5. [ ] Per-patient order is protected by the partition key and by `pacienteSequence` assigned under the accepted G-T06 contract (§5.1, §7.11).
 6. [ ] Consumer idempotence meets the contract C1–C7 of §4.1; a second delivery has no effect.
 7. [ ] A broker outage is handled by backoff only with no circuit breaker (accepted posture, §3.3), without blocking the request path and without a retry storm on recovery.
 8. [ ] The dead-letter topic captures permanent and exhausted-transient errors, and the offset is acknowledged only after the dead-letter publication is confirmed.
@@ -610,12 +649,13 @@ All boxes are unchecked in this PR: the scenarios above are acceptance definitio
 | EVT-01…EVT-04 contract | Integration test: `POST /triage/pacientes` → event in Kafka with correct envelope |
 | DER-02 transaction | Integration test: patient insert fails → no outbox row; under Option A, forced failure between outbox and history writes → neither persists |
 | At-least-once delivery | Integration test: publisher crash → event re-published on restart; consumer contract prevents a second effect |
-| Per-patient order | Integration test (§7.4): sequences 1, 2, 3 produce the expected state; a stale event changes nothing |
+| Per-patient order | Integration test (§7.4): sequences 1, 2, 3 produce the expected state; a stale event changes nothing. Assignment checklist (§7.11) is not executed in this spec |
 | Consumer idempotence | Integration test (§7.3): same event twice → projection count increments only once |
 | Marker retention (C5) | Configuration test: marker retention is at least the configured Kafka retention plus margin |
 | Broker outage | Integration test (§7.2): Kafka down → `POST /triage/pacientes` returns 201; outbox waits; drains when the broker returns |
 | Failure columns | Integration test (§7.7) |
 | Claim lease and no lock during ACK | Integration test (§7.9): `pg_locks`/transaction check during a slow ACK; expired lease reclaimed; duplicate deduplicated |
+| Reactive publisher client (G-T25) | Acceptance checklist (§7.10) on a spied `KafkaTemplate`; not executed in this spec |
 | Future events and unresolved gap | Integration test (§7.9): sequence 1 → 3 → 2 applies in order; sequence 1 → 5 ends in the DLT with `GAP_UNRESOLVED` |
 | Dead-letter topic | Integration test (§7.6): invalid `schemaVersion` → event in the dead-letter topic with metadata |
 | Outbox cleanup | Integration test (§7.5) with two retention values |
@@ -660,7 +700,7 @@ No other Risk ID is cited. `docs/requirements.md` §17 has no entry for outbox r
 - **OD-3 (decided in documents, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted durable source for full reconstruction (OPEN-09/10 closed as Option A on 2026-11-25). The 30 days are not yet verified as configuration. The marker retention of §4.1 C5 derives from this value.
 - **OD-5 (open):** retention period of `EventoHistorico`.
 - **OPEN-09/OPEN-10 and G-T29 (closed 2026-11-25):** Option A, 7-day configurable cleanup; OD-5 remains open.
-- **G-T06 (open):** `pacienteSequence` assignment. **G-T25 (open):** reactive Kafka client.
+- **G-T06 (closed 2026-11-25):** per-patient counter incremented in the same transaction via `UPDATE ... RETURNING`; not implemented or runtime-verified here. **G-T25 (closed 2026-11-25):** spring-kafka async adapter for the C-05 publisher only; the ADR-02 consumer model remains open.
 
 **Capabilities enabled by C-05:**
 

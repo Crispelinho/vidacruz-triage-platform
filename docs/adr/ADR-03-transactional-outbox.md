@@ -1,8 +1,8 @@
 # ADR-03: Transactional Outbox Pattern for Event Publication
 
-- **Status:** Proposed. Not accepted. The claiming protocol and the broker-outage posture are specified below; the outage posture is accepted (developer, 2026-11-25) as backoff only with no circuit breaker. The remaining verification gates still apply before this ADR and ADR-02 can be accepted.
+- **Status:** Proposed. Not accepted. The claiming protocol, the broker-outage posture and the publisher client are specified below; the outage posture (backoff only, no circuit breaker) and G-T25 (spring-kafka async adapter) are accepted decisions of 2026-11-25. The remaining verification gates still apply before this ADR and ADR-02 can be accepted.
 - **Date:** 2026-11-25
-- **Deciders:** developer (broker-outage posture decided 2026-11-25; ADR acceptance pending)
+- **Deciders:** developer (broker-outage posture and G-T25 publisher client decided 2026-11-25; ADR acceptance pending)
 - **Scope:** The Triage service outbox publisher: responsibility, claiming strategy, batch semantics, failure handling, and behavior during broker outages. It does NOT decide the outbox schema (ADR-14, Spec C-05 §2.1) or the consumer deduplication (ADR-02). ADR-03 sits between application writes (DER-02) and Kafka delivery.
 - **Related:** DER-02 (transactional guarantee), DER-03 (idempotent consumer), DER-09 (durable event history), R-07 (dual writes), R-08 (duplicate/out-of-order), ADR-01 (service boundary), ADR-02 (consumer envelope and dedup), ADR-08 (store backend), ADR-14 (database ownership), Spec C-05 (outbox schema, publisher semantics, failure scenarios), `docs/services/triage-service.md` §4.3, `requirements.md` §10 (DER-02, DER-03, DER-09)
 
@@ -40,12 +40,13 @@ A reactive publisher faces three decisions:
 | **B. Short lease claim + circuit breaker (Resilience4j)** | Same claim protocol, plus a breaker around the send; bounds broker load during a prolonged outage. | Adds a state machine (closed, open, half-open) and explicit failure classification so a bad row does not open the breaker. **Rejected for this scope (2026-11-25):** no evidence yet that the extra state is needed; may be revisited in a new ADR. |
 | **C. `FOR UPDATE SKIP LOCKED` held until ACK** | No lease columns; one transaction covers claim, send and mark. | Holds row locks during network I/O, serializes replicas on hot rows and increases contention during a broker outage. **Rejected.** |
 | **D. Polling without claiming (no mutual exclusion)** | Simplest: publisher just polls and sends. | Multiple replicas send the same row; Kafka receives duplicates; consumers must handle them (DER-03). Higher broker load. Only viable if the broker can absorb the extra load. |
+| **E. `reactor-kafka` reactive producer** | Native reactive Kafka API with backpressure. | **Rejected (2026-11-25):** discontinued in May 2025 and the repository is archived. The maintained spring-kafka producer plus Project Reactor covers the C-05 publisher without a new dependency. |
 
 ---
 
 ## Decision
 
-**Proposed: Option A.** Claim with a short lease transaction, send outside any database transaction, then mark published in a separate guarded transaction. Exponential backoff applies to transient failures. The broker-outage posture is also decided: backoff only, no circuit breaker (developer, 2026-11-25); it is recorded below.
+**Proposed: Option A.** Claim with a short lease transaction, send outside any database transaction, then mark published in a separate guarded transaction. Exponential backoff applies to transient failures. Two sub-decisions are accepted: backoff only with no circuit breaker, and G-T25 (maintained spring-kafka producer composed with Project Reactor, no `reactor-kafka`). Both are recorded below.
 
 **Row claiming (short transaction):**
 - Each publisher cycle claims a bounded batch by atomically stamping a lease. The claim transaction commits before any Kafka call:
@@ -72,7 +73,7 @@ A reactive publisher faces three decisions:
 - A row becomes eligible for reclaim when its lease expires (`claim_expira_en <= CURRENT_TIMESTAMP`). A crash or an expired lease can cause a duplicate send; ADR-02 deduplicates by `eventId`.
 
 **Publication (no database transaction during ACK):**
-- Send each claimed row with the non-blocking client (reactor-kafka or adapter; G-T25) and wait reactively for the broker acknowledgement. No R2DBC transaction and no row lock are open while waiting.
+- Send each claimed row through the accepted G-T25 adapter (`Mono.defer(() -> Mono.fromFuture(template.send(record)))`, `suppressCancel = false`) and wait reactively for the broker acknowledgement. No R2DBC transaction and no row lock are open while waiting.
 - On success, mark the row published in a separate short transaction, guarded by ownership:
   ```sql
   UPDATE outbox_evento
@@ -109,7 +110,7 @@ outbox:
   publisher:
     batch-size: 100
     send-timeout-ms: 10000
-    lease-seconds: 30          # must exceed send-timeout-ms
+    lease-seconds: 30          # illustrative; must cover the full publication budget or be renewed (G-T25)
     retry-base-delay-ms: 5000
     retry-max-delay-ms: 60000
     retry-multiplier: 1.5
@@ -134,6 +135,43 @@ outbox:
 **Rejected for this scope:** a Resilience4j breaker around the send. It would need explicit failure classification so a row-level fault does not open the breaker, and it offers no request-path benefit. It may be proposed later in a new ADR if production metrics show unacceptable backlog or broker load.
 
 **Future enhancement, not an open gate:** configuration keeps the failure policy separate so a breaker can be added without rewriting the publisher. This is an evidence-conditioned option, not a pending decision that blocks this ADR.
+
+---
+
+## Publisher Client: G-T25 (Accepted 2026-11-25)
+
+**Decision:** the C-05 publisher uses Spring Kafka's `KafkaTemplate` as the Kafka client and Project Reactor as the composition layer; `reactor-kafka` is not used. This closes the publisher side only. The Assistant consumer model remains an ADR-02 decision and is not settled here.
+
+| Element | Decision |
+|---|---|
+| Producer | `KafkaTemplate` from the maintained `spring-kafka` dependency already present in the skeleton |
+| Adaptation | `Mono.defer(() -> Mono.fromFuture(template.send(record)))` |
+| Cancellation | `suppressCancel = false` |
+| Blocking | No `.block()` on the event loop |
+| Retries | Exponential backoff with a configurable cap, transient errors only |
+| Broker | Same broker; no second cluster |
+| Circuit breaker | No |
+| ACK | Required before `publicado_en` is set |
+| Idempotence | `eventId` |
+| Consumer | Out of scope; ADR-02 remains open |
+
+**Evidence:** [reactor-kafka discontinuation notice](https://raw.githubusercontent.com/spring-attic/reactor-kafka/main/README.md), [archived repository](https://api.github.com/repos/spring-attic/reactor-kafka), [Spring Kafka async send](https://github.com/spring-projects/spring-kafka/blob/main/spring-kafka-docs/src/main/antora/modules/ROOT/pages/kafka/sending-messages.adoc), [Reactor `Mono.fromFuture`](https://github.com/reactor/reactor-core/blob/main/reactor-core/src/main/java/reactor/core/publisher/Mono.java).
+
+**Precision 1 — lease and retries.** `lease-seconds > send-timeout-ms` is not enough. A live publisher must not lose its claim while a row is in flight: the lease covers the full publication budget (all send attempts, accumulated backoff, ACK confirmation and the publish-mark transaction) or is renewed before expiry. No replica may reclaim a row with an in-flight send.
+
+**Precision 2 — cancellation and duplicates.** Cancelling the `CompletableFuture` does not prove that Kafka cancelled physical delivery. A cancelled or timed-out send is indeterminate: never set `publicado_en` without a confirmed ACK; accept that the event may already have reached the broker; keep `eventId` as the idempotence mechanism; never treat a timeout as proof of non-delivery.
+
+**Precision 3 — error classification.** `retryWhen` retries only transient Kafka errors. Serialization failures, record-construction failures, invalid payloads and synchronous exceptions thrown when invoking `send()` are row-level errors (Spec C-05 §3.4): they update `intentos`/`ultimo_error` and do not enter the infrastructure retry loop or block other rows.
+
+**Implementation checklist (definitions, not executed evidence):**
+- [ ] `send(...)` is not invoked before subscription to the deferred `Mono`.
+- [ ] Each transient retry invokes `KafkaTemplate.send(...)` again; row-level errors invoke no retry.
+- [ ] Cancellation does not set `publicado_en`; a late ACK is discarded.
+- [ ] A timeout can duplicate but cannot cause logical loss; `eventId` deduplicates.
+- [ ] In-flight sends are bounded; no extra rows are claimed at the cap.
+- [ ] The lease covers the full budget or is renewed; no second valid lease exists during retries.
+- [ ] Row-level failures update failure columns and do not block other rows.
+- [ ] BlockHound (or equivalent) reports no blocking call on the publisher path.
 
 ---
 
@@ -165,8 +203,8 @@ outbox:
   - **Probability:** Medium (expected on restarts or multiple replicas).
   - **Impact:** Consumer applies order guard; no business impact if implemented correctly.
 
-- **Failure classification ambiguity:** A timeout can be transient (retry) or permanent (bad row takes too long to serialize). The threshold-based approach (failure window + count) is a heuristic, not a guarantee.
-  - **Mitigation:** Alerting on threshold and operator review before auto-flagging.
+- **Failure classification ambiguity:** A timeout can be transient (retry) or indeterminate (the broker may have received the event). Row-level errors — serialization, record construction, invalid payload and synchronous `send()` exceptions — are classified before `retryWhen`, but the failure window/count remains a heuristic for recurring bad rows.
+  - **Mitigation:** No ACK means no `publicado_en`; `eventId` deduplicates indeterminate duplicates. Alerting on threshold and operator review before auto-flagging.
 
 ---
 
@@ -182,7 +220,8 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 - [ ] Backoff is tested: a row with exponential backoff eventually succeeds after broker recovery, and the attempt rate stays bounded by the configured cap (no retry storm) with no circuit breaker in the publisher.
 - [ ] Kafka retention (OD-3: 30 days) is verified as configuration in the deployment pipeline before this ADR is accepted.
 - [ ] Alerting is configured: when a row reaches the failure threshold, an alert is raised (NFR-07).
-- [ ] ADR-02 (consumer) acceptance is not blocked by this ADR once claiming, failure handling and retry logic are in place.
+- [ ] The G-T25 implementation checklist above passes: deferred send, transient-only retries, cancellation without premature mark, bounded in-flight sends, lease budget/renewal and no blocking calls.
+- [ ] ADR-02 (consumer) acceptance is not blocked by this ADR once claiming, failure handling and retry logic are in place. The consumer model remains a separate ADR-02 decision.
 
 ---
 
@@ -201,5 +240,5 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 ## Linked Open Decisions
 
 - **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted durable source for full reconstruction (OPEN-09/OPEN-10 closed as Option A on 2026-11-25). G-T29 is closed at 7 days.
-- **G-T25 (open):** Reactive Kafka client library (reactor-kafka or explicit adapter). spring-kafka is blocking and does not meet NFR-01.
+- **G-T25 (closed 2026-11-25, publisher only):** spring-kafka `KafkaTemplate` adapted with `Mono.defer`/`Mono.fromFuture` and Project Reactor; `reactor-kafka` rejected as discontinued. The ADR-02 consumer model is not decided by this closure.
 - **Broker outage posture (closed 2026-11-25):** backoff only, no circuit breaker and no second broker; see Spec C-05 §3.3 and the decision recorded above. A future breaker remains conditional on operational evidence and a new ADR.
