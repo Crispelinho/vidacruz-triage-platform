@@ -280,8 +280,10 @@ Testcontainers is recommended (NFR-17). Coverage target is a team decision; not 
 | ADR-10 | Spring Boot 3.x line and end-of-support risk | DEC-12, R-02 |
 | ADR-11 | Azure target: Container Apps or AKS | §14 |
 | ADR-12 | Idempotency-Key replay for registration | DEC-15, R-09 |
+| ADR-13 | SLA evaluation mechanism (scheduled job, conditional update) | DEC-04 |
+| ADR-14 | Database ownership: one PostgreSQL per service | DEC-10 |
 
-The brief requires at least two; this plan has twelve candidates. Full content goes in D3.
+The brief requires at least two; this plan has fourteen candidates (ADR-13 and ADR-14 added after the D3 review). Full content goes in D3.
 
 ## 17. Traceability summary
 
