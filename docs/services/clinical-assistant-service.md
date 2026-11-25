@@ -155,6 +155,8 @@ All events use the envelope in D1 §10 (DEC-03): `eventId`, `eventType`, `schema
 4. Run one atomic Lua update in Redis that applies section 8.3 and writes the `eventId` marker in the same step. For EVT-03/EVT-04 the consumer passes the `nivel` already stored for the patient.
 5. Acknowledge the offset only after step 4 has succeeded (at-least-once). A Redis failure or a pending gap leaves the offset uncommitted and retries with backoff.
 
+**Open contradiction for ADR-02 (not decided here):** Spec C-05 §5.1 currently says consumption of other patients and partitions continues during a gap, while this section and ADR-02's partition-recovery rule require pausing the affected partition and committing no offset past the pending record. Both cannot hold for records in the same partition. No policy is selected here; ADR-02 remains Proposed.
+
 ### 5.3 Duplicate and out-of-order handling
 
 | Case | Expected behavior | Rule |
@@ -167,6 +169,8 @@ All events use the envelope in D1 §10 (DEC-03): `eventId`, `eventType`, `schema
 | EVT-03 arrives after EVT-04 for the same patient | `STALE`: ignored; `ALTA` is terminal and is never reverted | RF-02, sequence protocol |
 | EVT-04 arrives and no EVT-01 was ever seen | `GAP` until EVT-01 arrives; on timeout it is dead-lettered. No `ALTA` record with unknown level is created | ADR-02, ADR-08 |
 | Unsupported `schemaVersion` or unknown `eventType` | `INVALID`: not applied; logged and counted; routed to the DLT | DEC-03; G-09 |
+
+**Open pending-map items (ADR-02/ADR-08, not decided here):** (a) two future records with the same `pacienteSequence` but different `eventId` inside `pendingByPatient`; (b) the criterion for the "oldest pending entry" when the map is full (`occurredAt` is not an ordering contract); (c) the behavior when an entry dead-lettered with `GAP_UNRESOLVED` later becomes contiguous. The `STALE` row above applies after an event has been applied, not to a collision between two pending records. No rule is selected in this document.
 
 **Ordering assumption:** per-patient order is guaranteed only if the producer publishes events for one patient in sequence through one Kafka partition (key `pacienteId`). That is a Triage responsibility (DEC-14). Retries and parallel publishers can still break order; the pending map and DLT rule above handle that case without silently applying a future event.
 
@@ -304,7 +308,7 @@ Applied inside one Redis Lua script so that the read, the rules, and the count c
 ### 8.5 Rebuild and durability
 
 - Record the current counts as a comparison baseline before clearing anything. The projection is not the source of truth; the baseline is only a cutover guard.
-- The projection can be rebuilt from `triaje.eventos` alone (TST-PRJ): clear projection keys and markers, reset the consumer group to the earliest retained offset and reapply the §8.3 protocol.
+- While the retained Kafka window covers the patients' history, the projection can be rebuilt from `triaje.eventos` alone (TST-PRJ): clear projection keys and markers, reset the consumer group to the earliest retained offset and reapply the §8.3 protocol. If the window is insufficient, use the full reconstruction from `EventoHistorico` in the next bullet (ADR-08:55).
 - Cut over only when rebuilt counts equal the baseline. A mismatch blocks activation and raises an alert; the old projection stays in place until then.
 - If Kafka retention is shorter than the history of open patients, request full reconstruction from Triage's durable record (`EventoHistorico`, OPEN-09/OPEN-10 closed as Option A on 2026-11-25) with original `eventId`/`pacienteSequence`. The Assistant never calls Triage from the API path (RF-04-B, NFR-04). The record is decided (`EventoHistorico`); its clinical retention is not (OD-5), and G-24 remains open.
 - Redis persistence (AOF proposed, RDB rejected) is needed to avoid a full rebuild after a restart. The policy is not yet accepted (G-11).
@@ -392,7 +396,7 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 | RF-04 A: retrieval over the corpus with citations | A | 6 (steps 3, 4, 9), 4.1 | **Gap** (threshold and k unset) | G-02, G-03 |
 | RF-04 A: fixed notice when no relevant protocol exists (no clinical content generated) | A | 6 (step 5), 6.4 | **Covered** | — |
 | RF-04 A: 503 when the LLM is unavailable (NFR-03) | A | 4.1, 7 | **Gap** (timeout and breaker values, failure definition) | G-05 |
-| RF-04 B: count of patients not in `ALTA`, grouped by level | B | 4.2, 8 | **Gap** (EVT-04 lacks level; rule must be specified in an ADR) | G-08, G-09, G-11 |
+| RF-04 B: count of patients not in `ALTA`, grouped by level | B | 4.2, 8 | **Covered by protocol** (level from EVT-01 applied in sequence; §8.3; G-08 resolved) | G-09, G-11 |
 | RF-04 B: built only from `triaje.eventos`, no Triage API calls | B | 2, 5, 8 | **Covered** | — |
 | RF-04 B: persisted as a projection (Redis or other store) | B | 8.2 | **Gap** (store source is DEC-10 / ADR-08; layout ambiguous) | G-11 |
 | RF-04 B: 503 when the projection is unavailable (API-05) | B | 4.2, 8.6 | **Gap** (no error code, no detection rule) | G-07 |

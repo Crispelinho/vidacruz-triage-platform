@@ -353,7 +353,7 @@ RN-05 and RF-04 belong to the Assistant and are not mapped here.
 
 **Transactional context:** all writes must share the same `TransactionalOperator`/R2DBC context; being in the same reactive flow is not enough. If the outbox, audit or history write fails, the counter increment is rolled back and no event is emitted.
 
-**Separate decisions:** G-T03 (request idempotency), G-T24 (conflict response), ADR-02 (consumer model), EVT-03/EVT-04 level dependency and G-T25 (publisher; no renumbering).
+**Separate decisions:** G-T03 (request idempotency), G-T24 (conflict response), ADR-02 (consumer model) and G-T25 (publisher; no renumbering). The EVT-03/EVT-04 `nivel` dependency is resolved by the order protocol (Spec C-05 §1.3 and §5.1); no payload change is proposed. Acceptance of the ADRs recording that protocol remains pending.
 
 **Acceptance criteria (defined, not executed):**
 - [ ] Two concurrent writers of one patient get distinct, contiguous sequences; no `(paciente_id, paciente_sequence)` repeats.
