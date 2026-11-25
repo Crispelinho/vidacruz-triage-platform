@@ -1,9 +1,9 @@
 # VidaCruz — ADR Roadmap (D3)
 
-Status: **draft for review.** Plan only: the ADRs are not written yet, and no decision here is accepted until the developer approves it.
+Status: **draft for review.** ADR-04, ADR-08, ADR-09 and ADR-11 are drafted in `docs/adr/`; the remaining ADRs are still planned. No decision is accepted until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11.
+Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14).
 
 ## 1. Purpose
 
@@ -73,11 +73,11 @@ ADR-11 stays last. C-01 is first in §5 of the capabilities map, so its local de
 
 ### 3.4 Alternatives still missing
 
-The ADR template (§5) requires at least two alternatives. For the choices below, the decision register does not provide two usable alternatives for the choice the ADR must make, so a second one must be added before drafting:
+The ADR template (§5) requires at least two alternatives. ADR-04, ADR-08, ADR-09 and ADR-11 are drafted in `docs/adr/` with their alternatives. For the choices below, the decision register still does not provide two usable alternatives for the choice the ADR must make, so a second one must be added before drafting:
 
-- ADR-05 (DEC-06): the register already has two framework alternatives (Spring AI and LangChain4j). If the ADR keeps «LLM provider» in its title, add a concrete model-provider alternative before drafting. ADR-04 is about pgvector isolation, not provider choice; its alternatives must come from G-14, not DEC-06.
+- ADR-05 (DEC-06): the register already has two framework alternatives (Spring AI and LangChain4j). If the ADR keeps «LLM provider» in its title, add a concrete model-provider alternative before drafting. The drafted ADR-04 is about pgvector isolation, not provider choice; its alternatives came from G-14, not DEC-06.
 - ADR-07 (DEC-05): only «JWT with external IdP».
-- ADR-14 and ADR-08 (DEC-10): only «Shared database».
+- ADR-14 (DEC-10): only «Shared database». ADR-08 is drafted from G-11/G-24.
 - ADR-10 (DEC-12, DEC-13): only «Boot 4.x» and «Java 25».
 - ADR-03 (DEC-14): only «Direct publish after commit».
 - ADR-12 (DEC-15): only «No idempotency».
