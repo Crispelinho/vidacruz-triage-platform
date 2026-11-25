@@ -137,6 +137,6 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 
 ## Linked Open Decisions
 
-- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` in Triage is the source for full reconstruction as documented; OPEN-09/OPEN-10 still questions whether it stays separate from the outbox.
+- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is documented as the source for full reconstruction, but OPEN-09/OPEN-10 is open and no persistence option is accepted here (the record may be `EventoHistorico` or the retained outbox).
 - **OD-5 (open):** retention period of `EventoHistorico`. No time-based purge until the developer sets the clinical data retention period. It must be set before production use and does not block the 3-day evaluation scope.
-- **OPEN-09/OPEN-10 (open):** durability and cleanup of the outbox versus `EventoHistorico`; see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`.
+- **OPEN-09/OPEN-10 (open):** durability and cleanup of the outbox versus `EventoHistorico`; see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`. No option is accepted here: every reference to `EventoHistorico` or to a retained outbox in this ADR is conditional and must not be read as a resolved persistence decision.

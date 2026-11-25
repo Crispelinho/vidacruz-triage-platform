@@ -1,6 +1,6 @@
 # ADR-02: Kafka consumer model for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. Option B is the proposed route. The open items in the "Open items" section are unresolved, and the Redis dedupe TTL decision is pending explicit confirmation.
+- **Status:** Proposed. Not accepted. Option B is the proposed route. The sequence/duplicate/future-event protocol is fixed below; the open items in the "Open items" section, including the numeric Redis dedupe TTL and gap limits, remain unresolved pending explicit confirmation.
 - **Scope:** Clinical Assistant consumer of `triaje.eventos`. The envelope is defined by DEC-03 (Proposed) and is not reopened here. This ADR does not present it as an accepted decision.
 - **Related:** DEC-03, TC-04, NFR-01, CA-G-10, CA-G-11, CA-G-13, CA-G-18, CA-G-24, and CA-G-09 (to confirm) in [clinical-assistant-service.md](../services/clinical-assistant-service.md)
 
@@ -61,12 +61,25 @@ The skeleton declares `spring-kafka` and uses `@KafkaListener` in its default st
 
 **Delivery guarantee:** the pipeline is at-least-once. A crash between the DLT publication and the offset acknowledgement produces a duplicate DLT record. The `eventId` makes that duplicate detectable.
 
+## Sequence, duplicate and future-event protocol
+
+The projection store keeps `lastApplied`, the highest `pacienteSequence` applied for each patient. The consumer applies this contract (Spec C-05 §4.1 C2 and §5.1):
+
+1. `pacienteSequence <= lastApplied`: duplicate or stale event. No projection change, acknowledge the offset and increment the duplicate/stale metric.
+2. `pacienteSequence = lastApplied + 1`: apply the event atomically with its `eventId` marker, then acknowledge. Continue with contiguous entries already pending for that patient.
+3. `pacienteSequence > lastApplied + 1`: future event. Keep the record in a bounded, in-memory `pendingByPatient` map; do not apply it and do not acknowledge it. Continue consuming other patients and partitions.
+4. When the missing contiguous sequences arrive, apply them in order and acknowledge each one.
+5. If a pending entry exceeds the configured gap timeout or a new future event would exceed the pending-map limit, publish that event (the oldest pending entry if the map is full) to `triaje.eventos.dlq` with `dlqReason = "GAP_UNRESOLVED"`; acknowledge the original offset only after the DLT write is confirmed. No projection change is invented and the error metric/alert is the trace.
+6. On restart, the pending map is rebuilt from unacknowledged redeliveries. No gap decision is persisted in the projection.
+
+The numeric gap timeout and map size are configuration pending explicit confirmation under CA-G-11/CA-G-24; they do not change this protocol.
+
 ## Redis durability
 
 "Durable" in this ADR means: the Redis write has been acknowledged under the persistence and replication policy that the team has chosen. The offset is not committed before that level is reached.
 
 The concrete policy is **not decided here** (Redis durability, gap identifier to be confirmed). It must define:
-- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered by rebuilding from Kafka retention when the window is sufficient, and by full reconstruction from `EventoHistorico` under OD-3 when it is not (ADR-08), so the decisions depend on each other.
+- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered by rebuilding from Kafka retention when the window is sufficient, and by full reconstruction from Triage's durable record under OD-3 when it is not (`EventoHistorico` or retained outbox; OPEN-09/OPEN-10 is open, ADR-08), so the decisions depend on each other.
 - Whether replication is used and what acknowledgement level the write must reach before it counts as durable.
 
 ## ProcessedEvent TTL (proposal, not accepted)
@@ -79,11 +92,11 @@ The concrete policy is **not decided here** (Redis durability, gap identifier to
 - This proposal does not accept Option B, and it does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.
 - CA-G-11 remains **Open** until the user confirms the TTL explicitly.
 
-## Event list (pending validation)
+## Event list (resolved by the order protocol)
 
-Proposed: the Assistant consumes **EVT-01** (patient registered), **EVT-03** (state change), and **EVT-04** (patient escalated). **EVT-02 is not consumed** unless a functional need is demonstrated.
+Proposed: the Assistant consumes **EVT-01** (patient registered), **EVT-02** (escalated), **EVT-03** (in consultation) and **EVT-04** (discharged). EVT-01/03/04 change projection state and counts; EVT-02 advances `pacienteSequence` and dedupe state without changing counts.
 
-Status: **pending confirmation from the Triage team** (CA-G-10). Sources disagree: D0 §8 says all four events, while D1 §10 and D0 §3.2 say EVT-01/03/04 with EVT-02 optional.
+Status: CA-G-10 is resolved in favour of all four events. Skipping EVT-02 would create a false sequence gap under §5.1; consuming it preserves contiguity. D0 §8 already described all four, and D1 §10 / D0 §3.2 are updated accordingly.
 
 ## Test requirements for the DLT path
 
@@ -101,8 +114,9 @@ These tests are required before the consumer is considered complete. They are no
 - **CA-G-18:** version and documentation consistency: end of open-source support for Spring Boot 3.5 (AMB-12, R-02), compatibility of Spring Boot 3.5.16, Spring Cloud 2025.0.x and Spring AI 1.1.1, and the Java 21 versus Java 25 mismatch between D1 and the skeletons, to verify before the first build. Sub-point, pending verification: compatibility of reactor-kafka with those versions and its maintenance status. G-18 does not cover reactor-kafka by itself.
 - **CA-G-11:** Redis dedupe TTL (`ProcessedEvent`) and its relation to Kafka retention (rebuild completeness: CA-G-24). **Pending.** The TTL value is not decided and is not accepted until the user confirms it explicitly.
 - **Redis durability** (gap identifier to be confirmed): concrete configuration (persistence mode, fsync policy, replication, acknowledgement level). The gap table covers persistence and the TTL in one entry, so the identifier must be confirmed before it is cited.
+- **Gap timeout and pending-map size** (CA-G-11/CA-G-24): numeric values pending confirmation. The protocol above is fixed; only these limits remain open.
 - **DLT name and maximum retry count** (CA-G-09, to confirm).
-- **Test requirements above:** not implemented.
+- **Test requirements above and in Spec C-05 §7:** not implemented in this branch.
 
 ## Consequences
 

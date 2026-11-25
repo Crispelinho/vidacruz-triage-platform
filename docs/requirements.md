@@ -337,7 +337,7 @@ Topic: `triaje.eventos` (TC-04). Key: `pacienteId` (ordering per patient). At-le
 | ID | eventType | Producer | Consumers | Published when | Payload |
 |---|---|---|---|---|---|
 | EVT-01 | paciente_registrado | Triage | Assistant (projection), alerts (optional) | After successful registration, same transaction as outbox row | `nivel`, `slaMinutos`, `estado`, `fechaRegistro` |
-| EVT-02 | paciente_escalado | Triage | Alerts (RF-06), Assistant (optional) | After atomic escalation | `nivel`, `slaMinutos`, `fechaEscalamiento` |
+| EVT-02 | paciente_escalado | Triage | Alerts (RF-06), Assistant (sequence continuity only) | After atomic escalation | `nivel`, `slaMinutos`, `fechaEscalamiento` |
 | EVT-03 | paciente_en_consulta | Triage | Assistant (projection), Triage metrics | After transition to EN_CONSULTA | `estadoAnterior`, `fechaEntradaConsulta` |
 | EVT-04 | paciente_alta | Triage | Assistant (projection) | After transition to ALTA | `estadoAnterior`, `fechaAlta` |
 

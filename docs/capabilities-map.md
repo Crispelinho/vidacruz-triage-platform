@@ -67,7 +67,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Tests:** build succeeds on Java 21; containers start; CI runs build and tests on each pull request; manifests validate; the audit table rejects update and delete.
 
 ### C-05 `event-driven-integration`
-- **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes the events required by C-07. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
+- **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes all four for C-07: EVT-01/03/04 change projection state and counts, EVT-02 advances `pacienteSequence` without a count effect. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
 - **Goal:** every successful state change creates exactly one logical outbox event, written in the same transaction as the change. The publisher provides at-least-once delivery. Consumers process duplicate deliveries idempotently, so each event produces only one business effect.
 - **Interfaces:** envelope and payloads of EVT-01…EVT-04 (DEC-03); topic `triaje.eventos`. The outbox writer is used by C-02, C-03 and C-04.
 - **Persistence:** outbox table in Triage (DEC-14); durable event history `EventoHistorico` in Triage (OD-3, DER-09); processed-event record in Clinical Assistant.

@@ -183,7 +183,7 @@ The Assistant codes (`LLM_UNAVAILABLE`) are out of scope.
 | ID | eventType | Published when | Payload | Consumers |
 |---|---|---|---|---|
 | EVT-01 | `paciente_registrado` | Registration committed | `nivel`, `slaMinutos`, `estado`, `fechaRegistro` | Assistant (projection) |
-| EVT-02 | `paciente_escalado` | Escalation committed | `nivel`, `slaMinutos`, `fechaEscalamiento` | Alert dispatch (RF-06); Assistant optional (counts only if needed) |
+| EVT-02 | `paciente_escalado` | Escalation committed | `nivel`, `slaMinutos`, `fechaEscalamiento` | Alert dispatch (RF-06); Assistant (sequence continuity only, no count effect) |
 | EVT-03 | `paciente_en_consulta` | Transition to `EN_CONSULTA` committed | `estadoAnterior`, `fechaEntradaConsulta` | Assistant (projection). "Triage metrics" listed in D1 §10 is not a Kafka consumer (G-T08) |
 | EVT-04 | `paciente_alta` | Transition to `ALTA` committed | `estadoAnterior`, `fechaAlta` | Assistant (projection) |
 
@@ -194,8 +194,8 @@ Schema evolution: additive within `schemaVersion`; breaking changes bump the ver
 - **Write path:** the outbox row is inserted in the same R2DBC transaction as the business change. No Kafka call inside the request transaction (no dual write, R-07).
 - **Row content (proposed):** `eventId`, `pacienteId`, `eventType`, `pacienteSequence`, `payload` (JSON), `correlationId`, `occurredAt`, `createdAt`, `publicadoEn` (nullable), `intentos`, `ultimoError`.
 - **Index:** partial index on `(publicadoEn)` `WHERE publicadoEn IS NULL` (D1 §11).
-- **Publisher:** background, reactive, restartable and idempotent. Reads pending rows in bounded batches, publishes with `acks=all` and idempotent producer settings (proposed), marks `publicadoEn` after broker acknowledgement. On a crash between send and mark, the row is re-published: consumers tolerate duplicates through `eventId` and `pacienteSequence` (DER-03).
-- **Multiple replicas:** the publisher can run on every replica. Concurrent readers must claim rows (for example `FOR UPDATE SKIP LOCKED`) to avoid duplicate work; ordering per patient is protected by `pacienteSequence` at the consumer, not by the publisher (G-T06).
+- **Publisher:** background, reactive, restartable and idempotent. Reads pending rows in bounded batches, publishes with `acks=all` and idempotent producer settings (proposed), marks `publicadoEn` in a separate transaction after broker acknowledgement. No database transaction or row lock is held while waiting for Kafka; ADR-03 specifies the short lease claim. On a crash between send and mark, the row is re-published after lease expiry: consumers tolerate duplicates through `eventId` and `pacienteSequence` (DER-03).
+- **Multiple replicas:** the publisher can run on every replica. Concurrent readers claim rows with `FOR UPDATE SKIP LOCKED` inside a short transaction that stamps `claimadoPor`/`claimExpiraEn`, then release the lock before the send; ordering per patient is protected by `pacienteSequence` at the consumer, not by the publisher (G-T06).
 - **Retention:** published rows deleted after a configurable retention (D0 §7); value not set (G-T29).
 
 ---

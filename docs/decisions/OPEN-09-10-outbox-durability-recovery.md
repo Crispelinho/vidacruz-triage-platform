@@ -1,6 +1,6 @@
 # OPEN-09 / OPEN-10: Outbox durability and projection recovery source
 
-- **Status:** Open. Not decided. Decide before ADR-02 and ADR-03 are accepted.
+- **Status:** Open. Not decided. Neither Option A nor Option B is accepted; no outbox cleanup job may be enabled until this record is closed. Decide before ADR-02 and ADR-03 are accepted.
 - **Date:** 2026-11-25
 - **Owner:** developer
 - **Type:** Design decision (verification after the decision)
@@ -57,6 +57,7 @@ Option A is therefore what the current documents describe. This record stays Ope
 - The assignment strategy of `pacienteSequence` (G-T06); the rebuild order depends on it.
 - The backend of consumer deduplication (ADR-08, Proposed).
 - The republication target topic and the cut point between replayed and live events.
+- The persistence choice itself: every reference to `EventoHistorico` in the ADRs and Spec C-05 is a documented default, not an accepted persistence decision.
 
 ## Closing conditions
 

@@ -1,6 +1,6 @@
 # VidaCruz — Deliverables Plan
 
-Status: **planning only**. No code, no OpenSpec change files, no commits. D0 (`docs/analysis.md`) and D1 (`docs/requirements.md`) are drafted on branch `develop` (uncommitted). D2–D6 are pending. Sources: `enunciado-prueba-dev-webflux.pdf` and `prompt-init.txt` (same folder).
+Status: **retrospective/status as of 2026-11-25**. D0 (`docs/analysis.md`) and D1 (`docs/requirements.md`) were drafted first; D2–D6 are now committed on `develop` through PRs #1–#6, #10–#14 and #16. PR #17 adds the consolidated ADR set and the Spec C-05 change under `openspec/changes/event-driven-integration/`. The source documents remain `enunciado-prueba-dev-webflux.pdf` and `prompt-init.txt` (same folder).
 
 ## 1. Blocking decisions (resolve before writing deliverables)
 
@@ -9,7 +9,7 @@ Status: **planning only**. No code, no OpenSpec change files, no commits. D0 (`d
 | D-1 | **RESOLVED (user, 2026-11-24): Spring Boot 3.x.** Both skeletons still target Spring Boot `4.2.0` and must be changed. | `triage-service/.../build.gradle.kts:3`, `clinical-assistant-service/.../build.gradle.kts:3` | Use the latest 3.5.x patch (verify on spring.io). Update both `build.gradle.kts`. | Boot 3.5 is past open-source support (see D-6). |
 | D-2 | **RESOLVED by D-1:** Spring AI `2.1.0-M1` requires Spring Boot 4, so it cannot be used on Boot 3. | `clinical-assistant-service/.../build.gradle.kts:21` | Use the Spring AI 1.1.x GA line (verify version and its pgvector starter artifact on spring.io). | Spring AI 1.x is the Boot 3 line; 2.x is a major upgrade. |
 | D-5 | **Spring Cloud BOM mismatch.** Both skeletons import `spring-cloud-dependencies:2026.0.0`, which is the Boot 4 line and only a milestone (`2026.0.0-M1`). | both `build.gradle.kts` lines 21/47 (triage) and 22/49 (assistant) | Use the Spring Cloud `2025.0.x` train (Northfields), built for Boot 3.5. Confirm the latest patch on spring.io. | The `2025.0.x` train is the last one for Boot 3. |
-| D-6 | **Boot 3.5 open-source support.** A search result says 3.5 open-source support ended 2026-06-30 and that 2025.0.3 is the final Spring Cloud release for it. | search, not fully verified | Accept 3.5.x (the brief requires 3.x) and document the EOL risk in an ADR. Paid support options exist; verify before relying on them. | Staying on EOL 3.5 means no free security patches. Boot 4.x would be supported but breaks the brief. |
+| D-6 | **Boot 3.5 open-source support.** 3.5 open-source support ended 2026-06-30; Spring Boot 3.5.16 is the last OSS patch of the line and Spring Cloud 2025.0.3 is the paired train. | `requirements.md` AMB-12 and the official 2026-06-25 spring.io announcement | Accept 3.5.x for the 3-day dev/eval scope (the brief requires 3.x); ADR-10 records the EOL risk and the post-delivery migration path. Paid support is not assumed. | Staying on EOL 3.5 means no free security patches after delivery. Boot 4.x would be supported but breaks the brief. |
 | D-3 | RESOLVED: Java 21 target (DEC-13, user-approved 2026-11-24). Originally Java 25 toolchain. | both `build.gradle.kts` line 12 | Confirm the runtime available for the Dockerfile and Azure image. Java 21 is the safer default for a 3-day test. | Java 25 needs matching local JDK and base images. |
 | D-4 | Deadline. The brief is dated 2026-10-29 with a 3-day window; today is 2026-11-24. | `enunciado` header | Confirm with the user whether the 3 days start now. | Affects backlog scope (P2 may be dropped). |
 
@@ -29,7 +29,9 @@ Deliverables 1–6 are the files required by `prompt-init.txt` §11. Deliverable
 | D5 | `docs/traceability-matrix.md` | Chain: source § → requirement → capability → change → task → code → test → evidence | prompt §5, Fase 5 | D1, D4 |
 | D6 | `docs/implementation-roadmap.md` | Three-day P0/P1/P2 backlog with IDs, components, requirement IDs, verifiable results | prompt §7, §11.6 | D4, D5 |
 
-Writing order: **D0 → D1 → (D2, D3 in parallel) → D4 → D5 → D6**. D5 may be started in parallel with D4 if D1 and D2 are stable.
+Current state: D0–D6 are committed, so this section records the original plan rather than pending work. The consolidation PR #17 adds ADR-01/03/10/14, the OPEN-09/10 record and Spec C-05 without closing OPEN-09/OPEN-10, OD-5 or the broker-outage posture. Executable Outbox/Kafka integration tests are defined in Spec C-05 §7 and mapped to T-02/T-04/T-16/T-27, but are not implemented in the scaffold branch.
+
+Writing order (historical): **D0 → D1 → (D2, D3 in parallel) → D4 → D5 → D6**. D5 was started in parallel with D4 once D1 and D2 were stable.
 
 ## 3. Content plan per deliverable
 
@@ -59,7 +61,7 @@ Ordered changes, for example: platform foundation (skeletons on Boot 3, Docker C
 Table form: source § | requirement ID | capability | OpenSpec change | task ID | code path (filled later) | test ID | evidence. Columns for code and evidence stay empty until implementation. Include a check that every EXPLICIT requirement appears at least once.
 
 ### D6 `implementation-roadmap.md`
-P0 = required by the brief (RF-01…RF-05, RN-01…RN-05, Kafka, RAG with fallback, tests, docker-compose, README, ADRs ×2, manifests). P1 = robustness (outbox, observability, security hardening). P2 = extras (OpenTelemetry, IaC). Each task: ID, description, component, requirement IDs, dependencies, verifiable result, tests.
+P0 = required by the brief (RF-01…RF-05, RN-01…RN-05, Kafka including the outbox writer/publisher, RAG with fallback, tests, docker-compose, README, the ADR set from `adr-roadmap.md`, manifests). P1 = robustness beyond the minimum (publisher backoff/backlog policy, observability hardening, security hardening). P2 = extras (OpenTelemetry, IaC). Each task: ID, description, component, requirement IDs, dependencies, verifiable result, tests.
 
 ## 4. Ambiguities and gaps found in the brief (feed D0, D1, D3)
 
@@ -81,5 +83,5 @@ These are documented decisions, not questions for the evaluator (the brief says 
 
 - Language: this document is a technical artifact, so English. The chat summary is in Spanish.
 - Each deliverable is written to `docs/` on a feature branch. Nothing is committed to `main`. Commits and pushes happen only on the user's approval.
-- No source code, Gradle changes, or OpenSpec change folders until D1–D4 are approved.
+- Source code, Gradle changes and OpenSpec change folders are out of scope for documentation PRs; they are tracked in `docs/implementation-roadmap.md` and Spec C-05 and require a separate approved implementation task.
 - A requirement is marked done only with a linked test or evidence (prompt Fase 5).
