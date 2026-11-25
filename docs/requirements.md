@@ -416,7 +416,7 @@ Each AMB is resolved by a DEC proposal. Decisions are ours to document; they are
 | AMB-09 | JWT or API key | API key in header for both services (simpler to test); JWT as documented alternative | DEC-05 |
 | AMB-10 | RF-06 channel | Email is hard to test; webhook + outbox-driven retry chosen over queue or SMS | DEC-09 |
 | AMB-11 | Azure subscription availability | Manifests always delivered; deployment URL depends on access; blocker documented if unavailable | R-06 |
-| AMB-12 | Boot 3.5 open-source support ended (search result, unverified) | Accept and document; check spring.io before final build | DEC-12, R-02 |
+| AMB-12 | Boot 3.5 open-source support: Spring Boot 3.5.16 is the last OSS release of the 3.5.x line (official spring.io announcement, 2026-06-25); continued OSS support requires 4.0.x or 4.1.x | Baseline fixed by the brief (Boot 3.x). Accept the end of OSS support in ADR-10 and record it there; the risk is not removed | DEC-12, R-02 |
 | AMB-13 | Java version (skeletons: 25) | Java 21 (DEC-13) | DEC-13 |
 | AMB-14 | Duplicates and out-of-order Kafka messages | `pacienteSequence` plus eventId dedupe | DEC-03 |
 | AMB-15 | LLM provider | Any provider behind Spring AI; tests use mock | DEC-06 |
