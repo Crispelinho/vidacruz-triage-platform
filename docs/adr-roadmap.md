@@ -3,7 +3,7 @@
 Status: **draft for review.** Plan only: the ADRs are not written yet, and no decision here is accepted until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). This revision fixes the open findings of the read-only audit and is branched from `develop`.
+Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11.
 
 ## 1. Purpose
 
@@ -21,7 +21,7 @@ Not every decision in D1 is architectural. The rule used here: a decision become
 | DEC-04 | SLA evaluation by scheduled job | ADR-13 (new) | Scheduling mechanism changes the runtime design |
 | DEC-05 | API key authentication | ADR-07 | Security mechanism |
 | DEC-06 | Spring AI behind an interface | ADR-05 | Framework and provider choice |
-| DEC-07 | RAG relevance gate and circuit breaker | ADR-09 (circuit breaker and timeout only) | Resilience mechanism. The relevance gate and citation validation are rules of C-06 (RN-05, R-10), not an ADR |
+| DEC-07 | RAG relevance gate and circuit breaker | ADR-09 (circuit breaker and timeout only) | D1 groups both topics in one decision. This roadmap splits their implementation: the relevance gate and citation validation are rules of C-06 (RN-05, R-10); only the breaker and timeout need an ADR. D1 is not changed here |
 | DEC-08 | API conventions and status codes | No | Contract rule; lives in API-01…API-06 |
 | DEC-09 | Outbox-driven webhook for alerts | ADR-06 | Channel choice |
 | DEC-10 | One database per service; Redis only for the projection | ADR-14 (new), ADR-08 | Data ownership changes the deployment and storage design |
@@ -59,10 +59,11 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 
 ### 3.2 Open decisions linked to ADRs
 
-These are open decisions from D2 §6. OD-3 was decided in PR #6 (2026-11-24). OD-4 is **not approved**. Each one is resolved only when the linked ADR or design is accepted.
+These decisions come from D2 §6. OD-3 and OD-4 are recorded as decided in the documents merged through PR #6 (2026-11-24); neither needs an ADR. OD-5 remains open, and each remaining open decision is resolved only when the linked ADR or design is accepted.
 
 - **OD-3 — Retention of `triaje.eventos`.** Linked to ADR-02 (retention is part of the messaging contract) and ADR-08 (rebuilding the projection after losing its store, including the option of a snapshot plus replay). Decided (2026-11-24): Kafka retains 30 days; full reconstruction uses the durable history EventoHistorico in Triage (DER-09), so ADR-08 does not need a snapshot for correctness. The open item is OD-5, the retention period of EventoHistorico.
-- **OD-4 — Maximum span of an operational report range.** Not an architectural decision, so no ADR. It is resolved in the design of RF-05 (C-08) before the report is implemented.
+- **OD-4 — Maximum span of an operational report range.** Decided (developer, 2026-11-24): 90 calendar days, inclusive, in UTC, as recorded in `requirements.md` and `capabilities-map.md`. Not architectural, so no ADR; RF-05 (C-08) records the value in its design.
+- **OD-5 — Retention period of `EventoHistorico`.** Open, not decided. No time-based purge until the developer sets the clinical data retention period. Blocks the production retention policy.
 
 ### 3.3 Order of acceptance
 
@@ -72,9 +73,9 @@ ADR-11 stays last. C-01 is first in §5 of the capabilities map, so its local de
 
 ### 3.4 Alternatives still missing
 
-The ADR template (§5) requires at least two alternatives. These decisions have only one alternative in the decision register, so a second one must be added before their ADR is drafted:
+The ADR template (§5) requires at least two alternatives. For the choices below, the decision register does not provide two usable alternatives for the choice the ADR must make, so a second one must be added before drafting:
 
-- ADR-05 and ADR-04: a provider alternative is missing (ADR-05 title says «LLM provider», but DEC-06 only compares Spring AI with LangChain4j).
+- ADR-05 (DEC-06): the register already has two framework alternatives (Spring AI and LangChain4j). If the ADR keeps «LLM provider» in its title, add a concrete model-provider alternative before drafting. ADR-04 is about pgvector isolation, not provider choice; its alternatives must come from G-14, not DEC-06.
 - ADR-07 (DEC-05): only «JWT with external IdP».
 - ADR-14 and ADR-08 (DEC-10): only «Shared database».
 - ADR-10 (DEC-12, DEC-13): only «Boot 4.x» and «Java 25».
@@ -132,5 +133,5 @@ Completion criterion for an ADR: it has at least two alternatives, names the aff
 2. Every ADR in §3 names at least one capability from `capabilities-map.md` and at least one requirement or risk ID from `requirements.md`.
 3. Every ADR in §3 appears in the order in §3.3 without a forward dependency.
 4. The difference from D0 §16 (twelve to fourteen) is recorded in §2.
-5. Every open decision in §3.2 is linked to the ADR or design that resolves it, and none is marked approved.
+5. Every decision in §3.2 is linked to the ADR or design that resolves it or records its accepted value; decisions still open are not marked approved.
 6. No ADR content is written in this file; the template in §5 is the only structure defined here.
