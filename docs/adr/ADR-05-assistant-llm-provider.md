@@ -1,7 +1,7 @@
 # ADR-05: LLM provider and embedding model for the Clinical Assistant
 
 - **Status:** Proposed. Not accepted. The provider route is proposed. The hardware, the model and the dimension are pending the technical evaluation in §6 and §7. Viability depends on ADR-11. Nothing here is a final commitment.
-- **Scope:** Choice of the chat model and the embedding model used behind Spring AI. The framework choice (Spring AI 1.x) is already fixed by DEC-06 and is not reopened.
+- **Scope:** Choice of the chat model and the embedding model used behind Spring AI. The framework choice (Spring AI 1.x) comes from DEC-06 (Proposed). This ADR does not reopen that proposal.
 - **Related:** DEC-06, DEC-07, AMB-15, NFR-01, NFR-03, NFR-14, R-04, CA-G-01, CA-G-02, CA-G-05, CA-G-16, CA-G-22 in [clinical-assistant-service.md](../services/clinical-assistant-service.md). ADR-04 (vector dimension and index). ADR-09 (circuit breaker and failure response). ADR-11 (Azure compute choice, which decides whether Option D is viable). Gate identifiers with the `CA-` prefix (`CA-G-*`) refer to the gap list of the Clinical Assistant service document, not to the Triage gaps with the same numbers.
 
 ## 1. Context
@@ -46,16 +46,16 @@ The keys below were checked in the configuration metadata (`spring-configuration
 - Embedding model: `spring.ai.ollama.embedding.options.model`. Static inspection, Spring AI 1.1.1. The property `spring.ai.ollama.embedding.model` is an alias that delegates to the same option. It is recorded here for recognition only; the primary key is `options.model`.
 - Model type selectors: `spring.ai.model.chat=ollama` and `spring.ai.model.embedding=ollama`. In 1.1.1 these are **optional**: both Ollama autoconfigurations use `matchIfMissing = true`, so Ollama is activated when the property is absent. Configure them explicitly when more than one provider is present on the classpath.
 
-The 1.0 reference pages show the same keys. Do not reuse examples from other lines without checking them. The 1.0 reference also documents `spring.ai.ollama.chat.enabled` and `spring.ai.ollama.embedding.enabled` as removed. Do not use them.
+The 1.0 reference pages show the same keys, as reference documentation; they were not verified against 1.0 artifacts. Do not reuse examples from other lines without checking them. The 1.0 reference also documents `spring.ai.ollama.chat.enabled` and `spring.ai.ollama.embedding.enabled` as removed. Do not use them.
 
-Note: the static inspection above was reported from the 1.1.1 artifacts. It has not been reproduced in this session. The effective configuration of the application and its runtime behavior remain pending the spike.
+Note: the static inspection above was performed against the Spring AI 1.1.1 artifacts downloaded from Maven Central (spring-ai-autoconfigure-model-ollama, spring-ai-ollama and spring-ai-model, with sources). It has not been executed at runtime. The effective configuration of the application and its runtime behavior remain pending the spike.
 
 ## 6. Embedding execution model (static source inspection; runtime verification pending)
 
-The reference pages do not state whether the calls are blocking or non-blocking, except that the chat page shows streaming through `Flux`. The 1.1.1 source answers the question for embeddings.
+The reference pages do not state whether the calls are blocking or non-blocking, except that the chat page shows streaming through `Flux`. The 1.1.1 source indicates the answer for embeddings.
 
 - **`EmbeddingModel.call()` is a synchronous call through `RestClient`.** `OllamaEmbeddingModel.call()` calls `OllamaApi.embed()` directly and returns an `EmbeddingResponse`, with no `Mono` or `Flux`. `OllamaApi.embed()` uses `RestClient` in blocking mode. This is established by static inspection of the 1.1.1 code. It is not demonstrated at runtime.
-- **The embedding path has no reactive isolation or scheduler hop.** The only `Schedulers.boundedElastic()` in the module is in the chat streaming path. The embedding call therefore runs on the calling thread.
+- **The embedding path has no reactive isolation or scheduler hop.** In the `spring-ai-ollama` 1.1.1 sources inspected, the only `Schedulers.boundedElastic()` is in the chat streaming path. The embedding call therefore runs on the calling thread.
 - **The same control applies to the embedding call on the request path.** Converting the question to a vector happens before retrieval. ADR-04 measures only the pgvector search, so the spike must include this call as well.
 - **The design must isolate the embedding call on a bounded scheduler,** following ADR-04's isolation design, so that it does not block the event loop. Whether it uses the same scheduler as the pgvector adapter or a separate one is not decided here.
 - **BlockHound detection is still pending.** The spike must show that BlockHound detects the call at runtime, with a positive and a negative control as in ADR-04 (AC-2). Until then, the static reading is not a runtime proof.
