@@ -6,6 +6,18 @@
 
 ---
 
+## ⚠️ PRODUCTION RESTRICTION
+
+**This specification is authorized for development, evaluation, and non-production integration only.**
+
+**Production deployments require ONE of these conditions:**
+1. **VMware Spring Support contract** with current security patch commitment for Spring Boot 3.5.x, OR
+2. **Migration to Spring Boot 4.1.x or later** (open-source support; planned post-delivery)
+
+For production use, refer to ADR-10 for support path options.
+
+---
+
 ## 1. Build Configuration
 
 ### Gradle (Root `build.gradle.kts`)

@@ -47,19 +47,28 @@ The choice is not whether to use Boot 3.5, but whether to accept its EOL status 
 
 ## Decision
 
-**Adopt Spring Boot 3.5.x (latest patch, verify on spring.io) on Java 21 with Gradle 8.x.**
+**Adopt Spring Boot 3.5.x (latest patch, verify on spring.io) on Java 21 with Gradle 8.x for development and evaluation.**
+
+**Scope:** This decision applies to:
+- Development environments
+- Evaluation and testing (3-day brief window)
+- Non-production integration
+
+**NOT authorized for production without meeting one of these conditions:**
+1. VMware Spring Support contract with current security patch commitment for Boot 3.5.x, OR
+2. Migration to Boot 4.1.x or later (open-source support; planned post-delivery)
 
 Rationale:
-1. Meets brief requirement (Boot 3.x).
+1. Meets brief requirement (Boot 3.x) for evaluation window.
 2. Java 21 is LTS; Gradle 8 is a proven pair with Boot 3.5.
 3. Avoids build-time risk in a 3-day sprint.
-4. Allows immediate implementation; upgrade path is a post-delivery decision.
+4. Allows immediate implementation; production path is a post-delivery decision based on support availability.
 
 **Actions:**
 - Update both skeletons: `build.gradle.kts` to Boot 3.5.x latest patch.
 - Set Gradle wrapper to 8.14.8 (or latest 8.x).
 - Set Java toolchain version to 21.
-- Document the EOL date (2026-06-30 passed) and add it to the upgrade roadmap post-delivery.
+- Document the EOL date (2026-06-30 passed), scope restrictions, and production path options in README and ADR.
 
 ---
 
@@ -73,8 +82,11 @@ Rationale:
 
 ### Negative
 - **No free security patches after 2026-06-30** (already past).
-  - **Mitigation:** Treat the upgrade to Boot 4.1.x as a **mandatory post-delivery task** (DL-07, progressive delivery).
-  - **Workaround:** VMware Spring Support contracts offer extended security patches for 3.5.x, but are out of scope for this evaluation.
+  - **Development/Evaluation scope:** This baseline is authorized for development, evaluation, and non-production integration only (3-day brief window).
+  - **Production options:**
+    1. **Commercial support:** Upgrade to VMware Spring Support contract for Boot 3.5.x security patches (eligibility requires contract terms).
+    2. **Open-source support:** Migrate to Boot 4.1.x or later (requires upgrade planning and testing; post-delivery decision).
+  - This ADR does NOT mandate Boot 4.1.x as the sole path; it permits either option depending on production requirements and support availability.
 
 - Tight version pinning; no room for patch updates if a critical bug is found in Spring Cloud 2025.0.3.
 
