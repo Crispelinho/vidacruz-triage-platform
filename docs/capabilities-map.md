@@ -21,7 +21,7 @@ A traceability unit is either a whole requirement or one part of a requirement t
 | C-04 | `triage-sla-escalation` | Triage | RF-03, RN-02-B (SLA evaluation), RN-03, DEC-04, AMB-04 | EXPLICIT |
 | C-05 | `event-driven-integration` | Both | EVT-01…EVT-04, DER-02 (transactional outbox and publisher), consumer idempotency | EXPLICIT + DERIVED |
 | C-06 | `clinical-assistant-rag` | Clinical Assistant | RF-04-A, RN-05, API-04, protocol corpus (§12 of D1), NFR-03 (503 fallback) | EXPLICIT |
-| C-07 | `emergency-state-projection` | Clinical Assistant | RF-04-B, API-05, DEC-06 | EXPLICIT |
+| C-07 | `emergency-state-projection` | Clinical Assistant | RF-04-B, API-05, DEC-10, ADR-08 | EXPLICIT |
 | C-08 | `operational-reporting` | Triage | RF-05, API-06, AMB-05, indexes in §11 of D1 | EXPLICIT |
 | C-09 | `medical-escalation-alerts` | Triage (+ channel) | RF-06, DER-03, AMB-10, DEC-09 | EXPLICIT (channel open) |
 | C-10 | `security` | Both | Authentication, authorization, data protection, secrets handling and access control (NFR security sections of D1) | DERIVED + PROPOSED |
@@ -111,7 +111,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Service:** Clinical Assistant.
 - **Goal:** keep a projection of patients not in `ALTA`, grouped by level, built only from events.
 - **Interfaces:** `GET /asistente/estado-urgencias` (API-05); consumes EVT-01…EVT-04 through C-05.
-- **Persistence:** projection store (DEC-06, Redis or equivalent). Rebuild procedure in §4.1 below.
+- **Persistence:** projection store (DEC-10 / ADR-08, Redis or equivalent). Rebuild procedure in §4.1 below.
 - **Depends on:** C-01, C-05 (event contracts and consumer idempotency).
 - **Tests:** counts match a replayed event sequence; a replayed event does not double count; a request makes no call to Triage; after the projection store is emptied, a replay restores the same counts.
 
