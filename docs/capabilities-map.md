@@ -72,7 +72,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Interfaces:** envelope and payloads of EVT-01…EVT-04 (DEC-03); topic `triaje.eventos`. The outbox writer is used by C-02, C-03 and C-04.
 - **Persistence:** outbox table in Triage (DEC-14); durable event history `EventoHistorico` in Triage (OD-3, DER-09); processed-event record in Clinical Assistant.
 - **Depends on:** C-01 only. It is business-agnostic: it knows the envelope, not the patient rules. This is what keeps the graph acyclic.
-- **Tests:** an outbox row exists if and only if the state change committed; a broker outage delays publication and loses nothing; a duplicate delivery produces no second effect; per-patient order is preserved through `pacienteSequence`.
+- **Tests:** an outbox row exists if and only if the state change committed; a broker outage delays publication and loses nothing, with backoff only and no circuit breaker (ADR-03, accepted 2026-11-25); a duplicate delivery produces no second effect; per-patient order is preserved through `pacienteSequence`.
 
 ### C-02 `triage-classification`
 - **Service:** Triage.

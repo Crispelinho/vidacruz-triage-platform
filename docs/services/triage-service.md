@@ -560,7 +560,7 @@ Source: `triage-service/triage-service` on `feature/scaffold-skeletons` (commit 
 | Persistence | `spring-boot-starter-data-r2dbc`, `r2dbc-postgresql`; `spring-boot-starter-flyway`, `flyway-database-postgresql`, `spring-jdbc`, `postgresql` JDBC | Matches TC-03, TC-12 |
 | Messaging | `spring-boot-starter-kafka` (spring-kafka) | Blocking API; G-T25 |
 | Security | `spring-boot-starter-security`, webflux | Matches DEC-05 |
-| Resilience | `spring-cloud-starter-circuitbreaker-reactor-resilience4j` | Matches TC-05 |
+| Resilience | `spring-cloud-starter-circuitbreaker-reactor-resilience4j` | Matches TC-05; dependency is present but is not used for the outbox publisher under the accepted backoff-only posture (ADR-03) |
 | Missing | actuator, Micrometer registry, validation, Testcontainers, BlockHound, reactor-kafka | G-T26, G-T25 |
 | `application.yaml` | Only `spring.application.name` | Config for R2DBC, Flyway, Kafka, SLA, API key, interval missing (NFR-08, NFR-09, DER-01) |
 | Tests | `contextLoads()` with `@SpringBootTest` only | Needs infrastructure (§9.10) |

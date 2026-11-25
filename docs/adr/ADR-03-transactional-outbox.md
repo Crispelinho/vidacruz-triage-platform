@@ -1,8 +1,8 @@
 # ADR-03: Transactional Outbox Pattern for Event Publication
 
-- **Status:** Proposed. Not accepted. The claiming protocol is specified below; the broker-outage behavior (backoff only vs circuit breaker) remains open and must be closed before ADR-02 (consumer) can be accepted.
+- **Status:** Proposed. Not accepted. The claiming protocol and the broker-outage posture are specified below; the outage posture is accepted (developer, 2026-11-25) as backoff only with no circuit breaker. The remaining verification gates still apply before this ADR and ADR-02 can be accepted.
 - **Date:** 2026-11-25
-- **Deciders:** developer (pending)
+- **Deciders:** developer (broker-outage posture decided 2026-11-25; ADR acceptance pending)
 - **Scope:** The Triage service outbox publisher: responsibility, claiming strategy, batch semantics, failure handling, and behavior during broker outages. It does NOT decide the outbox schema (ADR-14, Spec C-05 §2.1) or the consumer deduplication (ADR-02). ADR-03 sits between application writes (DER-02) and Kafka delivery.
 - **Related:** DER-02 (transactional guarantee), DER-03 (idempotent consumer), DER-09 (durable event history), R-07 (dual writes), R-08 (duplicate/out-of-order), ADR-01 (service boundary), ADR-02 (consumer envelope and dedup), ADR-08 (store backend), ADR-14 (database ownership), Spec C-05 (outbox schema, publisher semantics, failure scenarios), `docs/services/triage-service.md` §4.3, `requirements.md` §10 (DER-02, DER-03, DER-09)
 
@@ -28,7 +28,7 @@ A reactive publisher faces three decisions:
 
 1. **Row claiming under concurrency:** If multiple publisher replicas run, how do they avoid claiming and sending the same row twice at the same time?
 2. **Failure classification and retry:** A send failure can be transient (network timeout, broker temporarily slow) or permanent (bad payload, bad row). How does the publisher distinguish and retry?
-3. **Broker outage behavior:** If Kafka is unreachable for hours, what does the publisher do? Keep retrying with backoff (simpler, unbounded retries), or open a circuit breaker after N failures (bounds retries and load, but adds state)?
+3. **Broker outage behavior:** If Kafka is unreachable for hours, what does the publisher do? Keep retrying with backoff (simpler, unbounded retries), or open a circuit breaker after N failures (bounds retries and load, but adds state)? **Closed 2026-11-25: backoff only, no breaker.**
 
 ---
 
@@ -36,8 +36,8 @@ A reactive publisher faces three decisions:
 
 | Alternative | Pros | Cons |
 |---|---|---|
-| **A. Short lease claim + backoff only (recommended)** | Claim rows in a short transaction that stamps `claimado_por` and `claim_expira_en`; no DB lock or transaction is open during the Kafka ACK. `FOR UPDATE SKIP LOCKED` is used only inside the short claim transaction. Backoff bounds retry latency per row. | An expired lease can let another replica resend a row; duplicates are handled by ADR-02. Lease duration is configuration. |
-| **B. Short lease claim + circuit breaker (Resilience4j)** | Same claim protocol, plus a breaker around the send; bounds broker load during a prolonged outage. | Adds a state machine (closed, open, half-open) and explicit failure classification so a bad row does not open the breaker. Broker-outage posture is still open. |
+| **A. Short lease claim + backoff only (accepted outage posture, 2026-11-25)** | Claim rows in a short transaction that stamps `claimado_por` and `claim_expira_en`; no DB lock or transaction is open during the Kafka ACK. `FOR UPDATE SKIP LOCKED` is used only inside the short claim transaction. Backoff bounds retry latency per row. | An expired lease can let another replica resend a row; duplicates are handled by ADR-02. Lease duration is configuration. |
+| **B. Short lease claim + circuit breaker (Resilience4j)** | Same claim protocol, plus a breaker around the send; bounds broker load during a prolonged outage. | Adds a state machine (closed, open, half-open) and explicit failure classification so a bad row does not open the breaker. **Rejected for this scope (2026-11-25):** no evidence yet that the extra state is needed; may be revisited in a new ADR. |
 | **C. `FOR UPDATE SKIP LOCKED` held until ACK** | No lease columns; one transaction covers claim, send and mark. | Holds row locks during network I/O, serializes replicas on hot rows and increases contention during a broker outage. **Rejected.** |
 | **D. Polling without claiming (no mutual exclusion)** | Simplest: publisher just polls and sends. | Multiple replicas send the same row; Kafka receives duplicates; consumers must handle them (DER-03). Higher broker load. Only viable if the broker can absorb the extra load. |
 
@@ -45,7 +45,7 @@ A reactive publisher faces three decisions:
 
 ## Decision
 
-**Proposed: Option A.** Claim with a short lease transaction, send outside any database transaction, then mark published in a separate guarded transaction. Exponential backoff applies to transient failures; the broker-outage posture (backoff only vs circuit breaker) remains open below.
+**Proposed: Option A.** Claim with a short lease transaction, send outside any database transaction, then mark published in a separate guarded transaction. Exponential backoff applies to transient failures. The broker-outage posture is also decided: backoff only, no circuit breaker (developer, 2026-11-25); it is recorded below.
 
 **Row claiming (short transaction):**
 - Each publisher cycle claims a bounded batch by atomically stamping a lease. The claim transaction commits before any Kafka call:
@@ -101,7 +101,7 @@ A reactive publisher faces three decisions:
 **Failure handling:**
 - **Transient failure (network timeout, broker slow):** Increment `intentos`, set `ultimo_fallo_en` and `ultimo_error`, release the claim and continue with the next row in the batch.
 - **Persistent failure (bad row):** After the configured threshold and window (e.g., 10 retries within 24 hours), set `requiere_revision = TRUE`, release the claim, log and alert. Rows with this flag are skipped in future cycles until an operator clears them.
-- **Broker outage:** Rows stay unpublished with released or expired leases and are reclaimed on later cycles. No row is lost. The backoff-versus-circuit-breaker posture is still open below.
+- **Broker outage:** Rows stay unpublished with released or expired leases and are reclaimed on later cycles with exponential backoff. No row is lost; no circuit breaker is used (accepted posture, 2026-11-25).
 
 **Configuration (illustrative, not decided):**
 ```yaml
@@ -127,28 +127,13 @@ outbox:
 
 ---
 
-## Broker Outage: Why Not Circuit Breaker?
+## Broker Outage: Backoff Only (Accepted 2026-11-25)
 
-The brief specifies only one circuit breaker requirement: LLM calls (NFR-03, ADR-09). Kafka is treated as reliable but potentially slow.
+**Decision (developer): backoff only against the same broker; no circuit breaker and no second broker.** The outbox keeps every event while Kafka is unavailable, and the request path stays unaffected because registration only writes to PostgreSQL (NFR-04). Exponential backoff with a configurable cap bounds the rate of send attempts when the broker returns, avoiding a retry storm. A circuit breaker would add states, thresholds and metrics for a single dependency without evidence that it is needed; NFR-03 requires a breaker only for LLM calls (ADR-09). A second broker or alternate cluster is not introduced by this decision.
 
-**Option A (backoff only):**
-- Simpler: no additional state machine.
-- Request path is unaffected: `POST /triage/pacientes` returns immediately regardless of publisher backlog (NFR-04).
-- Broker load on recovery is bounded only by the backoff cap (e.g., max delay 60s between retries).
+**Rejected for this scope:** a Resilience4j breaker around the send. It would need explicit failure classification so a row-level fault does not open the breaker, and it offers no request-path benefit. It may be proposed later in a new ADR if production metrics show unacceptable backlog or broker load.
 
-**Option B (circuit breaker):**
-- Adds Resilience4j or equivalent: state transitions (closed → open → half-open), thresholds, metrics.
-- Faster recovery signal: circuit opens after N failures, no sends are attempted until half-open succeeds.
-- Requires failure classification: a bad row must not open the breaker (the row, not the broker, is at fault).
-- Request path is still unaffected (NFR-04).
-
-**Recommendation for Proposed:** Option A is simpler and sufficient for this scope. Circuit breaker can be added in ADR-09-2 (future enhancement) if broker recovery times become problematic.
-
----
-
-## Open Decision: Circuit Breaker Post-Delivery
-
-If production observability shows that broker outages cause unacceptable publisher backlog, a future ADR can add a circuit breaker. The decision is not whether to add it now, but whether to leave the door open: configuration should use a strategy pattern so the breaker can be plugged in without rewriting the publisher.
+**Future enhancement, not an open gate:** configuration keeps the failure policy separate so a breaker can be added without rewriting the publisher. This is an evidence-conditioned option, not a pending decision that blocks this ADR.
 
 ---
 
@@ -194,7 +179,7 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 - [ ] Slow-broker test proves no R2DBC transaction is open and no publisher row lock is held while waiting for the Kafka acknowledgement.
 - [ ] Lease-expiry test proves a publisher killed after send but before `publicado_en` is updated can be reclaimed by another replica; ADR-02 deduplicates the resulting Kafka duplicate.
 - [ ] Failure handling (transient vs persistent) is tested: a row that fails N times within the window is flagged; a successful send after failures resets the failure counter.
-- [ ] Backoff is tested: a row with exponential backoff eventually succeeds after broker recovery.
+- [ ] Backoff is tested: a row with exponential backoff eventually succeeds after broker recovery, and the attempt rate stays bounded by the configured cap (no retry storm) with no circuit breaker in the publisher.
 - [ ] Kafka retention (OD-3: 30 days) is verified as configuration in the deployment pipeline before this ADR is accepted.
 - [ ] Alerting is configured: when a row reaches the failure threshold, an alert is raised (NFR-07).
 - [ ] ADR-02 (consumer) acceptance is not blocked by this ADR once claiming, failure handling and retry logic are in place.
@@ -217,3 +202,4 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 
 - **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted durable source for full reconstruction (OPEN-09/OPEN-10 closed as Option A on 2026-11-25). G-T29 is closed at 7 days.
 - **G-T25 (open):** Reactive Kafka client library (reactor-kafka or explicit adapter). spring-kafka is blocking and does not meet NFR-01.
+- **Broker outage posture (closed 2026-11-25):** backoff only, no circuit breaker and no second broker; see Spec C-05 §3.3 and the decision recorded above. A future breaker remains conditional on operational evidence and a new ADR.
