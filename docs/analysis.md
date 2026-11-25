@@ -46,7 +46,7 @@ Each requirement's acceptance criterion and test type are in D1 §4–§15 and i
 - **Use cases:** answer a clinical question (RF-04A), report urgency state (RF-04B), ingest the corpus.
 - **APIs:** API-04, API-05.
 - **Events produced:** none.
-- **Events consumed:** EVT-01, EVT-03, EVT-04 (EVT-02 optional, only for counts if needed).
+- **Events consumed:** EVT-01…EVT-04. EVT-02 advances `pacienteSequence` for contiguity without changing counts (ADR-02/ADR-08, Spec C-05 §5.1).
 - **Data:** DocumentoClinico, FragmentoDocumental (pgvector), EstadoUrgenciaProyeccion and ProcessedEvent (Redis) (D1 §11).
 - **External dependencies:** LLM provider (API key from environment), pgvector database, Redis, Kafka.
 - **Errors:** 400 empty question, 503 when LLM unavailable (NFR-03), 503 when projection unavailable (API-05).
@@ -271,7 +271,7 @@ Testcontainers is recommended (NFR-17). Coverage target is a team decision; not 
 | ADR-01 | Service decomposition (Triage and Assistant, no further split) | TC-09, §3 |
 | ADR-02 | Kafka messaging and event envelope | DEC-03, TC-04 |
 | ADR-03 | Transactional outbox | DEC-14, R-07 |
-| ADR-04 | Vector store choice (pgvector) and JDBC isolation | DEC-06, DER-06 |
+| ADR-04 | Vector store choice (pgvector) and JDBC isolation | DER-06, TC-11, R-03 (no DEC covers pgvector) |
 | ADR-05 | LLM provider and Spring AI vs LangChain4j | DEC-06 |
 | ADR-06 | RF-06 notification channel | DEC-09 |
 | ADR-07 | Authentication (API key vs JWT) | DEC-05 |
