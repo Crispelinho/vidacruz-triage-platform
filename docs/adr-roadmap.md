@@ -3,7 +3,7 @@
 Status: **draft for review.** ADR-04, ADR-08, ADR-09 and ADR-11 are drafted in `docs/adr/`; the remaining ADRs are still planned. No decision is accepted until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11.
+Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14).
 
 ## 1. Purpose
 
