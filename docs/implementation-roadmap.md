@@ -5,9 +5,9 @@ Sources: `docs/openspec-roadmap.md` (D4, changes 1…12), `docs/traceability-mat
 
 Branch context: part of the D3–D6 planning set proposed in PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3). It is not integrated into `develop`.
 
-## 1. Open blocker: the time window
+## 1. Time window (D-4, decided)
 
-`deliverables-plan.md` §1 (D-4) records that the brief is dated 2026-10-29 with a 3-day window, and that today is 2026-11-24. The developer has not confirmed whether the three days start now. This roadmap is written as three working days (Day 1 to Day 3). If the window has already closed, the P2 tasks and some P1 tasks must be dropped or moved, and the developer must decide which. No task is removed here without that decision.
+Decided by the developer on 2026-11-24: the three-day window starts today. Day 1 is 2026-11-24, Day 2 is 2026-11-25 and Day 3 is 2026-11-26. The schedule does not depend on a later execution date. The brief is dated 2026-10-29; the start date above replaces that reference for this plan.
 
 ## 2. Priorities
 
@@ -45,7 +45,7 @@ A gate that is not met blocks the whole change, not only its first task. The blo
 | T-01 | P0 | 1 | Set the baseline in both services: Spring Boot 3.5.16, Java 21, Gradle 8.14.8, Spring Cloud 2025.0.3, Spring AI 1.1.1 (assistant). Make the Gradle wrappers executable and pin them. | both `build.gradle.kts`, wrappers | TC-01, TC-09, TC-11, NFR-15, AMB-13 | `./gradlew build` passes on Java 21 in both services (CI log) |
 | T-02 | P0 | 1 | Create Testcontainers configuration for PostgreSQL (with pgvector in the assistant) and Kafka | both test sources | NFR-17, NFR-15 | An integration test starts both containers and passes |
 | T-03 | P0 | 1 | Create the Triage schema with Flyway (patients, audit, state history, outbox, idempotency key store) and make the audit table reject UPDATE and DELETE | triage persistence | TC-12, DER-04, RN-04 | Integration test shows UPDATE and DELETE on audit are rejected |
-| T-04 | P0 | 2 | Implement the outbox writer and the publisher; define the envelope and EVT-01…EVT-04 payloads | triage (outbox), shared contract | EVT-01…EVT-04, DER-02, TC-04, TC-08, NFR-02, NFR-04 | An outbox row exists if and only if its state change committed (forced rollback test). Architecture check for NFR-04: Triage has no synchronous HTTP client to the Assistant, and the publisher delivers outbox events with the Assistant not running. The functional NFR-04 test is T-12 |
+| T-04 | P0 | 2 | Implement the outbox writer and the publisher; define the envelope and EVT-01…EVT-04 payloads | triage (outbox), shared contract | EVT-01…EVT-04, DER-02, TC-04, TC-08, NFR-02, NFR-04 | An outbox row exists if and only if its state change committed (forced rollback test). Architecture check for NFR-04: Triage has no synchronous HTTP client to the Assistant, and the publisher delivers outbox events with the Assistant not running. The functional NFR-04 test is T-12. Each event is also written to EventoHistorico in the same transaction (DER-09) |
 | T-05 | P0 | 3 | Implement `POST /triage/pacientes` (WebFlux, R2DBC) with VAL-01…VAL-11, RN-01 levels and RN-02-A SLA | triage | RF-01, RN-01, RN-02-A, VAL-01…VAL-11, API-01, NFR-01, NFR-11, DER-05 | E1…E6 classify correctly; each VAL rule has a test |
 | T-06 | P0 | 3 | Add the registration audit (RN-04-R) and the EVT-01 outbox row in the same transaction | triage | RN-04-R, EVT-01, DER-02 | One transaction test: patient, audit and outbox row commit together or not at all |
 | T-07 | P0 | 3 | Implement `Idempotency-Key` replay (24 h TTL) and the 409 on a reused key with a different body | triage | DEC-15, API-01 | Replay returns the original response; a different body returns 409 |
@@ -66,7 +66,7 @@ Day 1 exit: T-01 to T-08 pass in CI.
 | T-13 | P0 | 6 | Implement `GET /triage/reportes/operacion` in SQL (hourly UTC buckets, average and p95 per AMB-05 and DEC-11) with the indexes of D1 §11 | triage | RF-05, API-06, AMB-05, DEC-11 | Fixture matches hand computation, including a patient with no consultation; execution plan uses the indexes; `desde` later than `hasta` returns 400 |
 | T-14 | P0 | 8 | Implement the RAG flow: corpus (PROTO-001, PROTO-002, PROTO-003), retrieval with a relevance threshold, LLM answer with validated citations, fixed notice when no evidence exists | assistant | RF-04-A, RN-05, API-04, TC-05, TC-06, TC-07, AMB-08, AMB-16 | PROTO queries return validated citations; diabetes query returns the notice with `fuentes: []` |
 | T-15 | P0 | 8 | Put the Resilience4j circuit breaker on the LLM call with a 503 fallback; keep the JDBC vector store off the event loop | assistant | NFR-03, NFR-01, DER-06, TC-05 | Test with LLM stubbed to fail: breaker opens and endpoint returns 503 |
-| T-16 | P0 | 9 | Implement the consumer of EVT-01…EVT-04 and the emergency projection with the idempotent guard (`pacienteSequence` and eventId) | assistant | RF-04-B, API-05, DEC-06, NFR-02, DER-03, AMB-14 | Replay does not double count; a request makes no call to Triage (Triage unreachable test) |
+| T-16 | P0 | 9 | Implement the consumer of EVT-01…EVT-04 and the emergency projection with the idempotent guard (`pacienteSequence` and eventId) | assistant | RF-04-B, API-05, DEC-06, NFR-02, DER-03, AMB-14 | Replay does not double count; a request makes no call to Triage (Triage unreachable test); deleting the projection and rebuilding from EventoHistorico restores the same counts |
 | T-17 | P0 | 9 | Implement `GET /asistente/estado-urgencias` | assistant | API-05 | Counts match a replayed event sequence |
 | T-18 | P0 | 7 | Implement the alert consumer of EVT-02 with the delivery attempts table and the webhook channel (chosen in ADR-06) | triage | RF-06, AMB-10, DEC-09, DER-03 | Duplicate EVT-02 produces one notification; failed delivery retried with backoff |
 
@@ -115,9 +115,9 @@ P0 tasks are not cut. If a P0 task is blocked, its blocker is recorded in T-24 o
 
 - **R-06 / AMB-11:** Azure access may be unavailable. T-24 records the blocker instead of claiming a deployment.
 - **R-02 / AMB-12:** Verified against the official Spring announcement (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/, dated 2026-06-25): Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and Spring says continued OSS support requires moving to 4.0.x or 4.1.x. The baseline is fixed by the brief (Boot 3.x), so the project runs on a line whose OSS support has ended. The developer must explicitly accept this risk in ADR-10 (G-02). Until ADR-10 is accepted and records the support limitation and its consequences, G-02 remains unmet and T-01 is blocked. The risk is not removed by the decision. Commercial support is a paid option and is not assumed.
-- **D-4:** the time window is unconfirmed (see §1).
+- **D-4:** decided, see §1.
 - **OD-2:** requirement numbering in `prompt-init.txt` (RF-01…RF-09) differs from `requirements.md` (RF-01…RF-06). The tasks follow `requirements.md`.
-- **OD-3 and OD-4:** event retention and report range limit are not decided. T-13 needs OD-4 before implementation; the rebuild test of T-16 needs OD-3.
+- **OD-3 and OD-4:** decided (D4 §6, D1 §10–§11). The open item is OD-5: the retention period of `EventoHistorico`, which must be set before production use.
 
 ## 10. Completion criteria for this deliverable
 
