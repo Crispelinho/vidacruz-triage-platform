@@ -70,7 +70,7 @@ Objectives of the system:
 
 **Part B — urgency state.** `GET /asistente/estado-urgencias` (API-05).
 - Returns the count of patients not in `ALTA`, grouped by level.
-- Built only from `triaje.eventos` (no calls to the Triage API). Persisted as a projection (Redis or other store, DEC-06).
+- Built only from `triaje.eventos` (no calls to the Triage API). Persisted as a projection under DEC-10 / ADR-08 (Proposed); Redis or equivalent.
 
 ### RF-05 Operations report
 - **Endpoint:** `GET /triage/reportes/operacion?desde=...&hasta=...` (API-06), ISO 8601 range.
@@ -337,13 +337,13 @@ Topic: `triaje.eventos` (TC-04). Key: `pacienteId` (ordering per patient). At-le
 | ID | eventType | Producer | Consumers | Published when | Payload |
 |---|---|---|---|---|---|
 | EVT-01 | paciente_registrado | Triage | Assistant (projection), alerts (optional) | After successful registration, same transaction as outbox row | `nivel`, `slaMinutos`, `estado`, `fechaRegistro` |
-| EVT-02 | paciente_escalado | Triage | Alerts (RF-06), Assistant (optional) | After atomic escalation | `nivel`, `slaMinutos`, `fechaEscalamiento` |
+| EVT-02 | paciente_escalado | Triage | Alerts (RF-06), Assistant (sequence continuity only) | After atomic escalation | `nivel`, `slaMinutos`, `fechaEscalamiento` |
 | EVT-03 | paciente_en_consulta | Triage | Assistant (projection), Triage metrics | After transition to EN_CONSULTA | `estadoAnterior`, `fechaEntradaConsulta` |
 | EVT-04 | paciente_alta | Triage | Assistant (projection) | After transition to ALTA | `estadoAnterior`, `fechaAlta` |
 
 Schema evolution: additive changes only within `schemaVersion`; breaking changes bump `schemaVersion` and keep the old consumer path for one release (DEC-03).
 
-**Durable history and reconstruction (OD-3, decided).** Triage keeps every published event in `EventoHistorico` (§11), written in the same transaction as the state change and its outbox row. Kafka keeps `triaje.eventos` for 30 days (`retention.ms=2592000000`). A full projection rebuild does not depend on that window: a reconstruction job in Triage reads `EventoHistorico` in `pacienteSequence` order per patient and republishes each event with its original `eventId`, `pacienteSequence` and payload. Consumers already ignore duplicates by `eventId` and sequence, so republishing is idempotent. The Assistant never calls Triage. After the history is replayed, live events continue with sequences above the last replayed sequence for each patient, without loss or duplicates.
+**Durable history and reconstruction (OD-3, decided).** Triage persists every event in `EventoHistorico` (§11) in the same transaction as the state change and its outbox row. A history row is a **persisted** event; it becomes **published** only when the broker ACK is confirmed, and those two states are distinct (an ACK may be pending or may fail). Kafka keeps `triaje.eventos` for 30 days (`retention.ms=2592000000`). A full projection rebuild does not depend on that window: a reconstruction job in Triage reads `EventoHistorico` in `pacienteSequence` order per patient and republishes each event with its original `eventId`, `pacienteSequence` and payload. Consumers already ignore duplicates by `eventId` and sequence, so republishing is idempotent. The Assistant never calls Triage. After the history is replayed, live events continue with sequences above the last replayed sequence for each patient, without loss or duplicates.
 
 ## 11. Persistence
 
@@ -354,7 +354,7 @@ Schema evolution: additive changes only within `schemaVersion`; breaking changes
 | Clasificacion | Triage | PostgreSQL | Level and SLA applied at registration | FK to Paciente |
 | AuditoriaClinica | Triage | PostgreSQL | RN-04 log | Append-only: no UPDATE/DELETE grants; index `(pacienteId, timestamp)` |
 | OutboxEvento | Triage | PostgreSQL | Pending events (DER-02) | Index `(publicadoEn)` partial where null |
-| EventoHistorico | Triage | PostgreSQL | Durable copy of every published event, for projection reconstruction (OD-3, DER-09) | PK `eventoId`; unique `(pacienteId, pacienteSequence)`; full envelope in `payload` (jsonb); append-only: no UPDATE or DELETE grants; written in the same transaction as the state change and OutboxEvento; no time-based purge until OD-5 is decided |
+| EventoHistorico | Triage | PostgreSQL | Durable copy of every persisted event (published or awaiting ACK), for projection reconstruction (OD-3, DER-09) | PK `eventoId`; unique `(pacienteId, pacienteSequence)`; full envelope in `payload` (jsonb); append-only: no UPDATE or DELETE grants; accepted durable record under OPEN-09/OPEN-10 Option A (developer, 2026-11-25); written in the same transaction as the state change and OutboxEvento; no time-based purge until OD-5 is decided |
 | DocumentoClinico | Assistant | PostgreSQL | Protocol metadata (protocolo, seccion, fuente) | Unique `(protocolo, seccion)` |
 | FragmentoDocumental | Assistant | pgvector | Chunks and embeddings | Index on embedding; metadata filter by protocolo |
 | EstadoUrgenciaProyeccion | Assistant | Redis | Count by level, last sequence per patient | Hash per level; dedupe set of processed eventIds with TTL |
