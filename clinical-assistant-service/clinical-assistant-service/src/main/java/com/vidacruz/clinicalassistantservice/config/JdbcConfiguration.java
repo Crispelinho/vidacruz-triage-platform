@@ -1,4 +1,4 @@
-package com.vidacruz.clinical_assistant_service.config;
+package com.vidacruz.clinicalassistantservice.config;
 
 import javax.sql.DataSource;
 

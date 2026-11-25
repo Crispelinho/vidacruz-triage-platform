@@ -1,4 +1,4 @@
-package com.vidacruz.clinical_assistant_service;
+package com.vidacruz.clinicalassistantservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

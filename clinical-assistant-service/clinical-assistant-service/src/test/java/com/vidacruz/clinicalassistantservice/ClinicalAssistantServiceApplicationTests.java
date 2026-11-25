@@ -1,4 +1,4 @@
-package com.vidacruz.clinical_assistant_service;
+package com.vidacruz.clinicalassistantservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;

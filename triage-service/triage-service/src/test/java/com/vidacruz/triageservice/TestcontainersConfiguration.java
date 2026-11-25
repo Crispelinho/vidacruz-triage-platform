@@ -1,4 +1,4 @@
-package com.vidacruz.triage_service;
+package com.vidacruz.triageservice;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;

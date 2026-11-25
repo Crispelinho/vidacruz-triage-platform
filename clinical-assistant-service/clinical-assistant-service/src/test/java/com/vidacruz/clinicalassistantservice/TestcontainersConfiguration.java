@@ -1,4 +1,4 @@
-package com.vidacruz.clinical_assistant_service;
+package com.vidacruz.clinicalassistantservice;
 
 import org.springframework.boot.autoconfigure.jdbc.JdbcConnectionDetails;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
