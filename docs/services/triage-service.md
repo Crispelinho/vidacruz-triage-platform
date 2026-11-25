@@ -174,7 +174,7 @@ The Assistant codes (`LLM_UNAVAILABLE`) are out of scope.
 ```
 
 - Topic `triaje.eventos`, Kafka key `pacienteId` (ordering per patient), JSON, at-least-once delivery (TC-04, TC-08, DEC-03).
-- `pacienteSequence` increases by one per patient for each event; generation is covered in G-T06.
+- `pacienteSequence` increases by one per patient for each event; G-T06 is closed (2026-11-25) as a per-patient counter assigned in the same transaction (§7.6).
 - `occurredAt` is the domain timestamp taken in the same transaction as the state change.
 - Event payloads carry no patient name and no free text (NFR-19 spirit, data minimization).
 
@@ -183,7 +183,7 @@ The Assistant codes (`LLM_UNAVAILABLE`) are out of scope.
 | ID | eventType | Published when | Payload | Consumers |
 |---|---|---|---|---|
 | EVT-01 | `paciente_registrado` | Registration committed | `nivel`, `slaMinutos`, `estado`, `fechaRegistro` | Assistant (projection) |
-| EVT-02 | `paciente_escalado` | Escalation committed | `nivel`, `slaMinutos`, `fechaEscalamiento` | Alert dispatch (RF-06); Assistant optional (counts only if needed) |
+| EVT-02 | `paciente_escalado` | Escalation committed | `nivel`, `slaMinutos`, `fechaEscalamiento` | Alert dispatch (RF-06); Assistant (sequence continuity only, no count effect) |
 | EVT-03 | `paciente_en_consulta` | Transition to `EN_CONSULTA` committed | `estadoAnterior`, `fechaEntradaConsulta` | Assistant (projection). "Triage metrics" listed in D1 §10 is not a Kafka consumer (G-T08) |
 | EVT-04 | `paciente_alta` | Transition to `ALTA` committed | `estadoAnterior`, `fechaAlta` | Assistant (projection) |
 
@@ -194,9 +194,9 @@ Schema evolution: additive within `schemaVersion`; breaking changes bump the ver
 - **Write path:** the outbox row is inserted in the same R2DBC transaction as the business change. No Kafka call inside the request transaction (no dual write, R-07).
 - **Row content (proposed):** `eventId`, `pacienteId`, `eventType`, `pacienteSequence`, `payload` (JSON), `correlationId`, `occurredAt`, `createdAt`, `publicadoEn` (nullable), `intentos`, `ultimoError`.
 - **Index:** partial index on `(publicadoEn)` `WHERE publicadoEn IS NULL` (D1 §11).
-- **Publisher:** background, reactive, restartable and idempotent. Reads pending rows in bounded batches, publishes with `acks=all` and idempotent producer settings (proposed), marks `publicadoEn` after broker acknowledgement. On a crash between send and mark, the row is re-published: consumers tolerate duplicates through `eventId` and `pacienteSequence` (DER-03).
-- **Multiple replicas:** the publisher can run on every replica. Concurrent readers must claim rows (for example `FOR UPDATE SKIP LOCKED`) to avoid duplicate work; ordering per patient is protected by `pacienteSequence` at the consumer, not by the publisher (G-T06).
-- **Retention:** published rows deleted after a configurable retention (D0 §7); value not set (G-T29).
+- **Publisher:** background, reactive, restartable and idempotent. Reads pending rows in bounded batches, publishes with `acks=all` and idempotent producer settings (proposed), marks `publicadoEn` in a separate transaction after broker acknowledgement. No database transaction or row lock is held while waiting for Kafka; ADR-03 specifies the short lease claim. On a crash between send and mark, the row is re-published after lease expiry: consumers tolerate duplicates through `eventId` and `pacienteSequence` (DER-03).
+- **Multiple replicas:** the publisher can run on every replica. Concurrent readers claim rows with `FOR UPDATE SKIP LOCKED` inside a short transaction that stamps `claimadoPor`/`claimExpiraEn`, then release the lock before the send; ordering per patient is protected by `pacienteSequence` at the consumer, not by the publisher (G-T06, closed 2026-11-25).
+- **Retention:** published rows deleted after a configurable retention (D0 §7); accepted default 7 days (G-T29, closed 2026-11-25). Unpublished and flagged rows are never deleted; `EventoHistorico` is not affected.
 
 ---
 
@@ -223,7 +223,7 @@ Database: one PostgreSQL database for Triage (DEC-10). Access: R2DBC at runtime;
 | `escalado` | boolean | NOT NULL, default false (DEC-02) |
 | `fecha_registro` | timestamptz | NOT NULL |
 | `fecha_ultimo_cambio_estado` | timestamptz | proposed; needed for `tiempoEnEstadoMinutos` (G-T22) |
-| `ultima_secuencia` | integer | proposed; per-patient `pacienteSequence` counter (G-T06) |
+| `ultima_secuencia` | BIGINT | NOT NULL DEFAULT 0; accepted per-patient counter (G-T06, 2026-11-25), incremented in the same transaction as the event (§7.6) |
 
 **Indexes:** `(estado, escalado)` for the evaluator filter (D1 §11). The overdue test needs `sla_minutos` from `Clasificacion`, so the evaluator joins on `clasificacion(paciente_id)`, which needs its own index (unique FK). `(fecha_registro)` for RF-05 (D1 §11).
 
@@ -262,7 +262,7 @@ Database: one PostgreSQL database for Triage (DEC-10). Access: R2DBC at runtime;
 
 ### 5.4 `OutboxEvento`
 
-Described in §4.3. Rows are inserted in the business transaction. Publication marks `publicadoEn`. Retention deletion is a scheduled job (G-T29).
+Described in §4.3. Rows are inserted in the business transaction. Publication marks `publicadoEn`. Retention deletion is a scheduled job with the accepted 7-day default (G-T29, closed).
 
 ### 5.5 `IdempotencyKey` (DEC-15)
 
@@ -292,7 +292,7 @@ Status key: **Covered** = specified precisely enough to implement and test; open
 
 | Req | Name | Covered by (this doc) | Status | Open items |
 |---|---|---|---|---|
-| RF-01 | Register and classify patient | §2.1, §3.2, §4.2 (EVT-01), §5.1–5.5, §7.3 | **Gap** | G-T01 error shape, G-T02 codes, G-T03 idempotency scope, G-T06 sequence storage |
+| RF-01 | Register and classify patient | §2.1, §3.2, §4.2 (EVT-01), §5.1–5.5, §7.3, §7.6 | **Gap** | G-T01 error shape, G-T02 codes, G-T03 idempotency scope; G-T06 sequence contract closed but not implemented |
 | RF-02 | Clinical state flow and patient query | §2.2, §3.3, §3.4, §4.2 (EVT-03/04), §5.1, §7.1 | **Gap** | G-T08 EVT-03 consumer, G-T21 `EN_CONSULTA → REGISTRADO`, G-T22 last-change timestamp |
 | RF-03 | SLA monitoring and escalation | §2.3, §5.2 (SLA snapshot), §5.1 index, §7.2 | **Covered** | Evaluator interval default is configuration (G-T27); not blocking |
 | RF-05 | Operations report with advanced SQL | §2.5, §3.5, §5.3 indexes, §9 (TST-RPT) | **Gap** | G-T14 grouping timestamp and null averages, G-T15 range limit, G-T17 range semantics |
@@ -311,9 +311,9 @@ RN-05 and RF-04 belong to the Assistant and are not mapped here.
 ## 7. Concurrency and idempotency rules
 
 ### 7.1 State transitions (RF-02)
-- Update with an expected-state guard: `UPDATE paciente SET estado = :nuevo, fecha_ultimo_cambio_estado = :now, ultima_secuencia = ultima_secuencia + 1 WHERE id = :id AND estado = :esperado`.
-- Zero rows updated → the state changed under the caller: re-read, and return 409 `INVALID_TRANSITION` if the requested transition is no longer valid, or apply it if still valid. Simpler alternative: fail with 409 and let the client retry. Choice in §10 (G-T24).
-- Audit and outbox insert in the same transaction, after the guarded update succeeds.
+- Update with an expected-state guard and return the new counter: `UPDATE paciente SET estado = :nuevo, fecha_ultimo_cambio_estado = :now, ultima_secuencia = ultima_secuencia + 1 WHERE id = :id AND estado = :esperado RETURNING ultima_secuencia`. One returned row supplies the event's `pacienteSequence`.
+- No returned row → the guard was not met; the state changed under the caller. Re-read, and return 409 `INVALID_TRANSITION` if the requested transition is no longer valid, or apply it if still valid. Simpler alternative: fail with 409 and let the client retry. Choice in §10 (G-T24); G-T06 does not decide it.
+- Audit, outbox and `EventoHistorico` inserts use the returned sequence in the same transaction, after the guarded update succeeds (§7.6).
 
 ### 7.2 Escalation (RN-03, DEC-04)
 - Single conditional update: `UPDATE paciente SET escalado = true … WHERE id = :id AND escalado = false AND estado = 'REGISTRADO'`.
@@ -337,6 +337,33 @@ RN-05 and RF-04 belong to the Assistant and are not mapped here.
 ### 7.5 Consumer idempotency
 - Triage consumes no events for state. If the alert dispatcher consumes EVT-02 (G-T09), it deduplicates on `eventId` and sends `eventId` as the webhook idempotency key (G-T10).
 
+### 7.6 `pacienteSequence` assignment (G-T06, closed 2026-11-25)
+
+**Decision:** Triage's application service assigns the sequence in the **same R2DBC transaction** that persists the state change, the counter, the outbox row, the audit row and `EventoHistorico`. A PostgreSQL `SEQUENCE` is rejected: its increments are not rolled back with the business transaction and would leave gaps among committed events.
+
+| Step | Contract |
+|---|---|
+| Registration | Insert the patient with `ultima_secuencia = 1`; EVT-01 uses `pacienteSequence = 1`. |
+| Later events | `UPDATE paciente SET ... , ultima_secuencia = ultima_secuencia + 1 WHERE id = :id AND <guard> RETURNING ultima_secuencia`. The returned value is the sequence. |
+| One returned row | Sequence obtained; continue with the writes in the same transaction. |
+| No returned row | The state/escalation guard failed; follow the G-T24 conflict path. Do not allocate a sequence. |
+| Database/integrity error | Classify it; never invent a sequence outside the transaction. |
+| Concurrency | The row lock serializes writers of one patient; under `READ COMMITTED` the waiting guard is re-evaluated. `UNIQUE (paciente_id, paciente_sequence)` is a safety net, not the allocator. |
+| Retries | A transient database failure rolls back and re-executes the complete transactional operation; never retry only the event insert after losing the assignment context. A publisher re-send keeps the original `eventId` and sequence. |
+
+**Transactional context:** all writes must share the same `TransactionalOperator`/R2DBC context; being in the same reactive flow is not enough. If the outbox, audit or history write fails, the counter increment is rolled back and no event is emitted.
+
+**Separate decisions:** G-T03 (request idempotency), G-T24 (conflict response), ADR-02 (consumer model), EVT-03/EVT-04 level dependency and G-T25 (publisher; no renumbering).
+
+**Acceptance criteria (defined, not executed):**
+- [ ] Two concurrent writers of one patient get distinct, contiguous sequences; no `(paciente_id, paciente_sequence)` repeats.
+- [ ] A failed transaction leaves the patient counter at its previous value; no increment without the associated writes.
+- [ ] If any of outbox, audit or history writes fails, the counter remains unchanged and no event is emitted.
+- [ ] A zero-row `UPDATE RETURNING` follows G-T24 and allocates no sequence.
+- [ ] A transient database failure re-executes the complete transactional operation, not only the event insert.
+- [ ] Re-sends and `EventoHistorico` reconstruction preserve order and original `eventId`/sequence.
+- [ ] Stale/future sequences follow C2; EVT-03/EVT-04 are never applied with an unknown level.
+
 ---
 
 ## 8. Reactive constraints
@@ -352,7 +379,7 @@ RN-05 and RF-04 belong to the Assistant and are not mapped here.
 | Cancellation | Client disconnect propagates through `Mono` chains | D0 §6 |
 | Testing | BlockHound on request threads; test fails when a blocking call runs on an event loop thread | TST-RXN |
 
-**Library gap (new, G-T25):** the skeleton uses `spring-boot-starter-kafka` (spring-kafka, blocking `KafkaTemplate` API). A reactive pipeline needs `reactor-kafka` or an explicit reactive adapter. Decision required before the outbox publisher is implemented.
+**G-T25 (closed 2026-11-25, publisher only):** the outbox publisher keeps the maintained `spring-kafka` dependency and composes its asynchronous `KafkaTemplate.send(...)` result with Project Reactor (`Mono.defer` + `Mono.fromFuture`, `suppressCancel = false`). `reactor-kafka` is excluded because it is discontinued and archived; no new Kafka dependency is added. This does not close the Assistant consumer model, which remains an ADR-02 decision. The publisher must bound in-flight sends, keep a lease covering the full publication budget (or renew it), retry only transient errors, and never mark a row published without an ACK; see ADR-03 and Spec C-05 §7.10.
 
 Triage has no JDBC on the request path. The DER-06 pgvector risk belongs to the Assistant.
 
@@ -473,7 +500,7 @@ E4 and E5 depend on the FC 40–89 gap (AMB-01). The tests must assert the docum
 | AMB-06 / DEC-08 | Unknown ID → 404; same-state → 409 | Codes for 404 and other errors undefined (G-T02) | See G-T02 |
 | AMB-07 / DEC-02 | Escalation audit with equal states | `tipo_evento` values undefined (G-T13) | See G-T13 |
 | AMB-10 / DEC-09 | RF-06 channel | Dispatch mechanism contradicts itself (G-T09, G-T10) | See G-T09 to G-T11 |
-| AMB-14 / DEC-03 | Duplicates and out-of-order messages | Sequence storage not in D1 §11 (G-T06) | See G-T06 |
+| AMB-14 / DEC-03 | Duplicates and out-of-order messages | Sequence storage not in D1 §11; G-T06 closed 2026-11-25, implementation pending | See §7.6 |
 | DEC-04 | Evaluator with conditional update | Interval default not set (G-T27) | See G-T27 |
 | DEC-05 | API key in `X-API-Key` | Key management and rotation not specified (G-T31) | Config secret from environment; rotation documented as out of scope |
 | DEC-08 | API conventions and error body | Shape conflict with NFR-20 (G-T01) | See G-T01 |
@@ -481,7 +508,7 @@ E4 and E5 depend on the FC 40–89 gap (AMB-01). The tests must assert the docum
 | DEC-10 | One database per service | None for Triage | — |
 | DEC-12 / R-02 | Boot 3.5 support status | Not verified in this analysis (no web lookup) | Check spring.io before the first build; keep 3.5.16 per skeleton |
 | DEC-13 | Java 21 | D1 note says skeleton not yet changed (Java 25); scaffold branch already uses 21 (see §12) | Treat DEC-13 as applied; D1 note to update |
-| DEC-14 / R-07 | Transactional outbox | Publisher claiming and retention (G-T06, G-T29) | See §4.3 |
+| DEC-14 / R-07 | Transactional outbox | Publisher claiming and retention (G-T29); sequence assignment closed under G-T06 | See §4.3 and §7.6 |
 | DEC-15 | Idempotency-Key | Scope, in-flight, cleanup (G-T03, G-T04, G-T05) | See those items |
 
 ### 10.2 Gaps and derived items found by this analysis
@@ -495,7 +522,7 @@ Items marked **new** are not registered in D1 and should be added to D1 §14 bef
 | G-T03 | Idempotency scope (global or per client), in-flight duplicates, key format and length | RF-01 / DEC-15 | Replay correctness across clients | Scope to (client identity, key); length max 255; in-flight waits on PK conflict (§7.3) |
 | G-T04 | Empty `Idempotency-Key` header: absent or malformed? | API-01 | Minor | Empty value treated as malformed (400 `MALFORMED_REQUEST`) |
 | G-T05 | Cleanup job for expired idempotency keys not specified | DEC-15 | Table growth | Scheduled deletion of `expires_at < now()` in batches |
-| G-T06 | `pacienteSequence` generation and storage not in D1 §11 | RF-01, RF-02, RF-03, DEC-03 | EVT-01…04 cannot be emitted correctly | Column `ultima_secuencia` on `Paciente`, incremented in the same transaction as each outbox row |
+| G-T06 | `pacienteSequence` generation and storage not in D1 §11 | RF-01, RF-02, RF-03, DEC-03 | EVT-01…04 cannot be emitted correctly | **Closed 2026-11-25:** `ultima_secuencia BIGINT` on `Paciente`, incremented via `UPDATE ... RETURNING` in the same transaction as state, outbox, audit and history (§7.6) |
 | G-T07 | `occurredAt` source not defined | §4.1 | Event timestamp semantics | Domain instant taken within the transaction (§4.1) |
 | G-T08 | EVT-03 lists "Triage metrics" as consumer; contradicts "no consumption for state" and D0 §8 consumer list | RF-02, EVT-03 | Unneeded self-consumption | Remove; record metrics in the use case |
 | G-T09 | RF-06 dispatch: DEC-09 says "outbox-driven" while D0 §8 says "alerts channel consumes EVT-02" | RF-06, EVT-02 | Architecture unclear | Choose one in ADR: (a) Kafka consumer group in Triage reading EVT-02 with its own dedupe table, or (b) dedicated alert outbox table filled in the escalation transaction |
@@ -514,11 +541,11 @@ Items marked **new** are not registered in D1 and should be added to D1 §14 bef
 | G-T22 | Last state change timestamp not persisted in D1 §11, needed for `tiempoEnEstadoMinutos` | RF-02 | Endpoint cannot be computed cheaply | Column `fecha_ultimo_cambio_estado` on `Paciente` |
 | G-T23 | `SignoVital` undecided (D1 §11) | Persistence | Schema choice | Columns in `Paciente` (§5.1) |
 | G-T24 | Behavior on concurrent transition conflicts: fail with 409 or re-read and apply | RF-02 | Client contract | Fail with 409 and let client retry (simpler, deterministic); re-read is an alternative |
-| G-T25 | **new:** Kafka client library: skeleton has `spring-kafka` (blocking API); reactive needs `reactor-kafka` or equivalent | NFR-01, NFR-02, §8 | Non-reactive publisher risk | ADR choosing `reactor-kafka` for the outbox publisher and consumers |
+| G-T25 | Kafka client library for the C-05 publisher: skeleton has `spring-kafka`; `reactor-kafka` is discontinued | NFR-01, NFR-02, §8 | Non-reactive publisher risk | **Closed 2026-11-25:** spring-kafka `KafkaTemplate` + Reactor adapter; same broker, bounded inflight, no breaker. Consumer stays in ADR-02 |
 | G-T26 | Skeleton lacks dependencies required by NFR-05, NFR-07, NFR-11, NFR-15, NFR-17 and TST-RXN (actuator, Micrometer Prometheus, validation, Testcontainers, BlockHound) | NFR-05/07/11/15/17, TST-RXN | Cannot meet probes, metrics, validation, tests | Add when implementing; not a D1 decision |
 | G-T27 | Default evaluator interval not set (NFR-08 configurable only) | RF-03, DEC-04 | Test and demo timing | Default 30 s (proposal): worst-case escalation delay of 30 s on a 5-minute minimum SLA |
 | G-T28 | SLA snapshot versus later configuration changes (**new**). D1 §11 says `Clasificacion` holds the SLA applied at registration, but the rule for later config changes is not stated | RN-02, NFR-08 | Deadlines move unexpectedly if read from config | Use the snapshot in `Clasificacion.sla_minutos`; configuration changes apply to new registrations only (documented in ADR) |
-| G-T29 | Retention of published outbox rows | DER-02, DEC-14 | Table growth | Retention 7 days (proposal) configurable; scheduled job |
+| G-T29 | Retention of published outbox rows | DER-02, DEC-14 | Table growth | **Closed 2026-11-25:** retention 7 days, configurable; scheduled job; never delete unpublished or flagged rows |
 | G-T30 | Patient id format in path (non-UUID value → 400 or 404?) | API-02, API-03 | Minor | 404 for any id that is not a stored UUID, consistent with AMB-06 |
 | G-T31 | Key management for `X-API-Key` (provisioning, rotation, storage) | DEC-05, NFR-09 | Operational | Key from environment or secret store; rotation out of scope; documented |
 
@@ -558,10 +585,10 @@ Source: `triage-service/triage-service` on `feature/scaffold-skeletons` (commit 
 | Java | Toolchain 21 | Matches DEC-13; D1 note still says skeleton uses 25 |
 | Gradle | Wrapper 8.14.8 | Within Boot 3.5 support (DEC-13 rationale) |
 | Persistence | `spring-boot-starter-data-r2dbc`, `r2dbc-postgresql`; `spring-boot-starter-flyway`, `flyway-database-postgresql`, `spring-jdbc`, `postgresql` JDBC | Matches TC-03, TC-12 |
-| Messaging | `spring-boot-starter-kafka` (spring-kafka) | Blocking API; G-T25 |
+| Messaging | `spring-boot-starter-kafka` (spring-kafka) | Maintained client; used through the accepted Reactor adapter for the outbox publisher (G-T25); no `reactor-kafka` dependency |
 | Security | `spring-boot-starter-security`, webflux | Matches DEC-05 |
-| Resilience | `spring-cloud-starter-circuitbreaker-reactor-resilience4j` | Matches TC-05 |
-| Missing | actuator, Micrometer registry, validation, Testcontainers, BlockHound, reactor-kafka | G-T26, G-T25 |
+| Resilience | `spring-cloud-starter-circuitbreaker-reactor-resilience4j` | Matches TC-05; dependency is present but is not used for the outbox publisher under the accepted backoff-only posture (ADR-03) |
+| Missing | actuator, Micrometer registry, validation, Testcontainers, BlockHound | G-T26; G-T25 no longer requires a new Kafka dependency |
 | `application.yaml` | Only `spring.application.name` | Config for R2DBC, Flyway, Kafka, SLA, API key, interval missing (NFR-08, NFR-09, DER-01) |
 | Tests | `contextLoads()` with `@SpringBootTest` only | Needs infrastructure (§9.10) |
 

@@ -54,7 +54,7 @@ The Clinical Assistant Service answers clinical questions from the official prot
 |---|---|---|---|---|---|
 | UC-A1 | Answer a clinical question with citations | Authenticated API client | `POST /asistente/consulta` | 200 with `respuesta` and validated `fuentes`, or the fixed notice | RF-04 A, RN-05 |
 | UC-A2 | Report the current urgency state | Authenticated API client | `GET /asistente/estado-urgencias` | 200 with counts per level, or 503 | RF-04 B, API-05 |
-| UC-A3 | Maintain the urgency projection | Kafka consumer | Message on `triaje.eventos` (EVT-01, EVT-03, EVT-04; EVT-02 optional) | Projection updated once per distinct event | RF-04 B, DER-03, NFR-02 |
+| UC-A3 | Maintain the urgency projection | Kafka consumer | Message on `triaje.eventos` (EVT-01…EVT-04; EVT-02 advances sequence only) | Projection updated once per distinct event | RF-04 B, DER-03, NFR-02 |
 | UC-A4 | Ingest the protocol corpus | Startup routine or operator action | Application start, or on demand | Chunks and embeddings stored; metadata stored | RF-04 A, D0 §9 step 1–3 |
 | UC-A5 | Expose probes, metrics and correlated logs | Platform | Probe call, scrape, log | Liveness, readiness, Micrometer metrics, structured logs | NFR-05, NFR-06, NFR-07 |
 
@@ -130,7 +130,7 @@ API-05 has no 400 case, because it takes no input.
 
 ---
 
-## 5. Event consumption: EVT-01, EVT-03, EVT-04, EVT-02
+## 5. Event consumption: EVT-01…EVT-04
 
 ### 5.1 Envelope and contract
 
@@ -138,37 +138,37 @@ All events use the envelope in D1 §10 (DEC-03): `eventId`, `eventType`, `schema
 
 | ID | eventType | Consumed | Fields used | Effect on projection |
 |---|---|---|---|---|
-| EVT-01 | `paciente_registrado` | **Yes (required)** | `payload.nivel`, `payload.estado`, `payload.fechaRegistro` | Records the patient's level; state `REGISTRADO`; patient becomes counted (if not `ALTA`) |
+| EVT-01 | `paciente_registrado` | **Yes (required)** | `payload.nivel`, `payload.estado`, `payload.fechaRegistro` | Records the patient's level; state `REGISTRADO`; patient becomes counted |
+| EVT-02 | `paciente_escalado` | **Yes (sequence only)** | `pacienteSequence`, `eventId` | Advances `ultimaSecuencia`; no count change. Escalation changes `escalado`, not `estado` (DEC-02) |
 | EVT-03 | `paciente_en_consulta` | **Yes (required)** | `payload.estadoAnterior`, `payload.fechaEntradaConsulta` | State `EN_CONSULTA`; patient remains counted |
 | EVT-04 | `paciente_alta` | **Yes (required)** | `payload.estadoAnterior`, `payload.fechaAlta` | State `ALTA` (terminal); patient leaves the counts |
-| EVT-02 | `paciente_escalado` | **Optional, not used for counts** | `payload.nivel`, `payload.fechaEscalamiento` | None for counts. Escalation changes the `escalado` flag, not `estado` (DEC-02), so the count is unchanged |
 
-**Why EVT-02 is optional:** under DEC-02, escalation does not change `estado`, so it cannot change the counts that API-05 reports. Ignoring it does not break the projection. It does mean that `pacienteSequence` will have gaps in the Assistant's view (see 5.3). The sources disagree on whether the Assistant consumes all four events (D0 §8 says "all four"; D1 §10 and D0 §3.2 say EVT-01/03/04 with EVT-02 optional). See G-10.
+**Why EVT-02 is consumed:** under DEC-02 escalation does not change `estado`, so it has no count effect, but skipping it would create a false gap in `pacienteSequence`. ADR-02/ADR-08 require contiguous sequences, so the consumer acknowledges EVT-02 and advances `ultimaSecuencia` without changing counts. This resolves the source disagreement in G-10 in favour of "all four consumed, different effects".
 
-**Missing field:** EVT-04 has no `nivel`. To decrement the count for a discharged patient, the projection must know the level from EVT-01. See G-08.
+**Missing field resolved:** EVT-03 and EVT-04 have no `nivel`, but the fixed order protocol applies EVT-01 first and stores its `nivel` in the per-patient hash. EVT-04 therefore decrements using the stored level; no additive payload field is required. See G-08.
 
 ### 5.2 Consumer main flow (UC-A3)
 
-1. Read the record; validate the envelope (`schemaVersion` supported, `eventId` and `pacienteId` present, `pacienteSequence` a positive integer).
+1. Read the record; validate the envelope (`schemaVersion` supported, `eventId`, `pacienteId` and `pacienteSequence` positive integer).
 2. If the `eventId` was already processed (section 8.4), acknowledge and stop.
-3. Run one atomic update in Redis that applies the rules in section 8.3, including the counts.
-4. Mark `eventId` as processed (same atomic step).
-5. Acknowledge the offset only after step 3 has succeeded (at-least-once). A Redis failure leaves the offset uncommitted and retries with backoff.
+3. Apply the sequence protocol of ADR-02 / Spec C-05 §5.1: `sequence = lastApplied + 1` continues; `sequence <= lastApplied` is `STALE` and is acknowledged; `sequence > lastApplied + 1` is `GAP`, is kept unacknowledged in `pendingByPatient`, and goes to the DLT with `GAP_UNRESOLVED` on timeout.
+4. Run one atomic Lua update in Redis that applies section 8.3 and writes the `eventId` marker in the same step. For EVT-03/EVT-04 the consumer passes the `nivel` already stored for the patient.
+5. Acknowledge the offset only after step 4 has succeeded (at-least-once). A Redis failure or a pending gap leaves the offset uncommitted and retries with backoff.
 
 ### 5.3 Duplicate and out-of-order handling
 
 | Case | Expected behavior | Rule |
 |---|---|---|
-| Exact duplicate (same `eventId`) | No state change; acknowledge | DER-03, eventId dedupe |
-| Same patient, same `pacienteSequence` but different `eventId` | No state change for state fields; `nivel` is still recorded if missing | Sequence rule |
-| State event older than the last applied sequence (`pacienteSequence` ≤ `ultimaSecuencia`) | Ignored for state | DEC-03, AMB-14 |
-| EVT-03 or EVT-04 arrives before EVT-01 | State applied; count changes only when the level is known; EVT-01 later sets the level and adds the patient if not `ALTA` | Section 8.3 |
-| Sequence gap (for example EVT-02 not consumed) | Accepted; the consumer never waits for a missing sequence | Gap-tolerant comparison, no contiguity check |
-| EVT-03 arrives after EVT-04 for the same patient | Ignored; `ALTA` is terminal and is never reverted | RF-02 (ALTA has no outgoing transition) |
-| EVT-04 arrives and no EVT-01 was ever seen | Patient stored as `ALTA` with unknown level; no count change | Section 8.3 |
-| Unsupported `schemaVersion` or unknown `eventType` | Not applied; logged and counted; routed to a dead-letter topic (name and policy not defined) | DEC-03; G-09 |
+| Exact duplicate (same `eventId`) | `DUPLICATE`: no state change; acknowledge | DER-03, eventId dedupe |
+| Same patient, same `pacienteSequence` but different `eventId` | `STALE`: no state change; acknowledge | ADR-02 / Spec C-05 §5.1 |
+| State event older than the last applied sequence (`pacienteSequence` ≤ `ultimaSecuencia`) | `STALE`: ignored for state; acknowledge | ADR-08 Lua protocol |
+| EVT-03 or EVT-04 arrives before EVT-01 | `GAP`: not applied and not acknowledged; apply after the missing contiguous events arrive, or dead-letter with `GAP_UNRESOLVED` on timeout | ADR-02 / ADR-08, Spec C-05 §5.1 |
+| Sequence gap (for example EVT-02 missing) | `GAP`: pending, not silently accepted. EVT-02 is consumed precisely to avoid this false gap | ADR-02 / ADR-08 |
+| EVT-03 arrives after EVT-04 for the same patient | `STALE`: ignored; `ALTA` is terminal and is never reverted | RF-02, sequence protocol |
+| EVT-04 arrives and no EVT-01 was ever seen | `GAP` until EVT-01 arrives; on timeout it is dead-lettered. No `ALTA` record with unknown level is created | ADR-02, ADR-08 |
+| Unsupported `schemaVersion` or unknown `eventType` | `INVALID`: not applied; logged and counted; routed to the DLT | DEC-03; G-09 |
 
-**Ordering assumption:** per-patient order is guaranteed only if the producer publishes events for one patient in sequence through one Kafka partition (key `pacienteId`). That is a Triage responsibility (DEC-14). The Assistant still must tolerate reordering, because retries and parallel publishers can break order.
+**Ordering assumption:** per-patient order is guaranteed only if the producer publishes events for one patient in sequence through one Kafka partition (key `pacienteId`). That is a Triage responsibility (DEC-14). Retries and parallel publishers can still break order; the pending map and DLT rule above handle that case without silently applying a future event.
 
 ---
 
@@ -274,25 +274,26 @@ EstadoUrgenciaProyeccion holds, for each patient seen on `triaje.eventos`, the m
 
 ### 8.3 Update rules
 
-Applied inside one Redis Lua script so that the read, the rules, and the count changes are atomic (PROPOSED; MULTI/EXEC cannot express the conditional logic):
+Applied inside one Redis Lua script so that the read, the rules, and the count changes are atomic (PROPOSED; MULTI/EXEC cannot express the conditional logic). The script returns `APPLIED`, `DUPLICATE`, `STALE`, `GAP` or `INVALID`:
 
-1. **Attributes (`nivel`)**: set once, from EVT-01 only, whenever it is not yet set. It is never overwritten.
-2. **State (`estado`, `ultimaSecuencia`)**: apply an event only if `pacienteSequence > ultimaSecuencia`. Then set `estado` from the event type: EVT-01 → `REGISTRADO`, EVT-03 → `EN_CONSULTA`, EVT-04 → `ALTA`. EVT-02 never changes `estado`.
-3. **Terminal state**: if `estado` is `ALTA`, no event may change it.
-4. **Counting**: `contado` must equal `(nivel is known) AND (estado ≠ ALTA)`. After each update, if the recomputed `contado` differs from the stored one, increment or decrement `conteo[nivel]` by one and store the new `contado`.
+1. **Identity**: an existing `eventId` marker returns `DUPLICATE` before any other rule.
+2. **Sequence**: `pacienteSequence = ultimaSecuencia + 1` continues; `pacienteSequence <= ultimaSecuencia` returns `STALE`; `pacienteSequence > ultimaSecuencia + 1` returns `GAP` and changes nothing.
+3. **Attributes (`nivel`)**: set once, from EVT-01 only. It is never overwritten. EVT-02/03/04 pass the stored `nivel` to the script; they do not redefine it.
+4. **State (`estado`, `ultimaSecuencia`)**: on `APPLIED`, set `estado` from the event type (EVT-01 → `REGISTRADO`, EVT-02 → unchanged, EVT-03 → `EN_CONSULTA`, EVT-04 → `ALTA`) and advance `ultimaSecuencia`. If `estado` is `ALTA`, no later event changes it.
+5. **Counting**: `contado` must equal `(nivel is known) AND (estado ≠ ALTA)`. After each applied update, if the recomputed `contado` differs from the stored one, increment or decrement `conteo[nivel]` by one and store the new `contado`.
 
-**Why this rule is order-safe:** the count is a function of the current record, not of the event sequence. Every change is an exact delta from the stored `contado`. Replaying the same events in any order produces the same final counts.
+**Why this rule is order-safe:** the count is a function of the current record, and contiguity prevents a future event from being applied before its predecessors. Every applied change is an exact delta from the stored `contado`; the DLT record is the trace for events that never became contiguous.
 
 **Worked examples (level L):**
 
 | Arrival order | Result |
 |---|---|
-| EVT-01 (seq 1), EVT-03 (seq 2), EVT-04 (seq 3) | +1 at registration; no change at EVT-03; −1 at EVT-04. Final count 0 |
-| EVT-03 (seq 2), EVT-01 (seq 1) | EVT-03 sets `estado`, `contado` stays 0 (level unknown). EVT-01 sets `nivel`, state ignored (1 < 2), `contado` becomes 1 → +1. Final count 1 (correct: patient is in consultation) |
-| EVT-04 (seq 3), EVT-01 (seq 1) | EVT-04 sets `ALTA`, `contado` 0. EVT-01 sets `nivel`, state ignored, `contado` stays 0. Final count 0 (correct) |
-| EVT-01 (seq 1) twice | Second delivery: `eventId` marker hit, or state ignored by sequence; no change |
+| EVT-01 (seq 1), EVT-02 (seq 2), EVT-03 (seq 3), EVT-04 (seq 4) | +1 at registration; no count change for EVT-02 or EVT-03; −1 at EVT-04. Final count 0 |
+| EVT-03 (seq 3) before EVT-02 (seq 2) | EVT-03 returns `GAP` and stays unacknowledged. EVT-02 applies first, then EVT-03 applies and advances to 3. Final count 1 |
+| EVT-04 (seq 4) before EVT-01 (seq 1) | EVT-04 returns `GAP`. If EVT-01 and the missing sequences arrive, they are applied first; otherwise EVT-04 is dead-lettered with `GAP_UNRESOLVED`. No `ALTA` record with unknown level is created |
+| EVT-01 (seq 1) twice | Second delivery returns `DUPLICATE` by marker, or `STALE` after marker expiry; no change |
 
-**Open issue:** the rule for `ALTA` without a known level (EVT-04 first and EVT-01 never arriving) leaves the patient unknown but not counted. That is correct for counts, but it means the patient cannot appear in any level bucket later. This is acceptable because an `ALTA` patient is never counted. Nothing in D1 requires a per-level discharge count.
+**Resolved issue:** an `ALTA` patient with unknown level cannot be created under the contiguity protocol because EVT-01 must be applied first. If legacy data already has an unknown-level patient, it stays uncounted; D1 does not require a per-level discharge count.
 
 ### 8.4 Dedupe store (ProcessedEvent)
 
@@ -302,9 +303,11 @@ Applied inside one Redis Lua script so that the read, the rules, and the count c
 
 ### 8.5 Rebuild and durability
 
-- The projection can be rebuilt from `triaje.eventos` alone (TST-PRJ). Rebuilding requires the consumer group offset to be reset to the earliest retained offset and the projection keys to be cleared first.
-- If Kafka retention is shorter than the history of open patients, a rebuild is incomplete and the counts are wrong. The requirement does not cover that case (G-24).
-- Redis persistence (AOF or RDB) is needed to avoid a full rebuild after a restart. The choice is not specified (G-11).
+- Record the current counts as a comparison baseline before clearing anything. The projection is not the source of truth; the baseline is only a cutover guard.
+- The projection can be rebuilt from `triaje.eventos` alone (TST-PRJ): clear projection keys and markers, reset the consumer group to the earliest retained offset and reapply the §8.3 protocol.
+- Cut over only when rebuilt counts equal the baseline. A mismatch blocks activation and raises an alert; the old projection stays in place until then.
+- If Kafka retention is shorter than the history of open patients, request full reconstruction from Triage's durable record (`EventoHistorico`, OPEN-09/OPEN-10 closed as Option A on 2026-11-25) with original `eventId`/`pacienteSequence`. The Assistant never calls Triage from the API path (RF-04-B, NFR-04). The record is decided (`EventoHistorico`); its clinical retention is not (OD-5), and G-24 remains open.
+- Redis persistence (AOF proposed, RDB rejected) is needed to avoid a full rebuild after a restart. The policy is not yet accepted (G-11).
 - Multi-key scripts across Redis Cluster slots fail. The projection keys must share a hash tag or run on a single Redis node (PROPOSED: single node in the three-day scope; document it).
 
 ### 8.6 Projection unavailable
@@ -435,7 +438,7 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 
 ### 12.4 Requirements owned by Triage (not analyzed here)
 
-RF-01, RF-02, RF-03, RF-05, RF-06, RN-01, RN-02, RN-03, RN-04. They are listed for traceability only. The Assistant consumes EVT-01, EVT-03 and EVT-04, which are produced by RF-01 and RF-02. The EVT-04 contract gap (G-08) is a Triage contract issue as well as an Assistant issue.
+RF-01, RF-02, RF-03, RF-05, RF-06, RN-01, RN-02, RN-03, RN-04. They are listed for traceability only. The Assistant consumes EVT-01…EVT-04, produced by RF-01, RF-02 and RF-03; EVT-02 advances sequence only. G-08 is resolved by the order protocol: EVT-01 supplies the level used by EVT-04, so no Triage payload change is required.
 
 ---
 
@@ -450,7 +453,7 @@ Test IDs follow D1 §13. Layers follow D0 §15.
 | Relevance gate | RN-05.4 | Empty result → notice; one chunk below threshold → notice; one chunk at threshold → passes (boundary) |
 | Citation validator | RN-05.1–2 | Valid citation; PROTO-999; citation to a section not in the corpus; no citation; text without structure; citation not in retrieved set (once G-03 is decided) |
 | Notice and response mapper | RN-05.3, API-04 | Exact text "no existe protocolo disponible"; `fuentes: []` on notice; `fuentes` built from corpus metadata, never from LLM text |
-| Projection rule function | Section 8.3 | Every arrival order in the worked examples; duplicate state event; ALTA terminal; EVT-04 with unknown level; EVT-02 changes nothing |
+| Projection rule function | Section 8.3 | Contiguous worked examples; `DUPLICATE`/`STALE`/`GAP`/`INVALID` returns; ALTA terminal; EVT-04 before EVT-01 dead-lettered; EVT-02 changes no count |
 | Envelope validation | Section 5.2 | Unsupported `schemaVersion`; missing `eventId`; non-positive `pacienteSequence` |
 | Empty question rule | API-04 400 | Empty, whitespace-only, and over-length (once bound defined) |
 
@@ -475,7 +478,7 @@ Test IDs follow D1 §13. Layers follow D0 §15.
 | Corpus ingestion twice | Section 6 step 1 | No duplicate `DocumentoClinico` or chunks (idempotent) |
 | pgvector retrieval with the three questions | TST-RAG | Same outcomes as 13.2, against real pgvector |
 | Retrieval on the scheduler, BlockHound on request path | TST-RXN, Section 10 | No blocking violation on reactor threads |
-| Kafka consumer: duplicate, out-of-order, gap, EVT-04 before EVT-01 | TST-PRJ | Counts match the rule function; no negative counts |
+| Kafka consumer: duplicate, stale, future-event gap, EVT-04 before EVT-01 | TST-PRJ | Pending offsets are not applied; `GAP_UNRESOLVED` reaches the DLT; counts match the rule function; no negative counts |
 | Consumer with Redis outage then recovery | DER-03 | Offset not committed during outage; no double counting after recovery |
 | Projection rebuild from topic | TST-PRJ | Same counts as live consumption |
 | Kafka messages with the same `eventId` published twice | DER-03 | Applied once |
@@ -515,10 +518,10 @@ Each gap has an impact on implementation, a reference to the AMB or DEC it depen
 | G-05 | Timeout values; circuit breaker parameters (window, failure rate, open wait); failure definition; retry policy; retrieval error response (no code) | DEC-07, NFR-03, NFR-08, R-04 | Section 7 mapping and tests | PROPOSED: no retries; timeout configurable; failure = timeout, 5xx, connection, 429. Define 503 code for retrieval failure |
 | G-06 | Error body for 400 (API-04) and 401 not defined; `pregunta` max length not defined; 503 example lacks `correlationId` (NFR-20) | NFR-11, NFR-20, DER-08 | Consistent error contract | PROPOSED: `VALIDATION_ERROR` with `field: "pregunta"`; `UNAUTHORIZED`; max length (for example 1000 characters); add `correlationId` to all errors |
 | G-07 | API-05 503 has no error code and no detection rule. `actualizadoEn` meaning not defined | API-05, RF-04 B | Client contract | PROPOSED: code `PROYECCION_NO_DISPONIBLE`; `actualizadoEn` = server time of last applied event (UTC) |
-| G-08 | EVT-04 payload has no `nivel`. Count decrement depends on the level stored from EVT-01 | DEC-03 (additive changes allowed), EVT-04 | Correct counts on discharge | Keep the per-patient level (section 8.2) and ask Triage for an additive `nivel` in EVT-04 under DEC-03 |
-| G-09 | Out-of-order policy and dead-letter policy are not formalized. DLT name, retry count and unknown `schemaVersion`/`eventType` handling undefined | AMB-14, DEC-03, DER-03, R-08 | Consumer behavior; poison messages | Adopt section 8.3 as an ADR; define DLT name and retry policy; define unknown-version behavior |
-| G-10 | Consumer scope inconsistent: D0 §8 says "all four"; D1 §10 and D0 §3.2 say EVT-01/03/04, EVT-02 optional | DEC-02, DEC-03 | What the Assistant subscribes to | PROPOSED: subscribe to EVT-01, EVT-03, EVT-04; ignore EVT-02 for counts; update D0 §8 |
-| G-11 | Redis data model ambiguous ("Hash per level"); atomic update not specified; store decision is DEC-10 / ADR-08; persistence mode not chosen; ProcessedEvent TTL value not set | D1 §11, DEC-10, DEC-03, DER-03, ADR-08 | Projection design; durability | Adopt section 8.2 and the Lua update (8.3); choose Redis persistence (AOF) and TTL ≥ Kafka retention |
+| G-08 | EVT-04 payload has no `nivel`. Count decrement depends on the level stored from EVT-01 | DEC-03 (additive changes allowed), EVT-04 | Correct counts on discharge | **Resolved by protocol:** EVT-01 is applied first and its `nivel` is stored; no payload change required. Additive `nivel` remains optional only if the order protocol is relaxed |
+| G-09 | DLT name, retry count and numeric gap timeout/map size are not set; unknown `schemaVersion`/`eventType` handling needs the `INVALID` code | AMB-14, DEC-03, DER-03, R-08 | Consumer behavior; poison messages | Adopt §5.3 and §8.3; DLT name is `triaje.eventos.dlq`; numeric limits pending under ADR-02/ADR-08 |
+| G-10 | Consumer scope inconsistent: D0 §8 says "all four"; D1 §10 and D0 §3.2 say EVT-01/03/04, EVT-02 optional | DEC-02, DEC-03 | What the Assistant subscribes to | **Resolved:** consume all four; EVT-02 advances `ultimaSecuencia` with no count effect so sequences stay contiguous |
+| G-11 | Redis data model ambiguous ("Hash per level"); atomic update not specified; store decision is DEC-10 / ADR-08; persistence mode not chosen; ProcessedEvent TTL value not set | D1 §11, DEC-10, DEC-03, DER-03, ADR-08 | Projection design; durability | Adopt §8.2 and the Lua protocol (§8.3); AOF proposed, TTL ≥ Kafka retention; numeric margin pending confirmation |
 | G-12 | Fail-fast at startup when the LLM key is missing (DER-01) vs. service must answer 503 when the LLM is unavailable (NFR-03) | DER-01, NFR-03, NFR-09 | Startup behavior | PROPOSED: missing configuration fails startup (misconfiguration); provider outage returns 503 at runtime. Record in an ADR |
 | G-13 | Kafka client model: skeleton has spring-kafka `@KafkaListener` (not reactive); analysis allows Reactor Kafka or a reactive adapter | NFR-01, ADR-02, D0 §6 | Consumer threading and backpressure | PROPOSED: `ReactiveKafkaConsumerTemplate` from spring-kafka, bounded prefetch; record in ADR-02 |
 | G-14 | pgvector isolation and JDBC stack: whether to keep Spring AI's store behind a bounded scheduler or use a custom R2DBC adapter; JDBC URL and driver; schema owner (Flyway vs Spring AI init); FragmentoDocumental mapping to the store's table | TC-07, TC-11, TC-12, DER-06, R-03, ADR-04 | Blocking risk; startup; build | Startup spike to check that R2DBC and JDBC auto-configuration coexist; ADR-04 with the isolation design (section 10); Flyway for schema |
@@ -548,7 +551,7 @@ These are candidate names for OpenSpec capabilities. They have not been created.
 | `assistant-citation-validation` | Structured answer parsing, citation checks, rejection, fuentes construction | RN-05.1–2, D0 §9 steps 8–9 |
 | `assistant-llm-resilience` | Circuit breaker, timeout, retry policy, 503 fallback, LLM metrics | NFR-03, DEC-07, TST-RES |
 | `assistant-urgency-projection` | API-05, Redis projection, per-patient state, counts, rebuild | RF-04 B, API-05, TST-PRJ |
-| `assistant-event-consumption` | Envelope validation, dedupe markers, out-of-order rules, DLT | DEC-03, DER-03, NFR-02, EVT-01/03/04 |
+| `assistant-event-consumption` | Envelope validation, dedupe markers, sequence/gap rules, DLT | DEC-03, DER-03, NFR-02, EVT-01…EVT-04 |
 | `assistant-vector-store-isolation` | pgvector adapter, bounded scheduler, JDBC pool, BlockHound checks | TC-11, DER-06, NFR-01, R-03, TST-RXN |
 | `assistant-api-key-auth` | `X-API-Key` WebFlux filter, public endpoints, 401 body | DEC-05, NFR-10 |
 | `assistant-observability` | Probes, correlated logs, metric names and tag rules | NFR-05, NFR-06, NFR-07, NFR-19 |
@@ -582,7 +585,7 @@ Requirements owned by Triage (RF-01, RF-02, RF-03, RF-05, RF-06, RN-01 to RN-04)
 
 ## 17. Next steps
 
-1. Decide the gaps that block the first implementation slice: G-01, G-02, G-03, G-04, G-08, G-10, G-11, G-12 and G-14. These need ADR entries.
+1. Decide the gaps that block the first implementation slice: G-01, G-02, G-03, G-04, G-11, G-12 and G-14. G-08 and G-10 are resolved by the fixed order protocol; G-09 needs only numeric limits.
 2. Run the startup spike for R2DBC and pgvector JDBC coexistence (G-14) before any feature work.
 3. Verify version compatibility (G-18) before the first build.
-4. Ask the Triage session to confirm the EVT-04 contract and the optional `nivel` (G-08).
+4. Confirm the numeric gap timeout, pending-map size, DLT retry count and Redis TTL margin under ADR-02/ADR-08. No EVT-04 payload change is required.

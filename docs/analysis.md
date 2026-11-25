@@ -46,7 +46,7 @@ Each requirement's acceptance criterion and test type are in D1 §4–§15 and i
 - **Use cases:** answer a clinical question (RF-04A), report urgency state (RF-04B), ingest the corpus.
 - **APIs:** API-04, API-05.
 - **Events produced:** none.
-- **Events consumed:** EVT-01, EVT-03, EVT-04 (EVT-02 optional, only for counts if needed).
+- **Events consumed:** EVT-01…EVT-04. EVT-02 advances `pacienteSequence` for contiguity without changing counts (ADR-02/ADR-08, Spec C-05 §5.1).
 - **Data:** DocumentoClinico, FragmentoDocumental (pgvector), EstadoUrgenciaProyeccion and ProcessedEvent (Redis) (D1 §11).
 - **External dependencies:** LLM provider (API key from environment), pgvector database, Redis, Kafka.
 - **Errors:** 400 empty question, 503 when LLM unavailable (NFR-03), 503 when projection unavailable (API-05).

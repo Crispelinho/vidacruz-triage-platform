@@ -56,7 +56,7 @@ Notes on the order:
 ## 6. Open decisions that block a change
 
 - **OD-2 — Requirement numbering.** `prompt-init.txt` §5 numbers RF-01…RF-09; `requirements.md` uses RF-01…RF-06. This roadmap follows `requirements.md`. The numbering must be aligned before D5 is written. Owner: developer. The prompt is not edited here.
-- **OD-3 — Retention and reconstruction.** Decided: Kafka 30 days; full rebuild from the durable history `EventoHistorico` (DER-09). Change 9 uses it. Linked to ADR-02 and ADR-08.
+- **OD-3 — Retention and reconstruction.** Decided: Kafka 30 days; full rebuild from the durable history `EventoHistorico` (DER-09; OPEN-09/OPEN-10 closed as Option A on 2026-11-25). Change 9 uses it. Linked to ADR-02 and ADR-08.
 - **OD-5 — Retention period of `EventoHistorico`.** Not decided. Does not block change 9 but must be set before production use. Owner: developer.
 - **OD-4 — Maximum span of a report range.** Decided: 90 calendar days, inclusive, UTC (change 6).
 
