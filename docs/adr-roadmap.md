@@ -39,7 +39,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 |---|---|---|---|---|---|
 | ADR-01 | Service decomposition: Triage and Clinical Assistant only | C-01, all | TC-09, §3 of D0 | Proposed | Any change (first ADR) |
 | ADR-02 | Kafka messaging and event envelope | C-05 | EVT-01…EVT-04, DEC-03, R-08 | Proposed | C-05, C-07 |
-| ADR-03 | Transactional outbox | C-05, C-02, C-03 | DEC-14, R-07 | Proposed | C-05 |
+| ADR-03 | Transactional outbox (broker-outage posture closed: backoff only, 2026-11-25) | C-05, C-02, C-03 | DEC-14, R-07 | Proposed | C-05 |
 | ADR-04 | Vector store (pgvector) and JDBC isolation | C-06 | DER-06, TC-11, R-03 (no DEC covers pgvector; DEC-06 is Spring AI only) | Proposed | C-06 |
 | ADR-05 | LLM provider and Spring AI versus LangChain4j | C-06 | DEC-06, RF-04-A | Proposed | C-06 |
 | ADR-06 | RF-06 notification channel (webhook) | C-09 | RF-06, DEC-09, AMB-10 | Proposed | C-09 |
@@ -59,11 +59,11 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 
 ### 3.2 Open decisions linked to ADRs
 
-These decisions come from D2 §6. OD-3 and OD-4 are recorded as decided in the documents merged through PR #6 (2026-11-24); neither needs an ADR. OD-5 remains open, and each remaining open decision is resolved only when the linked ADR or design is accepted.
+These decisions come from D2 §6. OD-3 and OD-4 are recorded as decided in the documents merged through PR #6 (2026-11-24); neither needs an ADR. OPEN-09/OPEN-10 and G-T29 were closed on 2026-11-25 as Option A with a 7-day configurable outbox retention (see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`). OD-5 remains open, and each remaining open decision is resolved only when the linked ADR or design is accepted.
 
 - **OD-3 — Retention of `triaje.eventos`.** Linked to ADR-02 (retention is part of the messaging contract) and ADR-08 (rebuilding the projection after losing its store, including the option of a snapshot plus replay). Decided (2026-11-24): Kafka retains 30 days; full reconstruction uses the durable history EventoHistorico in Triage (DER-09), so ADR-08 does not need a snapshot for correctness. The open item is OD-5, the retention period of EventoHistorico.
 - **OD-4 — Maximum span of an operational report range.** Decided (developer, 2026-11-24): 90 calendar days, inclusive, in UTC, as recorded in `requirements.md` and `capabilities-map.md`. Not architectural, so no ADR; RF-05 (C-08) records the value in its design.
-- **OD-5 — Retention period of `EventoHistorico`.** Open, not decided. No time-based purge until the developer sets the clinical data retention period. Blocks the production retention policy.
+- **OD-5 — Retention period of `EventoHistorico`.** Open, not decided. The durable record itself was decided by OPEN-09/OPEN-10 (Option A, 2026-11-25), and G-T29 closed at 7 days for the operational outbox. OD-5 is only the clinical retention period: no time-based purge until the developer sets it. Blocks the production retention policy.
 
 ### 3.3 Order of acceptance
 
