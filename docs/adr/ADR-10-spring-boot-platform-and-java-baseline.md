@@ -15,7 +15,7 @@ The brief mandates Spring Boot 3.x (TC-01) for the Triage platform. Two skeleton
 Additionally, the skeletons default to Java 25 (Gradle 9.x), but Spring Boot 3.5.x is documented to support Gradle 7–8, not 9.x.
 
 **Official support status:**
-- Spring Boot 3.5.x: open-source support ended 2026-06-30 (20 months ago as of this decision date)
+- Spring Boot 3.5.x: open-source support ended 2026-06-30 (approximately 5 months before this decision date of 2026-11-25)
 - Spring Boot 4.1.x and later: active support
 - Spring Cloud 2025.0.x (Northfields): built for Boot 3.5.x; 2026.0.x is for Boot 4.x only
 
@@ -49,6 +49,15 @@ The choice is not whether to use Boot 3.5, but whether to accept its EOL status 
 
 **Adopt Spring Boot 3.5.x (latest patch, verify on spring.io) on Java 21 with Gradle 8.x for development and evaluation.**
 
+**Production Scope Clarification:**
+
+Change 1 (platform-foundation) is **explicitly scoped as a 3-day prototype for evaluation**, not a production baseline. This ADR authorizes Spring Boot 3.5.x for:
+- Development environments
+- Evaluation and testing (3-day brief window)
+- Non-production integration
+
+If Change 1 were to become production baseline after the brief, Boot 3.5.x would **violate this ADR** (no commercial support available). Post-delivery migration to Boot 4.1.x would be required.
+
 **Scope:** This decision applies to:
 - Development environments
 - Evaluation and testing (3-day brief window)
@@ -72,6 +81,18 @@ Rationale:
 
 ---
 
+## Verification
+
+The following must pass before this ADR transitions from Proposed to Accepted:
+
+- [ ] Gradle 8.14.8 build succeeds with Java 21 on both `triage-service` and `clinical-assistant-service`
+- [ ] Spring Boot 3.5.x and Spring Cloud 2025.0.3 confirmed at build time (via `./gradlew dependencies`)
+- [ ] Spring AI 1.1.1 GA pgvector integration tested in Change 1 (platform-foundation)
+- [ ] CI/CD gate: Java 21 toolchain version enforced in builds (not Java 25)
+- [ ] README documents the scope restrictions (evaluation/development only) and post-delivery migration path (Boot 4.1.x required for production)
+
+---
+
 ## Consequences
 
 ### Positive
@@ -89,6 +110,8 @@ Rationale:
   - This ADR does NOT mandate Boot 4.1.x as the sole path; it permits either option depending on production requirements and support availability.
 
 - Tight version pinning; no room for patch updates if a critical bug is found in Spring Cloud 2025.0.3.
+
+- **Post-delivery migration required:** Spring Boot 3.5 open-source support ended **2026-06-30** (already passed). If the platform moves beyond the 3-day evaluation window into production, Boot 4.1.x is required. Plan approximately 2–3 weeks for migration testing (dependency updates, API surface changes in Spring Boot 4.x, Spring Cloud 2026.0.x alignment, and pgvector Spring AI integration retesting).
 
 ---
 
