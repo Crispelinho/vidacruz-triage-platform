@@ -1,7 +1,7 @@
 # ADR-02: Kafka consumer model for the Clinical Assistant
 
 - **Status:** Proposed. Not accepted. Option B is the proposed route. The open items in the "Open items" section are unresolved, and the Redis dedupe TTL decision is pending explicit confirmation.
-- **Scope:** Clinical Assistant consumer of `triaje.eventos`. The envelope itself is fixed by DEC-03 and is not reopened here.
+- **Scope:** Clinical Assistant consumer of `triaje.eventos`. The envelope is defined by DEC-03 (Proposed) and is not reopened here. This ADR does not present it as an accepted decision.
 - **Related:** DEC-03, TC-04, NFR-01, CA-G-10, CA-G-11, CA-G-13, CA-G-18, CA-G-24, and CA-G-09 (to confirm) in [clinical-assistant-service.md](../services/clinical-assistant-service.md)
 
 ## Context
@@ -15,7 +15,7 @@ The skeleton declares `spring-kafka` and uses `@KafkaListener` in its default st
 | Option | How it works | Pros | Cons |
 |---|---|---|---|
 | **A. `@KafkaListener` (blocking)** | Standard listener on a bounded thread pool; reactive Redis calls would need `.block()` | Matches the skeleton; simplest; best-documented path | Forces `.block()` inside the consumer for Redis, which conflicts with the reactive design and makes a BlockHound test fail on the consumer path |
-| **B. `ReactiveKafkaConsumerTemplate` (spring-kafka + reactor-kafka)** | Reactive consumer with a `Flux` of records; bounded prefetch gives backpressure | Native fit with reactive Redis; explicit backpressure; no `.block()` | Requires reactor-kafka as an extra dependency. Its maintenance status is a risk: Spring Cloud Stream deprecated its Reactor Kafka binder in 4.3.0 |
+| **B. `ReactiveKafkaConsumerTemplate` (spring-kafka + reactor-kafka)** | Reactive consumer with a `Flux` of records; bounded prefetch gives backpressure | Native fit with reactive Redis; explicit backpressure; no `.block()` | Requires reactor-kafka as an extra dependency. Its maintenance status is a risk. The claim that Spring Cloud Stream deprecated its Reactor Kafka binder in 4.3.0 is not verified against a source in this document |
 | **C. Custom consumer loop** | Own poll loop around `KafkaConsumer` | Full control | Reimplements offset management, rebalancing and retries; not justified for this scope |
 
 ## Decision
@@ -73,7 +73,7 @@ The concrete policy is **not decided here** (Redis durability, gap identifier to
 
 **Proposal:** `TTL ≥ effective Kafka retention + safety margin`, counted from the time the event is processed.
 
-- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on G-03, which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
+- The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on pacienteSequence assignment (no registered gap identifier), which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
 - The safety margin is a numeric value that is **pending**. It is not decided here.
 - The 30-day retention of OD-3 is a **working value only**. It is not a verified configuration in this branch and it is not an accepted decision.
 - This proposal does not accept Option B, and it does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.
@@ -98,7 +98,7 @@ These tests are required before the consumer is considered complete. They are no
 ## Open items (unresolved)
 
 - **CA-G-10:** consumed event list, pending confirmation from the Triage team.
-- **CA-G-18:** reactor-kafka version and maintenance status, to verify against Spring Boot 3.5.16 and Spring Cloud 2025.0.x before the first build.
+- **CA-G-18:** version compatibility of Spring Boot 3.5.16, Spring Cloud 2025.0.x and Spring AI 1.1.1, to verify before the first build. G-18 covers these versions. Sub-point, pending verification: compatibility of reactor-kafka with those versions and its maintenance status. G-18 does not cover reactor-kafka by itself.
 - **CA-G-11:** Redis dedupe TTL (`ProcessedEvent`) and its relation to Kafka retention (rebuild completeness: CA-G-24). **Pending.** The TTL value is not decided and is not accepted until the user confirms it explicitly.
 - **Redis durability** (gap identifier to be confirmed): concrete configuration (persistence mode, fsync policy, replication, acknowledgement level). The gap table covers persistence and the TTL in one entry, so the identifier must be confirmed before it is cited.
 - **DLT name and maximum retry count** (CA-G-09, to confirm).
