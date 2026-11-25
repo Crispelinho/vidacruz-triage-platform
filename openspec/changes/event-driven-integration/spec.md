@@ -61,7 +61,7 @@ The envelope is **Proposed (DEC-03)**. Every event in `triaje.eventos` follows t
 
 ### 1.3 Event type payloads
 
-Payload fields come from `docs/requirements.md` §10 and agree with `docs/services/triage-service.md` §4.2. Payloads carry no patient name and no free text (data minimization). EVT-03 and EVT-04 carry no `nivel`: under the fixed order protocol of §5.1, EVT-01 (which carries `nivel`) is applied before them, so the projection already knows the level. If EVT-03 or EVT-04 arrives first it is a future event, stays pending and is dead-lettered on timeout; it never decrements a count with an unknown level (ADR-02, ADR-08).
+Payload fields come from `docs/requirements.md` §10 and agree with `docs/services/triage-service.md` §4.2. Payloads carry no patient name and no free text (data minimization). EVT-03 and EVT-04 carry no `nivel`. The dependency is resolved by the integration protocol, not by the payload: (1) EVT-01 carries `nivel` and is always `pacienteSequence = 1`; (2) G-T06 guarantees contiguous sequences per patient; (3) the consumer applies only `lastApplied + 1`; (4) the projection stores `nivel` once and later count changes are exact `contado` deltas; (5) a missing EVT-01 or any data loss is handled by the DLT and reconstruction from `EventoHistorico`, never by adding `nivel` to EVT-03/EVT-04. No event payload is changed here; acceptance of the ADRs recording the protocol (ADR-02, ADR-08) remains pending.
 
 #### EVT-01: `paciente_registrado` (from RF-01, RN-04)
 
@@ -231,7 +231,7 @@ CREATE INDEX idx_outbox_evento_creado_en
 1. Insert the patient row into the patient table with `estado = 'REGISTRADO'`.
 2. Insert one outbox row into `outbox_evento` with `event_type = 'paciente_registrado'` and `publicado_en = NULL`.
 3. Insert one audit row into the audit table (RN-04).
-4. Insert one `EventoHistorico` row for the same event. `EventoHistorico` is the accepted durable record (OPEN-09/OPEN-10 closed as Option A on 2026-11-25; OD-3 and DER-09 in `docs/requirements.md` §10 and §11). The retained-outbox alternative was rejected.
+4. Insert one `EventoHistorico` row for the same event. `EventoHistorico` is the accepted durable record (OPEN-09/OPEN-10 closed as Option A on 2026-11-25; OD-3 and DER-09 in `docs/requirements.md` §10 and §11). The retained-outbox alternative was rejected. This row records a **persisted** event; it is not evidence of publication or of a broker ACK. Those are distinct states (§3.1, §3.3).
 
 If the transaction commits, all rows exist. If it rolls back, none exist. **Scenario:** if the outbox insert fails, the entire transaction rolls back; the patient is NOT registered.
 
@@ -395,11 +395,13 @@ Order per patient relies on two layers.
 
 1. `sequence <= lastApplied`: duplicate or stale event; no effect, acknowledge the offset and increment the duplicate/stale metric.
 2. `sequence = lastApplied + 1`: apply the event atomically with its `eventId` marker, then acknowledge. Continue draining contiguous entries already in `pendingByPatient`.
-3. `sequence > lastApplied + 1`: store the record in `pendingByPatient`; do not apply it and do not acknowledge it. Keep consuming other patients and partitions.
+3. `sequence > lastApplied + 1`: store the record in `pendingByPatient`; do not apply it and do not acknowledge it. Keep consuming other patients; records later in the same partition are governed by the open ADR-02 decision below.
 4. When a pending entry exceeds the configured gap timeout, or a new future event would exceed the configured map size, publish that event (the oldest pending entry if the map is full) to `triaje.eventos.dlq` with `dlqReason = "GAP_UNRESOLVED"`; acknowledge the original offset only after the DLT write is confirmed. The projection is not silently marked consistent; the DLT record and alert are the trace.
 5. On restart the pending map is rebuilt from unacknowledged redeliveries. No gap decision is persisted in the projection.
 
-The numeric gap timeout and map size remain configuration pending explicit confirmation under ADR-02/ADR-08; the protocol itself is fixed and is tested in §7.9.
+The numeric gap timeout and map size remain configuration pending explicit confirmation under ADR-02/ADR-08; the apply/dedupe/level rules are fixed and tested in §7.9.
+
+**Open contradiction for ADR-02 (not decided here):** this section allows consumption of other patients and partitions to continue during a gap, while ADR-02 §"Partition recovery (to verify in the spike)" and `docs/services/clinical-assistant-service.md` §5.2 require pausing the affected partition and committing no offset past the pending record. Both cannot hold for records in the same partition. This specification selects neither policy; ADR-02 remains Proposed and must decide between per-partition pause and bounded buffering with an explicit commit policy. The following pending-map items also remain open under ADR-02/ADR-08, with no rule selected here: (a) two future records with the same `pacienteSequence` but different `eventId`; (b) the criterion for the "oldest pending entry" when the map is full (`occurredAt` is not an ordering contract); (c) the behavior when an entry dead-lettered with `GAP_UNRESOLVED` later becomes contiguous.
 
 **Accepted mechanism (G-T06, developer, 2026-11-25):** a per-patient counter column `paciente.ultima_secuencia BIGINT NOT NULL DEFAULT 0`. Triage's application service assigns the sequence in the **same R2DBC transaction** that persists the state change, the counter, the outbox row, the audit row and the `EventoHistorico` row. Registration inserts the patient with `ultima_secuencia = 1` and EVT-01 with `pacienteSequence = 1`. Later events use `UPDATE ... SET ultima_secuencia = ultima_secuencia + 1 ... RETURNING ultima_secuencia`; the returned value is the assigned sequence. A PostgreSQL `SEQUENCE` is rejected because its increments are not rolled back with the business transaction and would leave gaps among committed events.
 
@@ -427,7 +429,7 @@ All use the partition key `pacienteId = P123`, so they appear in one partition i
 
 Every event carries a `correlationId` (a string; a UUID v4 when generated by Triage). When a request triggers multiple events, they all share the same `correlationId`.
 
-**Scenario:** `POST /triage/pacientes` with an `X-Correlation-ID` (or `X-Request-ID`) header writes that value as `correlationId` into the outbox row (DER-07). If the header is absent, one is generated. The publisher copies it to a Kafka header, and the consumer puts it in its log context.
+**Scenario:** `POST /triage/pacientes` with an `X-Correlation-Id` header writes that value as `correlationId` into the outbox row (DER-07). If the header is absent, one is generated. The publisher copies it to a Kafka header of the same name, and the consumer puts it in its log context. The spelling follows the current G-16 proposal; G-16 stays open and may change the final header name.
 
 **Scenario:** traces and logs of the Triage request, the outbox publication and the consumer processing are linked by `correlationId`. Tracing uses **Micrometer Tracing** (the Spring Boot 3.x tracing support, with the OpenTelemetry bridge for NFR-16). Spring Cloud Sleuth is not used: it is not part of the Spring Boot 3.x line this project fixes (TC-01, ADR-10).
 
@@ -468,7 +470,7 @@ Every event carries a `correlationId` (a string; a UUID v4 when generated by Tri
   "originalPartition": 3,
   "originalOffset": 12345,
   "originalTimestamp": "ISO-8601",
-  "dlqReason": "SCHEMA_VALIDATION_ERROR | PROCESSING_ERROR_THRESHOLD",
+  "dlqReason": "SCHEMA_VALIDATION_ERROR | PROCESSING_ERROR_THRESHOLD | GAP_UNRESOLVED",
   "errorMessage": "Human-readable error description",
   "attemptCount": 1
 }
