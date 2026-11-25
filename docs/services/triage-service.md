@@ -66,7 +66,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 - Channel and dispatch mechanism are not settled. See G-T09 to G-T11 and AMB-10 / DEC-09.
 
 ### 2.5 UC-T07 — Operations report
-- Range `desde`/`hasta` in ISO 8601 with offset or `Z` (DEC-11). Grouping by UTC hour. Metrics per hour: total registered, count per level, average and p95 of minutes from registration to first `EN_CONSULTA`. Computed by SQL with window functions, `FILTER` and `percentile_cont` (RF-05). Patients without a consultation entry are counted in the total and excluded from average and p95 (AMB-05, DEC-11).
+- Range `desde`/`hasta` in ISO 8601 with offset or `Z` (DEC-11). Grouping by UTC hour; whether the hour is the registration hour or the consultation hour is open (G-T14) and is not decided here. Metrics per hour: total registered, count per level, average and p95 of minutes from registration to first `EN_CONSULTA`. Computed by SQL with window functions, `FILTER` and `percentile_cont` (RF-05). Patients without a consultation entry are counted in the total and excluded from average and p95 (AMB-05, DEC-11).
 
 ---
 
@@ -94,7 +94,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 | `temperatura` | 34.0–42.0 °C | VAL-06 |
 | `dolor` | 0–10 | VAL-07 |
 | `gcs` | 3–15 | VAL-08 |
-| `quejaPrincipal` | non-empty after trim (maximum length undefined, G-T20) | VAL-11, DER-05 |
+| `quejaPrincipal` | non-empty after trim; maximum length 500 characters is proposed (G-T20), not yet accepted | VAL-11, DER-05 |
 
 **Optional header:** `Idempotency-Key` (DEC-15). Semantics in §7.3.
 
@@ -134,9 +134,9 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 ### 3.5 API-06 — `GET /triage/reportes/operacion` (RF-05)
 
 - **Query:** `desde`, `hasta`, ISO 8601 with offset or `Z` (DEC-11).
-- **Rules:** `desde < hasta`; range bounded (limit not fixed, G-T15); range semantics (G-T17).
+- **Rules:** `desde` and `hasta` are both inclusive natural dates, in UTC. The span is limited to 90 natural dates; a span of 91 is rejected with HTTP 400 (G-T15, G-T17). The limit and the inclusive semantics are decided by the user and are pending their record in DEC-11.
 - **Response 200:** array of hourly buckets `{ hora, totalRegistrados, porNivel, promedioEsperaMinutos, p95EsperaMinutos }` (D1 §9). `promedioEsperaMinutos` and `p95EsperaMinutos` are `null` when an hour has no patient with a consultation entry (proposed, G-T14).
-- **Errors:** 400 for missing or unparseable parameters, reversed range or range over the limit. Code proposed `INVALID_RANGE` (G-T02).
+- **Errors:** 400 for missing or unparseable parameters, reversed range or range over the limit. Error code open (G-T02); `INVALID_RANGE` is a working name, not a decision.
 - No side effects. Read-only query; no caching assumed.
 
 ### 3.6 Error codes summary (Triage)
@@ -147,7 +147,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 | `INVALID_TRANSITION` | 409 | API-02 | Defined (D1 §9) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | API-01 | Defined (DEC-15) |
 | `NOT_FOUND` | 404 | API-02, API-03 | Status defined, code not (G-T02) |
-| `INVALID_RANGE` | 400 | API-06 | Status defined, code not (G-T02) |
+| `INVALID_RANGE` | 400 | API-06 | Status defined; code open (G-T02) |
 | `MALFORMED_REQUEST` | 400 | all with body | Not defined (G-T02) |
 | `UNAUTHORIZED` | 401 | all protected | Status defined (NFR-10), code not (G-T02) |
 | `INTERNAL_ERROR` | 500 | all | Status defined (D0 §3.1), code not; no details leaked (DER-08) |
@@ -218,7 +218,7 @@ Database: one PostgreSQL database for Triage (DEC-10). Access: R2DBC at runtime;
 | `temperatura` | numeric(3,1) | CHECK 34.0–42.0 (VAL-06) |
 | `dolor` | smallint | CHECK 0–10 (VAL-07) |
 | `gcs` | smallint | CHECK 3–15 (VAL-08) |
-| `queja_principal` | text | CHECK non-empty after trim (VAL-11); length limit (G-T20) |
+| `queja_principal` | text | CHECK non-empty after trim (VAL-11); length limit of 500 characters proposed (G-T20), not yet accepted |
 | `estado` | varchar | CHECK in (`REGISTRADO`, `EN_CONSULTA`, `ALTA`) |
 | `escalado` | boolean | NOT NULL, default false (DEC-02) |
 | `fecha_registro` | timestamptz | NOT NULL |
@@ -490,7 +490,7 @@ Items marked **new** are not registered in D1 and should be added to D1 §14 bef
 
 | ID | Gap | Affects | Impact | Proposed resolution |
 |---|---|---|---|---|
-| G-T01 | Error body shape conflict: NFR-20 uses `{code, message, field?, correlationId}`; API-01 example and DEC-08 use `errors[{campo, mensaje}]` | RF-01, RF-02, all 400s | Contract ambiguity | Keep `errors[]` for `VALIDATION_ERROR` and the NFR-20 keys for the rest; amend NFR-20 |
+| G-T01 | Error body shape: NFR-20 `{code, message, field?, correlationId}` is the canonical contract; DEC-08 is the reference for this decision. Documentary inconsistency: the RF-01 text (`requirements.md` line 176) describes `campo` and `mensaje`, pending alignment with NFR-20 | RF-01, RF-02, all 400s | Contract ambiguity | Canonical contract: NFR-20. `errors[]` is not added. Multiple field errors per request remain a pending decision that requires explicit approval |
 | G-T02 | Error codes undefined for 404, 401, 500, malformed JSON, malformed header, invalid range, invalid enum | API-01, 02, 03, 06 | Clients cannot branch | Codes in §3.6; record in D1 §9 |
 | G-T03 | Idempotency scope (global or per client), in-flight duplicates, key format and length | RF-01 / DEC-15 | Replay correctness across clients | Scope to (client identity, key); length max 255; in-flight waits on PK conflict (§7.3) |
 | G-T04 | Empty `Idempotency-Key` header: absent or malformed? | API-01 | Minor | Empty value treated as malformed (400 `MALFORMED_REQUEST`) |
@@ -504,12 +504,12 @@ Items marked **new** are not registered in D1 and should be added to D1 §14 bef
 | G-T12 | Interaction of escalation and transition writes | RF-02, RN-03 | Lost updates if unguarded | Guarded updates (§7.1, §7.2) |
 | G-T13 | `tipo_evento` values and `estado_anterior` for registration not defined (D0 §11 uses `REGISTRO`, `ENTRADA_CONSULTA`; D1 uses `ESCALAMIENTO` and an undefined discharge value) | RN-04, RF-05 | Report and audit queries cannot be written | Enumerate `REGISTRO`, `ENTRADA_CONSULTA`, `ESCALAMIENTO`, `ALTA`; `estado_anterior = NULL` for `REGISTRO` |
 | G-T14 | RF-05: grouping by registration hour or consultation hour; null average for empty hours; zero-count hours included or omitted | RF-05 | Report results differ | Group by registration hour (D0 §11); include only hours with registrations; null averages when no consultation entries |
-| G-T15 | Range limit: D0 §4 cites DEC-11 for a range bound, but DEC-11 sets none; D0 §11 proposes 31 days | RF-05, API-06 | Unbounded query cost | 31 days as proposal; record in DEC-11 |
+| G-T15 | Range limit: D0 §4 cites DEC-11 for a range bound, but DEC-11 sets none; D0 §11 proposes 31 days | RF-05, API-06 | Unbounded query cost | Maximum 90 natural dates, both ends inclusive (decision confirmed by the user; pending record in DEC-11). A span of 91 natural dates is rejected with HTTP 400. This supersedes the 31-day proposal. Record in DEC-11 after approval. The error code for the rejection is open (see G-T02) |
 | G-T16 | Operations report authorization scope (all patients or per room) | API-06 | Data exposure | All patients in the single API key scope; per-room filter not in spec |
-| G-T17 | Range semantics: inclusive or exclusive bounds; offset required | DEC-11 | Edge results | Half-open `[desde, hasta)`; offset or `Z` required; reject otherwise with `INVALID_RANGE` |
+| G-T17 | Range semantics: inclusive or exclusive bounds; offset required | DEC-11 | Edge results | Both dates inclusive (decision confirmed by the user; pending record in DEC-11). The technical filter is half-open, in UTC: `timestamp >= desde AND timestamp < day after hasta`. Offset or `Z` required; otherwise rejected with HTTP 400. The error code is open (see G-T02) |
 | G-T18 | **new:** numeric precision for SpO2, FC, PAS, PAD, GCS, dolor is undefined. If SpO2 accepts decimals, values between the level 2 band top (93) and 100 are not all covered by the table, and boundary behavior is undefined between 93 and 94 | RN-01, VAL-05 | Classification discontinuity | Integers for FC, PAS, PAD, SpO2, GCS, dolor, edad; one decimal for temperature. Clinical confirmation required |
-| G-T19 | Complaint normalization: internal whitespace (AMB-03 mentions spacing; DEC-01 says trim only); `quejaPrincipal` maximum length undefined | RN-01, VAL-11 | Level 5 misses | Collapse internal whitespace; proposed maximum 500 characters |
-| G-T20 | Maximum length of `quejaPrincipal` | VAL-11 | Unbounded text in DB and logs | 500 characters (proposal, merged with G-T19) |
+| G-T19 | Complaint normalization: internal whitespace (AMB-03 mentions spacing; DEC-01 says trim only) | RN-01, VAL-11 | Level 5 misses | Collapse internal whitespace before matching. The length limit is owned by G-T20 |
+| G-T20 | Maximum length of `quejaPrincipal` (single owner of the length criterion; previously also stated in G-T19) | VAL-11 | Unbounded text in DB and logs | 500 characters (proposal). Referenced by the contract (§3) and the schema (§5) |
 | G-T21 | D1 §13 mentions `EN_CONSULTA → REGISTRADO` "(if reachable)"; no transition to `REGISTRADO` exists in RF-02 | RF-02 | Test expectations ambiguous | Treat as 409; confirm |
 | G-T22 | Last state change timestamp not persisted in D1 §11, needed for `tiempoEnEstadoMinutos` | RF-02 | Endpoint cannot be computed cheaply | Column `fecha_ultimo_cambio_estado` on `Paciente` |
 | G-T23 | `SignoVital` undecided (D1 §11) | Persistence | Schema choice | Columns in `Paciente` (§5.1) |
