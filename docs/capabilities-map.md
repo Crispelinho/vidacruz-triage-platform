@@ -70,7 +70,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes the events required by C-07. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
 - **Goal:** every successful state change creates exactly one logical outbox event, written in the same transaction as the change. The publisher provides at-least-once delivery. Consumers process duplicate deliveries idempotently, so each event produces only one business effect.
 - **Interfaces:** envelope and payloads of EVT-01…EVT-04 (DEC-03); topic `triaje.eventos`. The outbox writer is used by C-02, C-03 and C-04.
-- **Persistence:** outbox table in Triage (DEC-14); processed-event record in Clinical Assistant.
+- **Persistence:** outbox table in Triage (DEC-14); durable event history `EventoHistorico` in Triage (OD-3, DER-09); processed-event record in Clinical Assistant.
 - **Depends on:** C-01 only. It is business-agnostic: it knows the envelope, not the patient rules. This is what keeps the graph acyclic.
 - **Tests:** an outbox row exists if and only if the state change committed; a broker outage delays publication and loses nothing; a duplicate delivery produces no second effect; per-patient order is preserved through `pacienteSequence`.
 
@@ -115,7 +115,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Depends on:** C-01, C-05 (event contracts and consumer idempotency).
 - **Tests:** counts match a replayed event sequence; a replayed event does not double count; a request makes no call to Triage; after the projection store is emptied, a replay restores the same counts.
 
-**Rebuild after losing the projection store.** The projection is rebuilt by replaying `triaje.eventos` from the earliest retained offset into a new consumer group, applying events in `pacienteSequence` order per patient. The rebuild is complete only if the topic retains every event since the oldest patient still in the projection. If retention is shorter, the projection cannot be rebuilt from events alone; the retention value is open decision OD-3.
+**Rebuild after losing the projection store.** The projection is rebuilt by replaying `triaje.eventos` from the earliest retained offset into a new consumer group, applying events in `pacienteSequence` order per patient. Kafka keeps `triaje.eventos` for 30 days. The full rebuild does not depend on that window: it reads the durable history `EventoHistorico` in Triage (OD-3, decided), republished by a reconstruction job with the original `eventId` and `pacienteSequence`. The rebuild is verified by deleting the projection and comparing the rebuilt counts with the counts before deletion.
 
 ### C-08 `operational-reporting`
 - **Service:** Triage.
@@ -123,7 +123,7 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Interfaces:** `GET /triage/reportes/operacion?desde=&hasta=` (API-06).
 - **Persistence:** reads from the patient and state-history tables; indexes defined in §11 of D1.
 - **Depends on:** C-02, C-03.
-- **Edge cases (DEC-11):** patients with no first `EN_CONSULTA` (including direct `ALTA`) are counted in the total and excluded from the average and p95. The range requires an offset or `Z`, and `desde` must be earlier than `hasta`. The maximum span of a range is open decision OD-4.
+- **Edge cases (DEC-11):** patients with no first `EN_CONSULTA` (including direct `ALTA`) are counted in the total and excluded from the average and p95. The range requires an offset or `Z`, and `desde` must be earlier than `hasta`. The maximum span is 90 calendar days, inclusive, in UTC (OD-4, decided).
 - **Tests:** results match a hand-computed fixture, including a patient with no consultation; the query uses the planned indexes; a range with `desde` later than `hasta` returns 400.
 
 ### C-09 `medical-escalation-alerts`
@@ -186,5 +186,6 @@ Completion criteria for this deliverable:
 - **OD-1 — Split of security and observability.** Resolved: C-10 and C-11 are separate.
 - **OD-1b — Delivery placement.** Resolved for now: delivery stays in C-01. A separate `delivery` capability remains possible later; not proposed.
 - **OD-2 — Naming of the requirement set.** `prompt-init.txt` §5 numbers functional requirements RF-01…RF-09, while `requirements.md` uses RF-01…RF-06. This map follows `requirements.md`, which is the canonical source. Before D5, the prompt's references are checked against D1 and corrected; no requirement is renumbered silently. Owner: developer.
-- **OD-3 — Event retention on `triaje.eventos`.** Must cover the longest window the projection may need to rebuild. Value not decided. Owner: developer.
-- **OD-4 — Maximum span of an operational report range.** Not defined in D1. Options: no limit (risk of expensive queries) or a fixed limit (for example, 31 days). Owner: developer.
+- **OD-3 — Event retention and reconstruction. Decided (developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; the durable history `EventoHistorico` in Triage is the source for full reconstruction. See `requirements.md` §10, §11 and DER-09.
+- **OD-5 — Retention period of `EventoHistorico`.** New, not decided. No time-based purge until the developer sets the clinical data retention period. Owner: developer.
+- **OD-4 — Maximum span of an operational report range. Decided (developer, 2026-11-24):** 90 calendar days, inclusive, in UTC; filter `timestamp >= desde` and `timestamp < día_siguiente(hasta)`; error body per NFR-20 (no RFC 9457 claim).

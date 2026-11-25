@@ -141,6 +141,7 @@ Consumers: EVT-01…EVT-04 are consumed by change 9 (projection). EVT-02 is also
 | §16 | DER-06 | C-06 | 8 `clinical-assistant-rag` | pending | — | — | — | plan |
 | §16 | DER-07 | C-11 | 11 `observability` | pending | — | — | — | plan |
 | §16 | DER-08 | C-02 | 3 `triage-classification` | pending | — | — | — | plan |
+| §16 | DER-09 | C-05 (history writer), C-07 (rebuild) | 2 `event-driven-integration`, 9 `emergency-state-projection` | pending | — | — | — | plan |
 | §14 | AMB-04 | C-04 | 5 `triage-sla-escalation` | pending | — | — | — | plan |
 | §14 | AMB-05 | C-08 | 6 `operational-reporting` | pending | — | — | — | plan |
 | §14 | AMB-09 | C-10 | 10 `security` | pending | — | — | — | plan |
