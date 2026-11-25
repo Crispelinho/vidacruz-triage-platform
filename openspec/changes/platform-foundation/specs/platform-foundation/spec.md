@@ -7,6 +7,8 @@ Requirement IDs are defined in `docs/requirements.md`. Each scenario is verified
 Both services build with Spring Boot 3.5.16, Java 21, Gradle 8.14.8 and Spring Cloud 2025.0.3. The assistant also uses Spring AI 1.1.1.
 
 - Scenario: `./gradlew build` succeeds on a clean machine with JDK 21 in both services.
+- Scenario: JDK 21 is configured as the target toolchain in both `build.gradle.kts` files (evidence: `java.toolchain.languageVersion = JavaLanguageVersion.of(21)` or equivalent appears in both build files).
+- Scenario: `./gradlew --version` reports Gradle 8.14.8 wrapper.
 - Scenario: the Gradle wrapper distribution checksum is verified (SHA-256 pinned in `gradle-wrapper.properties`).
 - Scenario: no dependency is resolved from the Boot 4 line (`spring-boot-starter-*` versions and the Spring AI 2.x BOM are absent).
 

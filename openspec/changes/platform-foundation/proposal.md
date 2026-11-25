@@ -23,9 +23,11 @@ Per `docs/implementation-roadmap.md` §2.1 and `docs/adr-roadmap.md` §3.3, thes
 
 Status at the time of writing: **none of the three is accepted.** Change 1 is therefore recorded as in progress on a provisional basis. Its tasks may be implemented and tested, but the change is not closed until the gates are met.
 
-## Evidence rules
+## Evidence rules and legacy scaffold
 
-- Each task records its Red evidence (failing test) before its Green evidence. Work already done before this change was opened is recorded as "Green only, Red not recorded" and is not counted as TDD evidence.
+- Each task records its Red evidence (failing test) before its Green evidence.
+- **Legacy scaffold work:** Existing work from the scaffold audit (commits before this change opened) is classified as "Green only, Red not recorded" and is **not counted as TDD evidence**. It may be reutilized as a valid starting point for this change, but any modification to it must be covered by RED tests before the Green implementation.
+- Only TDD evidence (RED before GREEN) is recognized as proof of proper methodology. Retrospective claims of TDD compliance are not accepted.
 - Every change lists the test command, the result, and any test that could not run.
 
 ## Affected requirements
