@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-@Import(TestcontainersConfiguration.class)
+@Import(TriageTestContainers.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
 class TriageServiceApplicationTests {
@@ -50,5 +50,4 @@ class TriageServiceApplicationTests {
 
 		assertThat(value).isEqualTo(1);
 	}
-
 }

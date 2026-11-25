@@ -49,4 +49,10 @@ dependencyManagement {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	jvmArgs = listOf(
+		"-Dfile.encoding=UTF-8",
+		"-Dsun.jnu.encoding=UTF-8",
+		"-Duser.country=US",
+		"-Duser.language=en"
+	)
 }

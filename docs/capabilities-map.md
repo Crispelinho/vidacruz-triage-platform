@@ -67,12 +67,12 @@ Each block lists what the capability needs to exist. Specs and tests belong to D
 - **Tests:** build succeeds on Java 21; containers start; CI runs build and tests on each pull request; manifests validate; the audit table rejects update and delete.
 
 ### C-05 `event-driven-integration`
-- **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes the events required by C-07. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
+- **Services:** both. Triage publishes EVT-01…EVT-04. Clinical Assistant consumes all four for C-07: EVT-01/03/04 change projection state and counts, EVT-02 advances `pacienteSequence` without a count effect. Triage also consumes EVT-02 for C-09 notification processing. Publishing and consuming are separate responsibilities, even inside the same service.
 - **Goal:** every successful state change creates exactly one logical outbox event, written in the same transaction as the change. The publisher provides at-least-once delivery. Consumers process duplicate deliveries idempotently, so each event produces only one business effect.
 - **Interfaces:** envelope and payloads of EVT-01…EVT-04 (DEC-03); topic `triaje.eventos`. The outbox writer is used by C-02, C-03 and C-04.
 - **Persistence:** outbox table in Triage (DEC-14); durable event history `EventoHistorico` in Triage (OD-3, DER-09); processed-event record in Clinical Assistant.
 - **Depends on:** C-01 only. It is business-agnostic: it knows the envelope, not the patient rules. This is what keeps the graph acyclic.
-- **Tests:** an outbox row exists if and only if the state change committed; a broker outage delays publication and loses nothing; a duplicate delivery produces no second effect; per-patient order is preserved through `pacienteSequence`.
+- **Tests:** an outbox row exists if and only if the state change committed; a broker outage delays publication and loses nothing, with backoff only and no circuit breaker (ADR-03, accepted 2026-11-25); a duplicate delivery produces no second effect; per-patient order is preserved through `pacienteSequence`.
 
 ### C-02 `triage-classification`
 - **Service:** Triage.
@@ -187,5 +187,5 @@ Completion criteria for this deliverable:
 - **OD-1b — Delivery placement.** Resolved for now: delivery stays in C-01. A separate `delivery` capability remains possible later; not proposed.
 - **OD-2 — Naming of the requirement set.** `prompt-init.txt` §5 numbers functional requirements RF-01…RF-09, while `requirements.md` uses RF-01…RF-06. This map follows `requirements.md`, which is the canonical source. Before D5, the prompt's references are checked against D1 and corrected; no requirement is renumbered silently. Owner: developer.
 - **OD-3 — Event retention and reconstruction. Decided (developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; the durable history `EventoHistorico` in Triage is the source for full reconstruction. See `requirements.md` §10, §11 and DER-09.
-- **OD-5 — Retention period of `EventoHistorico`.** New, not decided. No time-based purge until the developer sets the clinical data retention period. Owner: developer.
+- **OD-5 — Retention period of `EventoHistorico`.** New, not decided. OPEN-09/OPEN-10 was closed as Option A on 2026-11-25, so the durable record is decided; its clinical retention period is not. No time-based purge until the developer sets it. Owner: developer.
 - **OD-4 — Maximum span of an operational report range. Decided (developer, 2026-11-24):** 90 calendar days, inclusive, in UTC; filter `timestamp >= desde` and `timestamp < día_siguiente(hasta)`; error body per NFR-20 (no RFC 9457 claim).

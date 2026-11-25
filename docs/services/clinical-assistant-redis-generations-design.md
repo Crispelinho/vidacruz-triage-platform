@@ -3,7 +3,7 @@
 **Status:** Proposed. Not accepted. No implementation.
 **Service:** Clinical Assistant (projection `EstadoUrgenciaProyeccion`, dedupe `ProcessedEvent`).
 **Gates involved:** CA-G-11 (TTL of `ProcessedEvent` and Redis persistence mode), CA-G-24 (Kafka retention and rebuild completeness), and Redis durability (gap identifier to be confirmed; not resolved). Open.
-**Depends on:** OD-3 and OD-5 (`EventoHistorico`), G-T06 (`pacienteSequence` assignment), DEC-03 (envelope), RF-06 (whether alerts are part of the history).
+**Depends on:** OD-3 and OD-5 (`EventoHistorico`, durable record accepted under OPEN-09/OPEN-10 Option A; G-T29 = 7 days), G-T06 (`pacienteSequence` assignment), DEC-03 (envelope), RF-06 (whether alerts are part of the history).
 **Scope:** design of the protocol only. No changes to D0, D1, DEC-11, code or versions.
 
 ---
@@ -17,7 +17,7 @@ Each assumption is labelled. Nothing in this document is a verified guarantee.
 | A1 | `EventoHistorico` contains every event needed to rebuild the projection | **Not verified.** Proposed source, recorded as decided in documents on `develop` (`f1c43df`, PR #6); not verified against data | Schema, migrations, and a rebuild test against real data |
 | A2 | The history row is written in the same transaction as the state change and the outbox row | **Not verified.** Design claim | Transactional code and an integration test that forces a failure between writes |
 | A3 | Each event carries `eventId`, `pacienteSequence`, type, envelope version and payload | **Partly documented.** DEC-03 is *Proposed* | Envelope code and a schema-version test |
-| A4 | `pacienteSequence` is unique per patient and assigned atomically | **Not decided.** G-T06 (`pacienteSequence` generation and storage, registered in the Draft Triage service analysis) | Sequence code in the same transaction; unique constraint test |
+| A4 | `pacienteSequence` is unique per patient and assigned atomically | **Contract accepted 2026-11-25 (G-T06); not implemented or verified.** Counter-on-row incremented in the same transaction via `UPDATE ... RETURNING` | Sequence code in the same transaction; unique constraint test |
 | A5 | Kafka retains `triaje.eventos` for the effective retention period | **Decided in documents, not verified at runtime.** OD-3 is recorded as decided on `develop` (`f1c43df`, PR #6) with a 30-day value. No executable Kafka retention configuration is verified in any branch; the 30 days are a documentary value, not a verified configuration. | Topic configuration in the target environment |
 | A6 | Alerts (RF-06) are or are not part of the reconstructible history | **Not decided** | Decision recorded in RF-06 |
 | A7 | Redis persistence (AOF or RDB) preserves generations across restarts | **Not decided.** Redis durability (gap identifier to be confirmed) | Persistence configuration and a restart test |
@@ -81,9 +81,9 @@ Each assumption is labelled. Nothing in this document is a verified guarantee.
 | CA-G-11 | TTL of `ProcessedEvent` relative to effective Kafka retention | Dedupe design |
 | Redis durability (gap identifier to be confirmed) | Redis persistence (AOF or RDB) | Survival of generations across restarts |
 | CA-G-24 | Completeness of rebuild against retention | Scope of the history |
-| OD-3 | Recorded as decided in documents on `develop` (`f1c43df`, PR #6); the 30-day value is documentary and not verified as configuration. Confirm the rebuild source (`EventoHistorico`) and the topic configuration | Step 3 |
+| OD-3 / OPEN-09-10 | 30-day Kafka retention is documentary and not verified as configuration. Rebuild source is `EventoHistorico` (OPEN-09/OPEN-10 closed as Option A, 2026-11-25); G-T29 = 7 days for outbox cleanup | Step 3 |
 | OD-5 | Retention and privacy of `EventoHistorico`; conflict with append-only | Production |
-| G-T06 | `pacienteSequence` generation and storage, registered in the Draft Triage service analysis | I3 and A4 |
+| G-T06 | `pacienteSequence` contract closed 2026-11-25; implementation and runtime verification still pending | I3 and A4 |
 | DEC-03 | Envelope and versioning | A3 and version tests |
 | RF-06 | Whether alerts belong to the reconstructible history | A6 |
 | Step 4 | Catch-up alternative (a) pause or (b) dual write | Concurrency design |
