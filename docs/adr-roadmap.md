@@ -61,7 +61,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 
 These are open decisions from D2 §6. They are **not approved**. Each one is resolved only when the linked ADR or design is accepted.
 
-- **OD-3 — Retention of `triaje.eventos`.** Linked to ADR-02 (retention is part of the messaging contract) and ADR-08 (rebuilding the projection after losing its store, including the option of a snapshot plus replay). The retention value is not decided here.
+- **OD-3 — Retention of `triaje.eventos`.** Linked to ADR-02 (retention is part of the messaging contract) and ADR-08 (rebuilding the projection after losing its store, including the option of a snapshot plus replay). Decided (2026-11-24): Kafka retains 30 days; full reconstruction uses the durable history EventoHistorico in Triage (DER-09), so ADR-08 does not need a snapshot for correctness. The open item is OD-5, the retention period of EventoHistorico.
 - **OD-4 — Maximum span of an operational report range.** Not an architectural decision, so no ADR. It is resolved in the design of RF-05 (C-08) before the report is implemented.
 
 ### 3.3 Order of acceptance
