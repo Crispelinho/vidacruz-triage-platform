@@ -20,7 +20,7 @@ Triage writes each event twice in the business transaction: an `OutboxEvento` ro
 
 ## What the documents on `develop` already say
 
-- `requirements.md` §10 and §11 (OD-3, decided by the developer on 2026-11-24): Triage keeps every published event in `EventoHistorico`, written in the same transaction as the state change and its outbox row; Kafka keeps `triaje.eventos` for 30 days; a full rebuild reads `EventoHistorico` and republishes with the original `eventId`, `pacienteSequence` and payload; `EventoHistorico` is append-only and is not purged by time until OD-5 is decided.
+- `requirements.md` §10 and §11 (OD-3, decided by the developer on 2026-11-24): Triage persists every event in `EventoHistorico` in the same transaction as the state change and its outbox row (a history row is persisted, not necessarily published or ACK-confirmed); Kafka keeps `triaje.eventos` for 30 days; a full rebuild reads `EventoHistorico` and republishes with the original `eventId`, `pacienteSequence` and payload; `EventoHistorico` is append-only and is not purged by time until OD-5 is decided.
 - `triage-service.md` §4.3: published outbox rows are deleted after a configurable retention; the accepted value is 7 days (G-T29, closed 2026-11-25).
 - The draft of `spec.md` for C-05 said "24 hours minimum" for outbox cleanup and linked it to OD-3. That value was an earlier draft and is superseded by the 7-day decision; OD-3 concerns Kafka retention and the history, not the outbox cleanup.
 - The 30-day Kafka retention is recorded in documents only. No executable Kafka configuration is verified (ADR-02).
