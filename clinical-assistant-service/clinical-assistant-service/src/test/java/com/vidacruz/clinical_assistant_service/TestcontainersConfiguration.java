@@ -1,5 +1,6 @@
 package com.vidacruz.clinical_assistant_service;
 
+import org.springframework.boot.autoconfigure.jdbc.JdbcConnectionDetails;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,6 +18,27 @@ class TestcontainersConfiguration {
 		// pgvector image: the Spring AI PgVector store needs the vector extension
 		return new PostgreSQLContainer<>(
 				DockerImageName.parse("pgvector/pgvector:pg17").asCompatibleSubstituteFor("postgres"));
+	}
+
+	// @ServiceConnection only exposes R2DBC details; the explicit DataSource needs JDBC details
+	@Bean
+	JdbcConnectionDetails jdbcConnectionDetails(PostgreSQLContainer<?> postgresContainer) {
+		return new JdbcConnectionDetails() {
+			@Override
+			public String getJdbcUrl() {
+				return postgresContainer.getJdbcUrl();
+			}
+
+			@Override
+			public String getUsername() {
+				return postgresContainer.getUsername();
+			}
+
+			@Override
+			public String getPassword() {
+				return postgresContainer.getPassword();
+			}
+		};
 	}
 
 	@Bean
