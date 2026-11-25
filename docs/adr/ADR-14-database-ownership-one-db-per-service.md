@@ -1,4 +1,4 @@
-# ADR-14: Database Ownership — One PostgreSQL Database per Service
+# ADR-14: Data Ownership Model — One PostgreSQL Database per Service + Redis Projection Cache
 
 **Status:** Proposed  
 **Date:** 2026-11-25  
@@ -7,6 +7,10 @@
 ---
 
 ## Context
+
+This ADR assumes **ADR-01 (Two-service decomposition)** is accepted. Each service owns its data following the microservice isolation principle: Triage-service owns patient and clinical state; Clinical-Assistant-service owns its own derived state and embeddings.
+
+**Scope clarification:** This ADR covers the complete data ownership model, which includes both persistent storage (PostgreSQL) and in-memory caches (Redis). The title emphasizes PostgreSQL because it is the source-of-truth; Redis is explicitly scoped to the Assistant's projection only (line 70).
 
 The brief is silent on database layout. Two services are required (TC-09). The question is whether they:
 1. Share a single PostgreSQL database (classic monolithic data model)
@@ -75,6 +79,17 @@ One database per service avoids these but requires:
 
 ---
 
+## Verification
+
+The following must pass before this ADR transitions from Proposed to Accepted:
+
+- [ ] Flyway migrations are independent per service (`triage-service/src/main/resources/db/migration` and `clinical-assistant-service/src/main/resources/db/migration`)
+- [ ] No cross-service SQL queries exist in production code (schema ownership enforced: Triage never reads Assistant tables, Assistant never writes Triage tables)
+- [ ] Kafka is the only cross-service data channel (via ADR-03 transactional outbox; no direct HTTP or SQL calls between services for data)
+- [ ] CI/CD gate: schema changes reviewed and approved per-service ownership; deployment pipeline prevents mixed schema deployments
+
+---
+
 ## Consequences
 
 ### Positive
@@ -102,6 +117,9 @@ One database per service avoids these but requires:
 - **R-08 (duplicate/out-of-order Kafka messages):** The Assistant must deduplicate events (ADR-02, DEC-03, `pacienteSequence` + `eventId`).
   - **Mitigation:** Idempotent consumer logic and deduplication set in Redis (DER-03).
 
+- **R-09 (EventoHistorico retention & recovery):** The Triage service's `OutboxEvento` table is the durable recovery source if the Assistant loses its Redis cache. Without a defined retention policy, the Assistant cannot rebuild its projection beyond the message retention window.
+  - **Mitigation:** EventoHistorico retention period (OD-5) is a post-delivery decision based on operational requirements and log storage capacity. For now, assume adequate log space and plan production retention review before go-live.
+
 ---
 
 ## References
@@ -116,4 +134,4 @@ One database per service avoids these but requires:
 
 ## Linked Open Decision
 
-**OD-5** (retention of `EventoHistorico`): Post-delivery decision. The durable audit history in Triage allows the Assistant to rebuild its projection even after losing Redis; the retention period of that history is a production SLA choice, not an architecture choice for this evaluation.
+**OD-5** (retention of `EventoHistorico` / Kafka message retention): Post-delivery decision. The durable audit history in Triage (`OutboxEvento` table) and Kafka topic `triaje.eventos` allow the Assistant to rebuild its projection even after losing Redis. The retention period of that history is a production SLA choice, not an architecture choice for this evaluation. This ADR assumes adequate log space; retention must be verified and configured before production deployment.
