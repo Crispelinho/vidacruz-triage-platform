@@ -55,7 +55,7 @@ A startup check of the endpoint and model is proposed as a separate check under 
 ## Consequences
 
 - The vector dimension becomes a fixed constant in the migration; changing the embedding model requires full re-ingestion.
-- GPU capacity becomes a deployment dependency. If it is unavailable, the Assistant returns `503 LLM_UNAVAILABLE` per NFR-03 and ADR-09; Triage is unaffected.
+- GPU capacity becomes a deployment dependency. If it is unavailable, the Assistant returns `503 LLM_UNAVAILABLE` per NFR-03 and ADR-09; Triage is unaffected. Provider availability is recorded as a metric, never as a readiness gate, and LLM-dependent endpoints recover automatically when the provider returns (developer decision, 2026-11-25).
 - Under Option D, model calls stay inside the Azure perimeter. Logs, telemetry and traces are still in scope for CA-G-16.
 - Tests keep a mocked model (DEC-06). Threshold calibration needs the real model in the test environment, not in unit tests.
 - If ADR-11 cannot host the workload, this ADR must be updated before any provider route is accepted.

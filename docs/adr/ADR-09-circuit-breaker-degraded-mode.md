@@ -4,6 +4,7 @@
 - **Date:** 2026-11-25
 - **Deciders:** developer (pending)
 - **Scope:** C-06. This ADR covers the Resilience4j circuit breaker, timeout and 503 fallback for LLM calls. The relevance gate and citation validation stay in C-06 under RN-05 and R-10, as recorded in `adr-roadmap.md` §2.
+- **Accepted sub-decision (developer, 2026-11-25):** the LLM never participates in readiness. An unavailable model returns `503 LLM_UNAVAILABLE` and recovers automatically; breaker values and failure classification remain open (G-05, CA-G-05).
 - **Related:** DEC-07, NFR-03, NFR-08, NFR-20, TC-05, R-04, R-10, CA-G-05, CA-G-16, CA-G-22, G-05, G-12, API-04, TST-RES, TST-RAG in [clinical-assistant-service.md](../services/clinical-assistant-service.md), [requirements.md](../requirements.md) and [ADR-05](ADR-05-assistant-llm-provider.md)
 
 ## Context
@@ -12,7 +13,7 @@ DEC-07 groups the RAG relevance gate, citation validation and circuit breaker in
 
 NFR-03 requires a circuit breaker on LLM calls with a 503 fallback. API-04 defines the body `{ "code": "LLM_UNAVAILABLE", "message": "El asistente no está disponible temporalmente" }`, extended with `correlationId` under NFR-20. TC-05 fixes Resilience4j. R-04 records LLM latency and cost during evaluation. G-05 lists timeout values, breaker window, failure rate, open wait, failure definition and retry policy as undecided. CA-G-05 adds 5xx and 429 responses as candidate failure types, especially if ADR-05 chooses a local GPU model whose queue can saturate.
 
-DER-01 requires startup validation of required configuration, including the provider key when the chosen provider uses one (G-12). At runtime, D0 §13 says LLM status must not make the Assistant unready: the fallback is intentional and LLM state is reported as a metric, not as a readiness check (CA-G-22). A startup check of the configured model endpoint is proposed in ADR-05 §11 and remains coordinated under CA-G-22; this ADR does not decide it. Retrieval, projection and LLM failures are different; the retrieval error code is not defined (G-05), stays with C-06, and must not be conflated with `LLM_UNAVAILABLE`.
+DER-01 requires startup validation of required configuration, including the provider key when the chosen provider uses one (G-12). **Readiness rule (developer, 2026-11-25): the LLM never participates in the readiness gate.** At runtime, D0 §13 says LLM status must not make the Assistant unready: the fallback is intentional and LLM state is reported as a metric, not as a readiness check (CA-G-22). If the configured model is unavailable at startup, the service may become ready; LLM-dependent endpoints return `503 LLM_UNAVAILABLE`, the provider state is recorded, and recovery is automatic when the provider returns. A startup check of the endpoint and model is a separate check under CA-G-22, not a readiness gate; ADR-05 states the same rule. Retrieval, projection and LLM failures are different; the retrieval error code is not defined (G-05), stays with C-06, and must not be conflated with `LLM_UNAVAILABLE`.
 
 ## Decision drivers
 
@@ -34,15 +35,15 @@ DER-01 requires startup validation of required configuration, including the prov
 
 ## Decision
 
-**Proposed: Option A.** Wrap the LLM port with one Resilience4j `CircuitBreaker` and timeout configuration. Do not retry LLM calls. Count a failure when a call times out, fails to connect, or returns a failure type classified under CA-G-05; 429 and 5xx responses are candidates but are not finally classified here. When the circuit is open or a timeout occurs, return HTTP 503 with `code` `LLM_UNAVAILABLE` and a NFR-20 body including `correlationId`. Missing required configuration fails startup under DER-01 and G-12; a runtime provider outage returns 503 and does not make the service unready (CA-G-22). Record LLM state through `vidacruz.llm.latency` with an `outcome` tag, and never log question or answer text (CA-G-16). Retrieval failures stay with C-06 and G-05, not this ADR, and do not use `LLM_UNAVAILABLE`. The relevance gate remains in C-06. This is a proposal, not an accepted decision.
+**Proposed: Option A.** Wrap the LLM port with one Resilience4j `CircuitBreaker` and timeout configuration. Do not retry LLM calls. Count a failure when a call times out, fails to connect, or returns a failure type classified under CA-G-05; 429 and 5xx responses are candidates but are not finally classified here. When the circuit is open or a timeout occurs, return HTTP 503 with `code` `LLM_UNAVAILABLE` and a NFR-20 body including `correlationId`. Missing required configuration fails startup under DER-01 and G-12; a model unavailable at startup is not a readiness failure: the service may become ready, LLM-dependent endpoints return 503, the provider state is recorded and recovery is automatic when it returns (CA-G-22, developer 2026-11-25). A runtime provider outage also returns 503 and does not make the service unready. Record LLM state through `vidacruz.llm.latency` with an `outcome` tag, and never log question or answer text (CA-G-16). Retrieval failures stay with C-06 and G-05, not this ADR, and do not use `LLM_UNAVAILABLE`. The relevance gate remains in C-06. This is a proposal, not an accepted decision.
 
 ## Consequences
 
 - Positive: the fallback is deterministic, no clinical content is generated during degradation, and a saturated model is protected from retry storms.
 - Negative: an open circuit keeps returning 503 until it half-closes; numeric values must be chosen and measured.
 - C-06 keeps ownership of RN-05 gate and citation rules; this ADR owns only the LLM failure path.
-- C-11 reports LLM runtime state as a metric and excludes it from readiness; the separate startup check proposed in ADR-05 §11 remains under CA-G-22.
-- ADR-05 must align its provider scenarios in §11 with the classification finally accepted here.
+- C-11 reports LLM state (startup and runtime) as a metric/health detail and excludes it from readiness; the separate startup check remains under CA-G-22. ADR-05 no longer proposes "service not ready" for an unavailable model.
+- ADR-05 was aligned on readiness (2026-11-25): an unavailable model returns 503 and does not remove the service from readiness. The failure-type classification for 429/5xx remains pending under CA-G-05 and this ADR.
 
 ## Risks and mitigations
 
