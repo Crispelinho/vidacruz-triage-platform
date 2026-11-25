@@ -110,12 +110,11 @@ These tests are required before the consumer is considered complete. They are no
 
 ## Open items (unresolved)
 
-- **CA-G-10:** consumed event list, pending confirmation from the Triage team.
 - **CA-G-18:** version and documentation consistency: end of open-source support for Spring Boot 3.5 (AMB-12, R-02), compatibility of Spring Boot 3.5.16, Spring Cloud 2025.0.x and Spring AI 1.1.1, and the Java 21 versus Java 25 mismatch between D1 and the skeletons, to verify before the first build. Sub-point, pending verification: compatibility of reactor-kafka with those versions and its maintenance status. G-18 does not cover reactor-kafka by itself.
 - **CA-G-11:** Redis dedupe TTL (`ProcessedEvent`) and its relation to Kafka retention (rebuild completeness: CA-G-24). **Pending.** The TTL value is not decided and is not accepted until the user confirms it explicitly.
 - **Redis durability** (gap identifier to be confirmed): concrete configuration (persistence mode, fsync policy, replication, acknowledgement level). The gap table covers persistence and the TTL in one entry, so the identifier must be confirmed before it is cited.
 - **Gap timeout and pending-map size** (CA-G-11/CA-G-24): numeric values pending confirmation. The protocol above is fixed; only these limits remain open.
-- **DLT name and maximum retry count** (CA-G-09, to confirm).
+- **DLT name and maximum retry count** (CA-G-09): `triaje.eventos.dlq` is the proposed name in Spec C-05 §6; the retry count is not set. Neither is accepted.
 - **Test requirements above and in Spec C-05 §7:** not implemented in this branch.
 
 ## Consequences
