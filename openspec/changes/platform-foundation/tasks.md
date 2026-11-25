@@ -178,13 +178,10 @@
   - CREATE and SELECT on `FragmentoDocumental`
 - **Verification:** Test passes; pgvector is loaded.
 
-**T6.4: Assistant Service Redis Integration Test**
-- [ ] Create `clinical-assistant-service/src/test/java/.../RedisConnectivityTest.java`
-- [ ] Use `@Testcontainers` with Redis container
-- [ ] Test:
-  - Redis connection
-  - SET and GET key-value
-- **Verification:** Test passes; Redis is functional.
+~~**T6.4: Assistant Service Redis Integration Test**~~ **[REMOVED — belongs to change 9: emergency-state-projection]**
+- Redis testing is out of scope for platform-foundation.
+- Redis is used only by the Assistant for urgency projection (change 9).
+- T6.4 will be implemented in change 9 when the projection feature is built.
 
 **T6.5: BlockHound Setup**
 - [ ] Add BlockHound dependency (test scope)
@@ -224,6 +221,14 @@
   - Blockers (if any)
 - **Verification:** Summary is clear and links to commits.
 
+**T7.4: Verify Production Restriction in README**
+- [ ] Edit `README.md` to document:
+  - **Clear warning:** "This baseline is for development and evaluation only. Production deployments require either VMware Spring Support contract for Boot 3.5.x or migration to Boot 4.1.x+ (open-source support)."
+  - Scope restrictions explicitly stated
+  - Production path options documented
+  - Reference to ADR-10 for details
+- **Verification:** README explicitly states production restriction and both path options (commercial support for 3.5.x OR migration to 4.1.x).
+
 ---
 
 ## Task Dependencies
@@ -241,7 +246,8 @@ T1.3 (Root Gradle) ────────────────────�
 ```
 
 **Critical path:** 7 hours (longest chain).  
-**Parallelizable:** T1.1 and T1.2, T2.1 and T2.2, T4.1 and T4.2, T6.1 and T6.3 can run in parallel.
+**Parallelizable:** T1.1 and T1.2, T2.1 and T2.2, T4.1 and T4.2, T6.1 and T6.3 can run in parallel.  
+**Note:** T6.4 (Redis test) removed; it belongs to change 9 (emergency-state-projection). Task count revised from 15 to 14.
 
 ---
 

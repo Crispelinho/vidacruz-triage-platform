@@ -41,10 +41,21 @@ Establish the development and deployment baseline for both microservices: upgrad
 
 ---
 
+## Dependencies
+
+**Requires formal acceptance of:**
+- ADR-10 (Spring Boot 3.5.16 baseline, development/evaluation scope)
+- ADR-14 (One PostgreSQL database per service)
+- ADR-07 (API key authentication)
+- ADR-05 (Spring AI 1.1.x GA for LLM)
+- ADR-06 (Webhook notifications with outbox retry)
+
+**Current status:** All five ADRs are Proposed. This change is conditional on their acceptance. If any ADR is rejected or significantly modified, platform-foundation must be revisited.
+
 ## Motivation
 
-The brief specifies Spring Boot 3.x; the provided skeletons default to Boot 4.x. ADR-10 accepts Boot 3.5.x with the understanding that open-source support ended June 2026 (already passed). This change:
-1. Aligns with the brief requirement.
+The brief specifies Spring Boot 3.x; the provided skeletons default to Boot 4.x. ADR-10 accepts Boot 3.5.x for development/evaluation (with production options documented). This change:
+1. Aligns with the brief requirement for the evaluation window.
 2. Avoids Java 25 + Gradle 9.x compatibility risk.
 3. Establishes the platform so other changes can begin in parallel.
 4. Proves the CI pipeline works before feature development.
@@ -83,14 +94,14 @@ The brief specifies Spring Boot 3.x; the provided skeletons default to Boot 4.x.
 ## Done Criterion
 
 ✅ **Platform builds and runs locally:**
-1. Both services compile on Java 21 with Gradle 8.14.8.
-2. Both services start in docker-compose and report readiness (`/health/ready` returns 200).
-3. CI workflow triggers on PR to `develop`; passes build and unit tests.
+1. Both services compile on Java 21 with Gradle 8.14.8: `./gradlew build` from each service root returns SUCCESS (exit code 0, no errors).
+2. `docker-compose up -d` from repo root completes; `docker-compose ps` shows all services with status "healthy" (not "up" or "starting") within 30 seconds.
+3. CI workflow triggers on PR to `develop`: GitHub Actions workflow completes successfully (all steps pass); build and unit tests pass.
 
 ✅ **Data layer is ready:**
-1. `vidacruz_triage` and `vidacruz_assistant` PostgreSQL databases are created and migrated by Flyway.
-2. `AuditoriaClinica` table schema exists (columns: `id`, `timestamp`, `pacienteId`, `estadoAnterior`, `estadoNuevo`, `tipoEvento`).
-3. Integration test verifies that `AuditoriaClinica` rejects UPDATE and DELETE (RBAC or database constraint).
+1. After `docker-compose up -d` and successful startup, verify: `psql -h localhost -U postgres -d vidacruz_triage -c "SELECT COUNT(*) FROM AuditoriaClinica"` returns 0 rows (table created). Repeat for `vidacruz_assistant` with `SELECT COUNT(*) FROM FragmentoDocumental`.
+2. `AuditoriaClinica` table exists with columns (verify via schema query): `id` UUID, `timestamp` TIMESTAMP, `pacienteId` UUID, `estadoAnterior` VARCHAR, `estadoNuevo` VARCHAR, `tipoEvento` VARCHAR.
+3. Integration test T6.1 verifies RBAC: connects via R2DBC (application user), executes INSERT → SUCCESS; executes UPDATE → ERROR "permission denied"; executes DELETE → ERROR "permission denied". Test runs with app user from R2DBC pool, not postgres superuser.
 
 ✅ **Containers are ready:**
 1. `docker-compose up` starts:
