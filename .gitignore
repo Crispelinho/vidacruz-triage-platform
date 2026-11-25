@@ -37,3 +37,10 @@ replay_pid*
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
+
+# Build output and IDE state at repository root (services also ignore these in their own .gitignore)
+.gradle/
+build/
+.idea/
+*.iml
+.vscode/
