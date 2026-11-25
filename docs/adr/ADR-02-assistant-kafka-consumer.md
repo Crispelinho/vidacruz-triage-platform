@@ -66,7 +66,7 @@ The skeleton declares `spring-kafka` and uses `@KafkaListener` in its default st
 "Durable" in this ADR means: the Redis write has been acknowledged under the persistence and replication policy that the team has chosen. The offset is not committed before that level is reached.
 
 The concrete policy is **not decided here** (Redis durability, gap identifier to be confirmed). It must define:
-- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered only by rebuilding the projection from Kafka retention (CA-G-24), so the two decisions depend on each other.
+- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered by rebuilding from Kafka retention when the window is sufficient, and by full reconstruction from `EventoHistorico` under OD-3 when it is not (ADR-08), so the decisions depend on each other.
 - Whether replication is used and what acknowledgement level the write must reach before it counts as durable.
 
 ## ProcessedEvent TTL (proposal, not accepted)
