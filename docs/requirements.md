@@ -78,6 +78,7 @@ Objectives of the system:
 - **Metrics per hour:** total registered, count per level, average minutes from registration to first `EN_CONSULTA`, p95 of the same interval.
 - **SQL:** advanced SQL in PostgreSQL (window functions, `FILTER`, ordered-set aggregates or equivalent). In-memory aggregation over all records is forbidden.
 - **Acceptance:** results match a hand-computed fixture set; query plan uses the indexes in §11.
+- **Range (OD-4, decided):** `desde` and `hasta` are required, ISO 8601 with offset or `Z`, interpreted in UTC. Both limits are inclusive. Maximum span: 90 calendar days (a range of exactly 90 days is accepted; 91 days is rejected). Filter: `timestamp >= desde` and `timestamp < día_siguiente(hasta)`, where `día_siguiente(hasta)` is the start of the next UTC calendar day after the UTC date of `hasta`. `desde` later than `hasta`, or a span above 90 days, returns 400 with the NFR-20 body (`code` `INVALID_REPORT_RANGE`, `field` naming the offending parameter). Responses are not claimed to follow RFC 9457.
 
 ### RF-06 Escalation alerts to the medical team
 - **Requirement:** alert the medical team when a patient is escalated.
@@ -342,6 +343,8 @@ Topic: `triaje.eventos` (TC-04). Key: `pacienteId` (ordering per patient). At-le
 
 Schema evolution: additive changes only within `schemaVersion`; breaking changes bump `schemaVersion` and keep the old consumer path for one release (DEC-03).
 
+**Durable history and reconstruction (OD-3, decided).** Triage keeps every published event in `EventoHistorico` (§11), written in the same transaction as the state change and its outbox row. Kafka keeps `triaje.eventos` for 30 days (`retention.ms=2592000000`). A full projection rebuild does not depend on that window: a reconstruction job in Triage reads `EventoHistorico` in `pacienteSequence` order per patient and republishes each event with its original `eventId`, `pacienteSequence` and payload. Consumers already ignore duplicates by `eventId` and sequence, so republishing is idempotent. The Assistant never calls Triage. After the history is replayed, live events continue with sequences above the last replayed sequence for each patient, without loss or duplicates.
+
 ## 11. Persistence
 
 | Entity | Service | Store | Purpose | Key constraints |
@@ -351,6 +354,7 @@ Schema evolution: additive changes only within `schemaVersion`; breaking changes
 | Clasificacion | Triage | PostgreSQL | Level and SLA applied at registration | FK to Paciente |
 | AuditoriaClinica | Triage | PostgreSQL | RN-04 log | Append-only: no UPDATE/DELETE grants; index `(pacienteId, timestamp)` |
 | OutboxEvento | Triage | PostgreSQL | Pending events (DER-02) | Index `(publicadoEn)` partial where null |
+| EventoHistorico | Triage | PostgreSQL | Durable copy of every published event, for projection reconstruction (OD-3, DER-09) | PK `eventoId`; unique `(pacienteId, pacienteSequence)`; full envelope in `payload` (jsonb); append-only: no UPDATE or DELETE grants; written in the same transaction as the state change and OutboxEvento; no time-based purge until OD-5 is decided |
 | DocumentoClinico | Assistant | PostgreSQL | Protocol metadata (protocolo, seccion, fuente) | Unique `(protocolo, seccion)` |
 | FragmentoDocumental | Assistant | pgvector | Chunks and embeddings | Index on embedding; metadata filter by protocolo |
 | EstadoUrgenciaProyeccion | Assistant | Redis | Count by level, last sequence per patient | Hash per level; dedupe set of processed eventIds with TTL |
@@ -416,7 +420,7 @@ Each AMB is resolved by a DEC proposal. Decisions are ours to document; they are
 | AMB-09 | JWT or API key | API key in header for both services (simpler to test); JWT as documented alternative | DEC-05 |
 | AMB-10 | RF-06 channel | Email is hard to test; webhook + outbox-driven retry chosen over queue or SMS | DEC-09 |
 | AMB-11 | Azure subscription availability | Manifests always delivered; deployment URL depends on access; blocker documented if unavailable | R-06 |
-| AMB-12 | Boot 3.5 open-source support ended (search result, unverified) | Accept and document; check spring.io before final build | DEC-12, R-02 |
+| AMB-12 | Boot 3.5 open-source support: Spring Boot 3.5.16 is the last OSS release of the 3.5.x line (official spring.io announcement, 2026-06-25); continued OSS support requires 4.0.x or 4.1.x | Baseline fixed by the brief (Boot 3.x). Accept the end of OSS support in ADR-10 and record it there; the risk is not removed | DEC-12, R-02 |
 | AMB-13 | Java version (skeletons: 25) | Java 21 (DEC-13) | DEC-13 |
 | AMB-14 | Duplicates and out-of-order Kafka messages | `pacienteSequence` plus eventId dedupe | DEC-03 |
 | AMB-15 | LLM provider | Any provider behind Spring AI; tests use mock | DEC-06 |
@@ -468,6 +472,7 @@ Proposed decisions. Each one becomes an ADR (see `adr-roadmap.md`, D3).
 | DER-06 | pgvector store is JDBC-based; keep it off the event loop (bounded elastic or async adapter) with documented risk | NFR-01, TC-11 |
 | DER-07 | Correlation ID propagated via HTTP header and Kafka headers | NFR-06 |
 | DER-08 | Consistent error body (NFR-20) | Error handling criteria |
+| DER-09 | Durable event history `EventoHistorico` for projection reconstruction, republished with original `eventId` and `pacienteSequence` | OD-3, DER-02, NFR-02 |
 
 ## 17. Risks (summary)
 
