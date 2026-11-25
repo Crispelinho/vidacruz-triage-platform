@@ -196,7 +196,7 @@ Schema evolution: additive within `schemaVersion`; breaking changes bump the ver
 - **Index:** partial index on `(publicadoEn)` `WHERE publicadoEn IS NULL` (D1 §11).
 - **Publisher:** background, reactive, restartable and idempotent. Reads pending rows in bounded batches, publishes with `acks=all` and idempotent producer settings (proposed), marks `publicadoEn` in a separate transaction after broker acknowledgement. No database transaction or row lock is held while waiting for Kafka; ADR-03 specifies the short lease claim. On a crash between send and mark, the row is re-published after lease expiry: consumers tolerate duplicates through `eventId` and `pacienteSequence` (DER-03).
 - **Multiple replicas:** the publisher can run on every replica. Concurrent readers claim rows with `FOR UPDATE SKIP LOCKED` inside a short transaction that stamps `claimadoPor`/`claimExpiraEn`, then release the lock before the send; ordering per patient is protected by `pacienteSequence` at the consumer, not by the publisher (G-T06).
-- **Retention:** published rows deleted after a configurable retention (D0 §7); value not set (G-T29).
+- **Retention:** published rows deleted after a configurable retention (D0 §7); accepted default 7 days (G-T29, closed 2026-11-25). Unpublished and flagged rows are never deleted; `EventoHistorico` is not affected.
 
 ---
 
@@ -262,7 +262,7 @@ Database: one PostgreSQL database for Triage (DEC-10). Access: R2DBC at runtime;
 
 ### 5.4 `OutboxEvento`
 
-Described in §4.3. Rows are inserted in the business transaction. Publication marks `publicadoEn`. Retention deletion is a scheduled job (G-T29).
+Described in §4.3. Rows are inserted in the business transaction. Publication marks `publicadoEn`. Retention deletion is a scheduled job with the accepted 7-day default (G-T29, closed).
 
 ### 5.5 `IdempotencyKey` (DEC-15)
 
@@ -518,7 +518,7 @@ Items marked **new** are not registered in D1 and should be added to D1 §14 bef
 | G-T26 | Skeleton lacks dependencies required by NFR-05, NFR-07, NFR-11, NFR-15, NFR-17 and TST-RXN (actuator, Micrometer Prometheus, validation, Testcontainers, BlockHound) | NFR-05/07/11/15/17, TST-RXN | Cannot meet probes, metrics, validation, tests | Add when implementing; not a D1 decision |
 | G-T27 | Default evaluator interval not set (NFR-08 configurable only) | RF-03, DEC-04 | Test and demo timing | Default 30 s (proposal): worst-case escalation delay of 30 s on a 5-minute minimum SLA |
 | G-T28 | SLA snapshot versus later configuration changes (**new**). D1 §11 says `Clasificacion` holds the SLA applied at registration, but the rule for later config changes is not stated | RN-02, NFR-08 | Deadlines move unexpectedly if read from config | Use the snapshot in `Clasificacion.sla_minutos`; configuration changes apply to new registrations only (documented in ADR) |
-| G-T29 | Retention of published outbox rows | DER-02, DEC-14 | Table growth | Retention 7 days (proposal) configurable; scheduled job |
+| G-T29 | Retention of published outbox rows | DER-02, DEC-14 | Table growth | **Closed 2026-11-25:** retention 7 days, configurable; scheduled job; never delete unpublished or flagged rows |
 | G-T30 | Patient id format in path (non-UUID value → 400 or 404?) | API-02, API-03 | Minor | 404 for any id that is not a stored UUID, consistent with AMB-06 |
 | G-T31 | Key management for `X-API-Key` (provisioning, rotation, storage) | DEC-05, NFR-09 | Operational | Key from environment or secret store; rotation out of scope; documented |
 

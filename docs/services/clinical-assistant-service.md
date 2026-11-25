@@ -306,7 +306,7 @@ Applied inside one Redis Lua script so that the read, the rules, and the count c
 - Record the current counts as a comparison baseline before clearing anything. The projection is not the source of truth; the baseline is only a cutover guard.
 - The projection can be rebuilt from `triaje.eventos` alone (TST-PRJ): clear projection keys and markers, reset the consumer group to the earliest retained offset and reapply the §8.3 protocol.
 - Cut over only when rebuilt counts equal the baseline. A mismatch blocks activation and raises an alert; the old projection stays in place until then.
-- If Kafka retention is shorter than the history of open patients, request full reconstruction from Triage's durable record (OPEN-09/OPEN-10 still open: `EventoHistorico` or retained outbox) with original `eventId`/`pacienteSequence`. The Assistant never calls Triage from the API path (RF-04-B, NFR-04). The durable record and its retention are not decided here (G-24, OD-5).
+- If Kafka retention is shorter than the history of open patients, request full reconstruction from Triage's durable record (`EventoHistorico`, OPEN-09/OPEN-10 closed as Option A on 2026-11-25) with original `eventId`/`pacienteSequence`. The Assistant never calls Triage from the API path (RF-04-B, NFR-04). The record is decided (`EventoHistorico`); its clinical retention is not (OD-5), and G-24 remains open.
 - Redis persistence (AOF proposed, RDB rejected) is needed to avoid a full rebuild after a restart. The policy is not yet accepted (G-11).
 - Multi-key scripts across Redis Cluster slots fail. The projection keys must share a hash tag or run on a single Redis node (PROPOSED: single node in the three-day scope; document it).
 

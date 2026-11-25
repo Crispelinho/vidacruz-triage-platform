@@ -117,7 +117,7 @@ P0 tasks are not cut. If a P0 task is blocked, its blocker is recorded in T-24 o
 - **R-02 / AMB-12:** Verified against the official Spring announcement (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/, dated 2026-06-25): Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and Spring says continued OSS support requires moving to 4.0.x or 4.1.x. The baseline is fixed by the brief (Boot 3.x), so the project runs on a line whose OSS support has ended. The developer must explicitly accept this risk in ADR-10 (G-02). Until ADR-10 is accepted and records the support limitation and its consequences, G-02 remains unmet and T-01 is blocked. The risk is not removed by the decision. Commercial support is a paid option and is not assumed.
 - **D-4:** decided, see §1.
 - **OD-2:** requirement numbering in `prompt-init.txt` (RF-01…RF-09) differs from `requirements.md` (RF-01…RF-06). The tasks follow `requirements.md`.
-- **OD-3 and OD-4:** decided (D4 §6, D1 §10–§11). The open item is OD-5: the retention period of `EventoHistorico`, which must be set before production use.
+- **OD-3 and OD-4:** decided (D4 §6, D1 §10–§11). OPEN-09/OPEN-10 and G-T29 were closed on 2026-11-25 (Option A; 7-day configurable outbox cleanup). The open item is OD-5: the retention period of `EventoHistorico`, which must be set before production use.
 
 ## 10. Completion criteria for this deliverable
 

@@ -164,7 +164,7 @@ If production observability shows that broker outages cause unacceptable publish
 
 ### Negative
 - **On a long broker outage:** rows backlog in the outbox. The publisher keeps reclaiming and retrying with backoff until the broker recovers or the row reaches the failure threshold.
-  - **Mitigation:** Kafka retention (OD-3: 30 days) must be verified as configuration before this ADR is accepted. If the broker is down longer than retention, events are lost from Kafka and cannot be recovered from it; full reconstruction depends on the durable record still being open (OPEN-09/10: `EventoHistorico` or retained outbox). No persistence option is accepted here.
+  - **Mitigation:** Kafka retention (OD-3: 30 days) must be verified as configuration before this ADR is accepted. If the broker is down longer than retention, events are lost from Kafka and cannot be recovered from it; full reconstruction uses the accepted durable record `EventoHistorico` (OPEN-09/10 closed as Option A on 2026-11-25). The retained-outbox alternative was rejected.
 - **Operator intervention required:** Rows flagged with `requiere_revision = TRUE` must be cleared manually or via a dashoard. No automatic recovery.
   - **Mitigation:** Alerting on threshold (NFR-07) so operators are notified immediately.
 
@@ -215,5 +215,5 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 
 ## Linked Open Decisions
 
-- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is documented as the durable source for full reconstruction, but OPEN-09/OPEN-10 is open and no persistence option is accepted.
+- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted durable source for full reconstruction (OPEN-09/OPEN-10 closed as Option A on 2026-11-25). G-T29 is closed at 7 days.
 - **G-T25 (open):** Reactive Kafka client library (reactor-kafka or explicit adapter). spring-kafka is blocking and does not meet NFR-01.

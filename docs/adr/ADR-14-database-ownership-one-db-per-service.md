@@ -16,7 +16,7 @@ The brief is silent on database layout. Two services are required (TC-09). The q
 3. Use a hybrid approach (some shared, some private tables)
 
 **Data flows:**
-- **Triage:** Writes patients, vital signs, classification, state, audit, outbox events, the durable event history `EventoHistorico` as documented in DER-09 and OD-3 (its role versus the outbox is open: OPEN-09/OPEN-10) and idempotency keys.
+- **Triage:** Writes patients, vital signs, classification, state, audit, outbox events, the durable event history `EventoHistorico` as documented in DER-09 and OD-3 (durable record selected by OPEN-09/OPEN-10, closed as Option A on 2026-11-25) and idempotency keys.
 - **Clinical Assistant:** Reads events from Kafka, maintains the projection `EstadoUrgenciaProyeccion` and the `ProcessedEvent` records in the store decided by ADR-08 and ADR-02 (`requirements.md` §11 currently places them in Redis; Proposed), and reads protocol metadata and embeddings.
 - **Cross-service communication:** Kafka events (async). No synchronous SQL or HTTP calls across services (NFR-04, RF-04-B).
 
@@ -57,7 +57,7 @@ One database per service avoids these but requires:
 
 **Databases:**
 1. **`vidacruz_triage`** (Triage service)
-   - Tables (`requirements.md` §11): `Paciente`, `SignoVital` (may be columns of `Paciente`), `Clasificacion`, `AuditoriaClinica`, `OutboxEvento`, `EventoHistorico` (present if OPEN-09/OPEN-10 closes as Option A; with Option B the outbox is retained instead and this table does not exist), `IdempotencyKey`
+   - Tables (`requirements.md` §11): `Paciente`, `SignoVital` (may be columns of `Paciente`), `Clasificacion`, `AuditoriaClinica`, `OutboxEvento`, `EventoHistorico` (accepted durable record under OPEN-09/OPEN-10 Option A; the retained-outbox alternative was rejected), `IdempotencyKey`
    - Migrations: Flyway in `triage-service`
    - Owner: Triage service
 
@@ -75,7 +75,7 @@ The database names are working names, not part of the brief.
 
 **Cross-service data access:**
 - Triage → Assistant: via Kafka events (async).
-- Assistant → Triage: **not allowed**. All data about patients is consumed from Kafka events. A full projection rebuild also stays event-based: Triage republishes its durable record (`EventoHistorico` under OD-3, or the retained outbox if OPEN-09/OPEN-10 closes as Option B) to the topic; the Assistant never queries Triage.
+- Assistant → Triage: **not allowed**. All data about patients is consumed from Kafka events. A full projection rebuild also stays event-based: Triage republishes its accepted durable record `EventoHistorico` (OD-3; OPEN-09/OPEN-10 Option A) to the topic; the Assistant never queries Triage.
 
 ---
 
@@ -88,7 +88,7 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 - [ ] No cross-service SQL queries exist in production code (schema ownership enforced: Triage never reads Assistant tables, Assistant never reads or writes Triage tables)
 - [ ] Each service connects with its own database credentials; no credential grants access to the other service's database
 - [ ] Kafka is the only cross-service data channel (via the ADR-03 transactional outbox; no direct HTTP or SQL calls between services for data)
-- [ ] The durable event record (`EventoHistorico` or the retained outbox, per OPEN-09/OPEN-10) exists only in the Triage database; no copy of it is stored in the Assistant database
+- [ ] The accepted durable event record `EventoHistorico` (OPEN-09/OPEN-10 Option A) exists only in the Triage database; no copy of it is stored in the Assistant database
 - [ ] CI/CD gate: schema changes reviewed and approved per-service ownership; deployment pipeline prevents mixed schema deployments
 
 ---
@@ -100,7 +100,7 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 - **Loose coupling.** No schema coordination overhead between teams.
 - **Reactive by design.** The outbox pattern (ADR-03) is naturally supported: Triage writes an OutboxEvento row in the same transaction as the state change, and a publisher drains it to Kafka.
 - **Scalability.** Triage database can be tuned for high-write workloads; Assistant database can be tuned for fast lookups and embeddings.
-- **Resilience.** Assistant database downtime does not block Triage. If the Assistant loses its projection store, it can rebuild within the Kafka retention window (30 days, OD-3) without Triage; beyond that window, a full rebuild needs Triage to republish its durable record (depends on OPEN-09/OPEN-10: `EventoHistorico` or the retained outbox), so it depends on the Triage database being available at that moment.
+- **Resilience.** Assistant database downtime does not block Triage. If the Assistant loses its projection store, it can rebuild within the Kafka retention window (30 days, OD-3) without Triage; beyond that window, a full rebuild needs Triage to republish `EventoHistorico` (accepted Option A), so it depends on the Triage database being available at that moment.
 
 ### Negative
 - **No synchronous cross-service queries.** If the Assistant needs real-time patient state, it must consume it from Kafka (eventual consistency). A synchronous call to Triage is not an option (RF-04-B, NFR-04).
@@ -137,6 +137,6 @@ The following must pass before this ADR transitions from Proposed to Accepted:
 
 ## Linked Open Decisions
 
-- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is documented as the source for full reconstruction, but OPEN-09/OPEN-10 is open and no persistence option is accepted here (the record may be `EventoHistorico` or the retained outbox).
-- **OD-5 (open):** retention period of `EventoHistorico`. No time-based purge until the developer sets the clinical data retention period. It must be set before production use and does not block the 3-day evaluation scope.
-- **OPEN-09/OPEN-10 (open):** durability and cleanup of the outbox versus `EventoHistorico`; see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`. No option is accepted here: every reference to `EventoHistorico` or to a retained outbox in this ADR is conditional and must not be read as a resolved persistence decision.
+- **OD-3 (decided in documents, developer, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted source for full reconstruction (OPEN-09/OPEN-10 closed as Option A on 2026-11-25).
+- **OD-5 (open):** retention period of `EventoHistorico`. The durable record is decided; its clinical retention period is not. No time-based purge until the developer sets it. It must be set before production use and does not block the 3-day evaluation scope.
+- **OPEN-09/OPEN-10 (closed 2026-11-25) and G-T29 (closed, 7 days):** Option A accepted; `EventoHistorico` is the durable record and `OutboxEvento` is operational. See `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`. OD-5 remains open.

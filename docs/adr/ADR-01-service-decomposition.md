@@ -40,7 +40,7 @@ All eleven capabilities C-01…C-11 are allocated to these two services, or to b
 - **Clinical Assistant Service:** RAG over the protocol corpus, citation validation, and the urgency projection built from events.
 - Classification, SLA logic and audit never move to the Assistant; retrieval, citation validation and the LLM never move to Triage.
 
-**Data ownership.** Each service owns its data; no table, database or cache is shared (DEC-10). Triage owns the patient, audit, outbox and durable event-record data (whether the durable record is `EventoHistorico` or the retained outbox is open: OPEN-09/OPEN-10). The Assistant owns the protocol corpus metadata, the embeddings and the projection state. The database layout is decided in ADR-14 and is not repeated here.
+**Data ownership.** Each service owns its data; no table, database or cache is shared (DEC-10). Triage owns the patient, audit, outbox and durable event-record data; `EventoHistorico` is the accepted durable record (OPEN-09/OPEN-10 closed as Option A on 2026-11-25). The Assistant owns the protocol corpus metadata, the embeddings and the projection state. The database layout is decided in ADR-14 and is not repeated here.
 
 **Integration through Kafka.** The only runtime channel between the services is the topic `triaje.eventos`: Triage publishes, the Assistant consumes. Publication goes through the transactional outbox (DER-02; ADR-03) and consumers are idempotent (DER-03; ADR-02). The envelope and consumer model are decided in ADR-02, not here.
 

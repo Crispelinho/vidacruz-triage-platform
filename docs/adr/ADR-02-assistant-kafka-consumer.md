@@ -79,7 +79,7 @@ The numeric gap timeout and map size are configuration pending explicit confirma
 "Durable" in this ADR means: the Redis write has been acknowledged under the persistence and replication policy that the team has chosen. The offset is not committed before that level is reached.
 
 The concrete policy is **not decided here** (Redis durability, gap identifier to be confirmed). It must define:
-- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered by rebuilding from Kafka retention when the window is sufficient, and by full reconstruction from Triage's durable record under OD-3 when it is not (`EventoHistorico` or retained outbox; OPEN-09/OPEN-10 is open, ADR-08), so the decisions depend on each other.
+- The persistence mode (for example AOF) and its fsync policy. With a policy that allows up to about one second of loss on crash, an acknowledged write can disappear after a restart, even though the offset was committed. That case is covered by rebuilding from Kafka retention when the window is sufficient, and by full reconstruction from Triage's durable record under OD-3 when it is not (`EventoHistorico` under the accepted Option A; OPEN-09/10 closed 2026-11-25, ADR-08), so the decisions depend on each other.
 - Whether replication is used and what acknowledgement level the write must reach before it counts as durable.
 
 ## ProcessedEvent TTL (proposal, not accepted)
@@ -89,7 +89,7 @@ The concrete policy is **not decided here** (Redis durability, gap identifier to
 - The reason: once the `eventId` marker expires, a late redelivery is no longer caught by the marker. The sequence and level rules can still reject it, but the sequence rule depends on G-T06 (`pacienteSequence` generation and storage, registered in the Draft Triage service analysis), which is not decided. That protection is therefore not treated as a closed guarantee. The TTL must cover at least the retention period during which Kafka can still redeliver the record.
 - The safety margin is a numeric value that is **pending**. It is not decided here.
 - The 30-day retention of OD-3 is recorded as a decision in documents on `develop` (PR #6), but no executable Kafka retention configuration is verified in this branch.
-- This proposal does not accept Option B, and it does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.
+- Option B was rejected by the closed decision; this proposal does not close CA-G-09, CA-G-11, CA-G-24, OD-3 or OD-5.
 - CA-G-11 remains **Open** until the user confirms the TTL explicitly.
 
 ## Event list (resolved by the order protocol)

@@ -1,15 +1,16 @@
 # Spec: event-driven-integration (C-05)
 
-Requirement IDs are defined in `docs/requirements.md`. Decision documentation lives in `docs/adr/` (ADR-02 and ADR-08 are on `develop`; ADR-01, ADR-10 and ADR-14 are in the consolidation branch and not yet on `develop`; ADR-03 has no file in any local branch and is only a roadmap row) and is summarized in `docs/adr-roadmap.md`. **Every ADR cited here is Proposed, not Accepted.** This spec therefore states contracts and criteria, and it names the decisions it depends on instead of settling them. Each scenario is verified by one automated test or by recorded evidence.
+Requirement IDs are defined in `docs/requirements.md`. Decision documentation lives in `docs/adr/` (ADR-02 and ADR-08 are on `develop`; ADR-01, ADR-03, ADR-10 and ADR-14 are in the consolidation branch and not yet on `develop`) and is summarized in `docs/adr-roadmap.md`. **Every ADR cited here is Proposed, not Accepted.** The durable-record decision is accepted (OPEN-09/OPEN-10: Option A; G-T29: 7 days); OD-5 remains open. This spec therefore states contracts and criteria, and it names the remaining decisions it depends on instead of settling them. Each scenario is verified by one automated test or by recorded evidence.
 
-Risk IDs cite only the risk register in `docs/requirements.md` §17 (R-01…R-10). Open decisions cite `OD-3` and `OD-5` (`docs/capabilities-map.md`), the gaps `G-T06`, `G-T25`, `G-T29` (`docs/services/triage-service.md`), and the record `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`.
+Risk IDs cite only the risk register in `docs/requirements.md` §17 (R-01…R-10). Open decisions cite `OD-5` (`docs/capabilities-map.md`) and the gaps `G-T06` and `G-T25` (`docs/services/triage-service.md`); the closed record `docs/decisions/OPEN-09-10-outbox-durability-recovery.md` and `G-T29` (7 days) are cited as accepted decisions, not open ones.
 
 **Decisions this spec depends on and does not settle:**
 
 | Topic | Where it is decided | Status |
 |---|---|---|
 | Consumer deduplication backend (PostgreSQL or Redis) | ADR-08 (projection store), ADR-02 (consumer) | Proposed |
-| Durable record (`EventoHistorico` or retained outbox, Option A or B) and outbox published-row retention value | `OPEN-09-10-outbox-durability-recovery.md`, G-T29, OD-5 | Open |
+| Durable record and outbox published-row retention | `OPEN-09-10-outbox-durability-recovery.md` (Option A), G-T29 (7 days) | Accepted (2026-11-25) |
+| Retention period of `EventoHistorico` | OD-5 | Open |
 | `pacienteSequence` assignment mechanism | G-T06 | Open |
 | Reactive Kafka client library for the publisher | G-T25 | Open |
 | Publisher behavior during a long broker outage (backoff only, or circuit breaker) | No ADR yet; candidate ADR-03 | Open, see §3.3 |
@@ -230,22 +231,22 @@ CREATE INDEX idx_outbox_evento_creado_en
 1. Insert the patient row into the patient table with `estado = 'REGISTRADO'`.
 2. Insert one outbox row into `outbox_evento` with `event_type = 'paciente_registrado'` and `publicado_en = NULL`.
 3. Insert one audit row into the audit table (RN-04).
-4. **Only if OPEN-09/OPEN-10 closes as Option A** (the documented state: OD-3 and DER-09 in `docs/requirements.md` §10 and §11), insert one `EventoHistorico` row for the same event. If it closes as Option B, there is no `EventoHistorico` and this step does not exist; the outbox row of step 2 is then the durable record (see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`).
+4. Insert one `EventoHistorico` row for the same event. `EventoHistorico` is the accepted durable record (OPEN-09/OPEN-10 closed as Option A on 2026-11-25; OD-3 and DER-09 in `docs/requirements.md` §10 and §11). The retained-outbox alternative was rejected.
 
 If the transaction commits, all rows exist. If it rolls back, none exist. **Scenario:** if the outbox insert fails, the entire transaction rolls back; the patient is NOT registered.
 
 ### 2.3 Outbox cleanup policy
 
-**Status:** the retention value is **not decided** (G-T29; `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`). `docs/services/triage-service.md` §4.3 proposes a configurable retention and `G-T29` proposes 7 days; an earlier draft of this spec said 24 hours. This spec fixes only the rules below, and the retention is a required configuration value with no default until the decision is closed.
+**Status:** G-T29 is closed: the retention value is **7 days**, configurable (`docs/decisions/OPEN-09-10-outbox-durability-recovery.md`). `docs/services/triage-service.md` §4.3 proposed the value; an earlier draft of this spec said 24 hours and is superseded. The rules below are fixed; the 7-day value is the accepted default of the configurable retention property.
 
 - Rows with `publicado_en IS NULL` are **never** deleted, whatever their age.
 - Rows with `requiere_revision = TRUE` are **never** deleted by the cleanup job.
 - A published row becomes eligible for deletion when `publicado_en` is older than the configured retention. The cleanup job is optional, reactive (R2DBC), and runs in batches.
-- **Option A (documented state):** the cleanup of the operational outbox does not remove `EventoHistorico` rows. The retention of `EventoHistorico` is OD-5 and is open; it has no time-based purge until the developer decides it.
-- **Option B:** the outbox is the durable record and is never cleaned up; the cleanup job of this section does not exist, and OD-5 applies to the outbox itself.
-- The rules above (never delete unpublished or flagged rows) hold in either option; a deployment must not enable the cleanup job before OPEN-09/OPEN-10 is closed as Option A.
+- **Accepted Option A:** the cleanup of the operational outbox does not remove `EventoHistorico` rows. The retention of `EventoHistorico` is OD-5 and remains open; it has no time-based purge until the developer decides it.
+- The retained-outbox alternative (Option B) was rejected; no branch of this cleanup job exists for it.
+- The rules above (never delete unpublished or flagged rows) hold for the accepted option; a deployment enables the cleanup job with the configured 7-day retention.
 
-**Scenario (Option A):** a row published longer ago than the configured retention is deleted by the cleanup job; a row published more recently is kept; a row with `publicado_en IS NULL` is kept regardless of age.
+**Scenario (accepted Option A):** a row published longer ago than the configured retention is deleted by the cleanup job; a row published more recently is kept; a row with `publicado_en IS NULL` is kept regardless of age.
 
 **Scenario:** if the publisher is down for longer than any configured retention, all unpublished rows remain in the outbox. When the publisher restarts, it drains the entire backlog without data loss.
 
@@ -323,7 +324,7 @@ triage:
       failure-window-hours: 24
     cleanup:
       enabled: false
-      published-retention: <required, no default until G-T29 is decided>
+      published-retention: 7d         # accepted default (G-T29, 2026-11-25); configurable
 ```
 
 **Scenario:** when `publisher.interval-seconds` is set to 1, the publisher cycles every second; when set to 60, events may take up to 60 seconds to appear in Kafka.
@@ -582,7 +583,7 @@ Both services use Testcontainers to run PostgreSQL and Kafka (and Redis if ADR-0
 **Gates:** implementation does not begin until these are **Accepted** (all are Proposed or Open today):
 - ADR-02 (Kafka envelope, at-least-once, consumer model) and ADR-03 (transactional outbox).
 - ADR-08, for the idempotence backend (§4.2).
-- The decision record `OPEN-09-10-outbox-durability-recovery.md` and G-T29, for the outbox retention (§2.3).
+- The decision record `OPEN-09-10-outbox-durability-recovery.md` and G-T29, for the outbox retention (§2.3): **Accepted** as Option A with 7 days on 2026-11-25; no longer a gate. OD-5 stays open but does not gate C-05 implementation.
 - G-T06, for the `pacienteSequence` mechanism (§5.1), and G-T25, for the reactive Kafka client (§3.1).
 - The publisher posture of §3.3.
 
@@ -590,14 +591,14 @@ Both services use Testcontainers to run PostgreSQL and Kafka (and Redis if ADR-0
 
 1. [ ] Event envelope (EVT-01…EVT-04) is defined in schema and matches `requirements.md` §10 (including `schemaVersion` as a number).
 2. [ ] Outbox table exists in Triage PostgreSQL with the schema, failure columns and indexes of §2.1.
-3. [ ] State change, audit row and outbox row occur in a single R2DBC transaction, and so does the `EventoHistorico` row if OPEN-09/OPEN-10 closes as Option A (DER-02 verified).
+3. [ ] State change, audit row, outbox row and `EventoHistorico` row occur in a single R2DBC transaction (accepted Option A; DER-02 verified).
 4. [ ] The publisher is reactive (no blocking `@Scheduled`, no `.block()`), drains unpublished rows to Kafka with at-least-once delivery, and marks rows only after broker acknowledgement.
 5. [ ] Per-patient order is protected by the partition key and by `pacienteSequence` (§5.1).
 6. [ ] Consumer idempotence meets the contract C1–C7 of §4.1; a second delivery has no effect.
 7. [ ] A broker outage is handled by the posture chosen in §3.3, without blocking the request path.
 8. [ ] The dead-letter topic captures permanent and exhausted-transient errors, and the offset is acknowledged only after the dead-letter publication is confirmed.
 9. [ ] All integration tests pass with Testcontainers (no manual setup).
-10. [ ] Outbox cleanup (Option A) is configurable, never deletes unpublished or flagged rows, and its retention value is set by the closed decision (G-T29); under Option B no cleanup exists.
+10. [ ] Outbox cleanup is configurable with the accepted 7-day retention (G-T29, closed), never deletes unpublished or flagged rows, and never touches `EventoHistorico`.
 11. [ ] Marker retention of the consumer derives from the Kafka retention plus a margin (C5), not from a fixed 24 hours.
 12. [ ] The publisher holds no database transaction or row lock while awaiting a Kafka acknowledgement; the claim-lease and future-event tests of §7.9 pass.
 
@@ -633,7 +634,7 @@ All boxes are unchecked in this PR: the scenarios above are acceptance definitio
 - **DER-02**: Atomicity of state change and event publication.
 - **DER-03**: Idempotent consumers and escalation guard (contract of §4.1 and §5.1).
 - **DER-07**: Correlation ID propagated through HTTP and Kafka headers (§5.2).
-- **DER-09**: Durable event history `EventoHistorico` written in the same transaction (§2.2), as documented; conditional on OPEN-09/OPEN-10 closing as Option A.
+- **DER-09**: Durable event history `EventoHistorico` written in the same transaction (§2.2), as documented and accepted under OPEN-09/OPEN-10 Option A.
 - **RN-04**: Audit row written in the same transaction as the outbox row.
 - **NFR-01**: Non-blocking publisher and consumer.
 - **NFR-02**: Kafka integration with documented message format and idempotent consumers.
@@ -657,9 +658,9 @@ No other Risk ID is cited. `docs/requirements.md` §17 has no entry for outbox r
 
 **Open decisions linked to this change:**
 
-- **OD-3 (decided in documents, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is documented as the source of full reconstruction, but OPEN-09/OPEN-10 is still open and no persistence option is accepted. The 30 days are not yet verified as configuration. The marker retention of §4.1 C5 derives from this value.
+- **OD-3 (decided in documents, 2026-11-24):** Kafka retains `triaje.eventos` for 30 days; `EventoHistorico` is the accepted durable source for full reconstruction (OPEN-09/10 closed as Option A on 2026-11-25). The 30 days are not yet verified as configuration. The marker retention of §4.1 C5 derives from this value.
 - **OD-5 (open):** retention period of `EventoHistorico`.
-- **OPEN-09/OPEN-10 (open), G-T29 (open):** outbox cleanup and durable record.
+- **OPEN-09/OPEN-10 and G-T29 (closed 2026-11-25):** Option A, 7-day configurable cleanup; OD-5 remains open.
 - **G-T06 (open):** `pacienteSequence` assignment. **G-T25 (open):** reactive Kafka client.
 
 **Capabilities enabled by C-05:**

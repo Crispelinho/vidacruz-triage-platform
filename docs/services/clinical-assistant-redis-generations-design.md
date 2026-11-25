@@ -3,7 +3,7 @@
 **Status:** Proposed. Not accepted. No implementation.
 **Service:** Clinical Assistant (projection `EstadoUrgenciaProyeccion`, dedupe `ProcessedEvent`).
 **Gates involved:** CA-G-11 (TTL of `ProcessedEvent` and Redis persistence mode), CA-G-24 (Kafka retention and rebuild completeness), and Redis durability (gap identifier to be confirmed; not resolved). Open.
-**Depends on:** OD-3 and OD-5 (`EventoHistorico`), G-T06 (`pacienteSequence` assignment), DEC-03 (envelope), RF-06 (whether alerts are part of the history).
+**Depends on:** OD-3 and OD-5 (`EventoHistorico`, durable record accepted under OPEN-09/OPEN-10 Option A; G-T29 = 7 days), G-T06 (`pacienteSequence` assignment), DEC-03 (envelope), RF-06 (whether alerts are part of the history).
 **Scope:** design of the protocol only. No changes to D0, D1, DEC-11, code or versions.
 
 ---
@@ -81,7 +81,7 @@ Each assumption is labelled. Nothing in this document is a verified guarantee.
 | CA-G-11 | TTL of `ProcessedEvent` relative to effective Kafka retention | Dedupe design |
 | Redis durability (gap identifier to be confirmed) | Redis persistence (AOF or RDB) | Survival of generations across restarts |
 | CA-G-24 | Completeness of rebuild against retention | Scope of the history |
-| OD-3 | Recorded as decided in documents on `develop` (`f1c43df`, PR #6); the 30-day value is documentary and not verified as configuration. Confirm the rebuild source (`EventoHistorico`) and the topic configuration | Step 3 |
+| OD-3 / OPEN-09-10 | 30-day Kafka retention is documentary and not verified as configuration. Rebuild source is `EventoHistorico` (OPEN-09/OPEN-10 closed as Option A, 2026-11-25); G-T29 = 7 days for outbox cleanup | Step 3 |
 | OD-5 | Retention and privacy of `EventoHistorico`; conflict with append-only | Production |
 | G-T06 | `pacienteSequence` generation and storage, registered in the Draft Triage service analysis | I3 and A4 |
 | DEC-03 | Envelope and versioning | A3 and version tests |

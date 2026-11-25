@@ -29,7 +29,7 @@ Deliverables 1–6 are the files required by `prompt-init.txt` §11. Deliverable
 | D5 | `docs/traceability-matrix.md` | Chain: source § → requirement → capability → change → task → code → test → evidence | prompt §5, Fase 5 | D1, D4 |
 | D6 | `docs/implementation-roadmap.md` | Three-day P0/P1/P2 backlog with IDs, components, requirement IDs, verifiable results | prompt §7, §11.6 | D4, D5 |
 
-Current state: D0–D6 are committed, so this section records the original plan rather than pending work. The consolidation PR #17 adds ADR-01/03/10/14, the OPEN-09/10 record and Spec C-05 without closing OPEN-09/OPEN-10, OD-5 or the broker-outage posture. Executable Outbox/Kafka integration tests are defined in Spec C-05 §7 and mapped to T-02/T-04/T-16/T-27, but are not implemented in the scaffold branch.
+Current state: D0–D6 are committed, so this section records the original plan rather than pending work. The consolidation PR #17 adds ADR-01/03/10/14, the OPEN-09/10 record and Spec C-05; the record closes OPEN-09/OPEN-10 and G-T29 (Option A, 7 days), while OD-5 and the broker-outage posture remain open. Executable Outbox/Kafka integration tests are defined in Spec C-05 §7 and mapped to T-02/T-04/T-16/T-27, but are not implemented in the scaffold branch.
 
 Writing order (historical): **D0 → D1 → (D2, D3 in parallel) → D4 → D5 → D6**. D5 was started in parallel with D4 once D1 and D2 were stable.
 

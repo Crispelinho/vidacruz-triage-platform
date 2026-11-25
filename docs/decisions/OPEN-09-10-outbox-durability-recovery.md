@@ -1,10 +1,10 @@
 # OPEN-09 / OPEN-10: Outbox durability and projection recovery source
 
-- **Status:** Open. Not decided. Neither Option A nor Option B is accepted; no outbox cleanup job may be enabled until this record is closed. Decide before ADR-02 and ADR-03 are accepted.
+- **Status:** Accepted (developer, 2026-11-25): Option A, with G-T29 = 7 days. `EventoHistorico` is the durable, append-only record; the outbox is operational and its published rows are cleaned up after 7 days, configurable. ADR-02 and ADR-03 may now cite this closed record; their own acceptance remains separate. OD-5 stays open.
 - **Date:** 2026-11-25
 - **Owner:** developer
 - **Type:** Design decision (verification after the decision)
-- **Blocks:** acceptance of ADR-02 (Kafka consumer, dedupe TTL, rebuild source) and ADR-03 (transactional outbox, published-row retention). It also feeds ADR-08 (rebuild of the projection) and ADR-14 (what lives in the Triage database).
+- **Blocks:** resolved for OPEN-09/OPEN-10 and G-T29. ADR-02 (Kafka consumer, dedupe TTL, rebuild source), ADR-03 (transactional outbox, published-row retention), ADR-08 (projection rebuild) and ADR-14 (Triage database contents) can now cite the accepted record; their own gates are unchanged.
 - **Related:** DEC-14, DER-02, DER-03, DER-09, OD-3, OD-5, G-T06, G-T29, R-07, R-08, C-05, C-07, [requirements.md](../requirements.md) §10 and §11, [capabilities-map.md](../capabilities-map.md) C-05 and C-07, [triage-service.md](../services/triage-service.md) §4.3, [ADR-02](../adr/ADR-02-assistant-kafka-consumer.md), [ADR-08](../adr/ADR-08-urgency-projection-store.md), [ADR-14](../adr/ADR-14-database-ownership-one-db-per-service.md), `openspec/changes/event-driven-integration/spec.md`
 
 ## Origin of the identifiers
@@ -21,18 +21,18 @@ Triage writes each event twice in the business transaction: an `OutboxEvento` ro
 ## What the documents on `develop` already say
 
 - `requirements.md` §10 and §11 (OD-3, decided by the developer on 2026-11-24): Triage keeps every published event in `EventoHistorico`, written in the same transaction as the state change and its outbox row; Kafka keeps `triaje.eventos` for 30 days; a full rebuild reads `EventoHistorico` and republishes with the original `eventId`, `pacienteSequence` and payload; `EventoHistorico` is append-only and is not purged by time until OD-5 is decided.
-- `triage-service.md` §4.3: published outbox rows are deleted after a configurable retention; the value is not set (G-T29, proposal: 7 days).
-- The draft of `spec.md` for C-05 said "24 hours minimum" for outbox cleanup and linked it to OD-3. That value is not decided; OD-3 concerns Kafka retention and the history, not the outbox cleanup.
+- `triage-service.md` §4.3: published outbox rows are deleted after a configurable retention; the accepted value is 7 days (G-T29, closed 2026-11-25).
+- The draft of `spec.md` for C-05 said "24 hours minimum" for outbox cleanup and linked it to OD-3. That value was an earlier draft and is superseded by the 7-day decision; OD-3 concerns Kafka retention and the history, not the outbox cleanup.
 - The 30-day Kafka retention is recorded in documents only. No executable Kafka configuration is verified (ADR-02).
 
-Option A is therefore what the current documents describe. This record stays Open because the outbox cleanup value (G-T29), the retention of `EventoHistorico` (OD-5) and the effect on ADR-02 and ADR-03 are not decided, and because OPEN-09 is a contradiction that is still listed as open in the register.
+Option A is what the current documents describe and is now accepted. G-T29 is closed at 7 days. OD-5 remains open because the clinical retention period and privacy review are not part of this decision. OPEN-09 is resolved here: the rebuild source is `EventoHistorico`; OPEN-10 is resolved by accepting that table as the Triage durable record.
 
 ## Options
 
 | | A. Temporary outbox + `EventoHistorico` | B. Outbox kept indefinitely |
 |---|---|---|
 | Durable record | `EventoHistorico` (append-only) | `OutboxEvento` itself |
-| Outbox cleanup | Published rows deleted after a configurable window (value pending: G-T29 proposes 7 days; 24 hours was also suggested) | None |
+| Outbox cleanup | Published rows deleted after a configurable window (accepted: 7 days, G-T29 closed) | None |
 | Writes per event | Two rows in one transaction (outbox and history) | One row |
 | Append-only enforcement | Possible on `EventoHistorico` (no UPDATE or DELETE grants). The outbox needs UPDATE to set `publicadoEn` | Not possible without breaking publication: the same row must be updated when published, so it cannot be append-only |
 | Size of the hot table | Outbox stays small; the pending-row partial index stays effective | Table grows with every event, including the rows the publisher scans; vacuum and bloat pressure on the polling query |
@@ -52,18 +52,21 @@ Option A is therefore what the current documents describe. This record stays Ope
 
 ## What this record does not decide
 
-- The numeric value of the outbox cleanup window (G-T29).
 - The retention period of `EventoHistorico` (OD-5), which needs a clinical data retention and privacy review.
 - The assignment strategy of `pacienteSequence` (G-T06); the rebuild order depends on it.
 - The backend of consumer deduplication (ADR-08, Proposed).
 - The republication target topic and the cut point between replayed and live events.
-- The persistence choice itself: every reference to `EventoHistorico` in the ADRs and Spec C-05 is a documented default, not an accepted persistence decision.
+- The clinical retention and erasure policy for the accepted durable record. Acceptance of Option A fixes which table is durable, not how long clinical history is kept.
 
-## Closing conditions
+## Recorded decision
 
-- The developer chooses A or B and records the choice here, with the date.
-- If A: the outbox cleanup value is set (G-T29) and the C-05 spec states it as configuration; `EventoHistorico` stays as documented; OD-5 remains tracked separately.
-- If B: `requirements.md` §10, §11 and §16 (OD-3, DER-09, `EventoHistorico`), `capabilities-map.md` and ADR-02, ADR-08 and ADR-14 need coordinated changes. They are not made here.
-- A transactional test is defined that forces a failure between the outbox write and the history write and shows that neither row persists.
-- A rebuild test is defined that restores the projection counts from the durable record, with events older than the Kafka window.
-- ADR-02 and ADR-03 are updated to cite the closed decision before they move to Accepted.
+- **Developer decision (2026-11-25): Option A.** `OutboxEvento` is the operational queue; `EventoHistorico` is the durable, append-only record and the source for full reconstruction.
+- **G-T29 closed (2026-11-25):** published outbox rows are eligible for cleanup after 7 days, configurable. Unpublished and flagged rows are never deleted. The cleanup job remains disabled until deployment configuration enables it.
+- **OD-5 stays open.** No time-based purge of `EventoHistorico` until the developer sets the clinical retention period.
+- `requirements.md`, `capabilities-map.md`, `triage-service.md`, `clinical-assistant-service.md`, the ADRs and Spec C-05 now cite the accepted record instead of conditional options. ADR-02, ADR-03, ADR-08 and ADR-14 remain Proposed until their own gates close.
+
+## Verification required after implementation
+
+- A transactional test forces a failure between the outbox write and the `EventoHistorico` write and shows that neither row, nor the patient row, persists.
+- A rebuild test restores the projection counts from `EventoHistorico`, including events older than the Kafka window.
+- Spec C-05 §7.5 verifies the cleanup with the 7-day value and the never-delete rules.
