@@ -33,16 +33,25 @@ public class OutboxEventWriter {
 				.map(last -> last.getPacienteSequence() + 1)
 				.defaultIfEmpty(1)
 				.flatMap(sequence -> {
-					Map<String, Object> body = new LinkedHashMap<>(payload);
-					body.put("eventType", eventType);
 					OutboxEvento event = new OutboxEvento(
 							UUID.randomUUID(),
 							eventType,
-							serialize(body),
+							null,
 							patientId,
 							sequence,
 							OffsetDateTime.ofInstant(occurredAt, ZoneOffset.UTC),
 							UUID.randomUUID());
+					// The published payload carries the envelope so consumers can order and deduplicate events
+					// without querying the triage database (DEC-03).
+					Map<String, Object> body = new LinkedHashMap<>(payload);
+					body.put("eventType", eventType);
+					body.put("eventId", event.getEventId().toString());
+					body.put("schemaVersion", event.getSchemaVersion());
+					body.put("pacienteId", event.getPacienteId().toString());
+					body.put("pacienteSequence", event.getPacienteSequence());
+					body.put("occurredAt", event.getOccurredAt().toInstant().toString());
+					body.put("correlationId", event.getCorrelationId().toString());
+					event.setPayload(serialize(body));
 					return repository.save(event);
 				});
 	}
