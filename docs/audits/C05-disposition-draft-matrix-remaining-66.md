@@ -130,9 +130,9 @@ Full draft replacement text for all 16 specifications is recorded in the local v
 
 ## Auditor correction notes
 
-Recorded by the independent audit (Claude) on the branch `docs/c05-draft-disposition-matrix-remaining-66`. These notes do not change any draft value except Column 5 above. They are findings for OpenCode to fix before the Developer decides.
+Recorded by the independent audit (Claude) on the branch `docs/c05-draft-disposition-matrix-remaining-66`. OpenCode applied these notes on `docs/c05-draft-matrix-corrected-citations`, correcting note 1 to distinguish the two V3.1 documents and the ADR-09 count in note 1b. These notes do not change any draft value except Column 5 above. They are findings for OpenCode to fix before the Developer decides.
 
-1. **Cited V3.1 line numbers exceed the cited file.** `docs/audits/C05-v3.1-independent-review-and-dispositions.md` has 104 lines in this branch. The rows below cite V3.1 line numbers above 104. Each citation must be re-anchored to the correct line or removed. Rows that cite ADD-V2, UNIFIED or SPEC-C05 on the same line are listed only where the number is attributed to V3.1 in the row text.
+1. **Cited V3.1 anchors are not verifiable from the repository.** The draft uses `V3.1` for two different documents: `docs/audits/C05-v2-blocker-resolution-plan-v3.1.md` (local report, not committed) for §4/§7/§1 anchors such as lines 248–251, 207 and 193, and `docs/audits/C05-v3.1-independent-review-and-dispositions.md` (committed, 79 lines on this branch and `develop`) for the disposition rows. The local copy of the review in `reports/` has 104 lines; that is the source of the original "104 lines" note. Neither the plan nor the UNIFIED/SPEC-C05 reports are present at named paths in the repository. Each citation must be re-anchored to a committed file and line, or the source must be committed under a named path; this correction does not resolve any citation. Rows that cite ADD-V2, UNIFIED or SPEC-C05 on the same line are listed only where the number is attributed to V3.1 in the row text.
    - A8: lines 248–251 (§7), 253–256 (§7).
    - XW-06: line 246 (V3.1 note).
    - XW-11: line 168 (§4.2).
@@ -150,7 +150,7 @@ Recorded by the independent audit (Claude) on the branch `docs/c05-draft-disposi
 
 1a. **Sources cited but absent from the repository.** `SPEC-C05` and `UNIFIED` are cited in rows A10, XW-02, XW-05, XW-06, XW-07, XW-08, XW-09, XW-10, XW-12 and XW-13. Neither file exists in this branch or on `origin/develop`. Those rows cannot be verified until the sources are committed under named paths.
 
-1b. **Duplicate ADR files in `docs/adr/` on `develop`.** ADR-05 (two files), ADR-06 (two), ADR-07 (two) and ADR-09 (four). The matrix does not reference the duplicates, but any future citation of these ADRs is ambiguous. Not a finding against this matrix; raised for the ADR owner.
+1b. **Duplicate ADR files in `docs/adr/` on `develop`.** ADR-05 (two files), ADR-06 (two), ADR-07 (two) and ADR-09 (five). The matrix does not reference the duplicates, but any future citation of these ADRs is ambiguous. Not a finding against this matrix; raised for the ADR owner.
 2. **Unversioned source for Cluster E.** The full replacement text for ART-01…ART-16 is recorded only in a "local v2 working instrument §4 P-05" that is not in the repository. It cannot be reviewed from this branch. Commit it under a named path, or delete the reference.
 3. **Scope claim not in the row.** The note under Cluster D says Cluster E "proposes the ART-01 correction-register scope". The ART-01 row does not state that scope. Either add it to ART-01 or remove the claim.
 4. **Verified citations.** Spot-checked and correct: ADR-02 lines 3, 82 and 122–127 (XW-14 header and proposal table) and ADR-08 lines 30–32 (Options A, B and C of D2).
