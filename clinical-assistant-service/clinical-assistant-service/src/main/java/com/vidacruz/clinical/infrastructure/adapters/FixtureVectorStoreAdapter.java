@@ -58,7 +58,7 @@ public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore
 					.comparingDouble(ScoredEvidenceFragment::score).reversed();
 			return fragments.values().stream()
 					.filter(f -> f.embedding().length == queryEmbedding.length)
-					.map(f -> new ScoredEvidenceFragment(f, cosine(queryEmbedding, f.embedding())))
+					.map(f -> new ScoredEvidenceFragment(f, normalizedCosine(queryEmbedding, f.embedding())))
 					.sorted(byScore.thenComparing(f -> f.fragment().documentId())
 							.thenComparingInt(f -> f.fragment().chunkIndex()))
 					.limit(topK)
@@ -66,14 +66,20 @@ public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore
 		});
 	}
 
-	private static double cosine(float[] a, float[] b) {
-		double dot = 0, normA = 0, normB = 0;
+	private static double normalizedCosine(float[] a, float[] b) {
+		double dot = 0;
+		double normA = 0;
+		double normB = 0;
 		for (int i = 0; i < a.length; i++) {
 			dot += (double) a[i] * b[i];
 			normA += (double) a[i] * a[i];
 			normB += (double) b[i] * b[i];
 		}
-		return normA == 0 || normB == 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
+		double cosine = normA == 0 || normB == 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
+		if (!Double.isFinite(cosine)) {
+			return 0d;
+		}
+		return Math.max(0d, Math.min(1d, cosine));
 	}
 
 }
