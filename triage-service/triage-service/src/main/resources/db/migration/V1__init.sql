@@ -14,8 +14,11 @@ CREATE TABLE paciente (
     sla_minutos INT NOT NULL,
     estado VARCHAR(20) NOT NULL,
     escalado BOOLEAN NOT NULL DEFAULT FALSE,
-    fecha_registro TIMESTAMPTZ NOT NULL
+    fecha_registro TIMESTAMPTZ NOT NULL,
+    ultimo_cambio_en TIMESTAMPTZ NOT NULL
 );
+
+CREATE INDEX idx_paciente_estado_escalado ON paciente (estado, escalado);
 
 CREATE TABLE auditoria_clinica (
     id UUID PRIMARY KEY,
@@ -25,6 +28,8 @@ CREATE TABLE auditoria_clinica (
     estado_nuevo VARCHAR(20) NOT NULL,
     tipo_evento VARCHAR(40) NOT NULL
 );
+
+CREATE INDEX idx_auditoria_paciente_creado_en ON auditoria_clinica (paciente_id, creado_en);
 
 CREATE TABLE outbox_evento (
     event_id UUID PRIMARY KEY,
@@ -46,3 +51,5 @@ CREATE TABLE outbox_evento (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_outbox_evento_creado_en ON outbox_evento (created_at);

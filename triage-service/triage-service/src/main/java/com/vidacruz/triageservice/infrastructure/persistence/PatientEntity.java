@@ -26,5 +26,6 @@ public record PatientEntity(
 		@Column("sla_minutos") Integer slaMinutes,
 		@Column("estado") String status,
 		@Column("escalado") Boolean escalated,
-		@Column("fecha_registro") Instant registeredAt) {
+		@Column("fecha_registro") Instant registeredAt,
+		@Column("ultimo_cambio_en") Instant lastChangedAt) {
 }

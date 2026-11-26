@@ -2,7 +2,13 @@ package com.vidacruz.triageservice.application.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,37 +22,53 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.transaction.reactive.TransactionalOperator;
 
+import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventoRepository;
+import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
+import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
+import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(controllers = TriageController.class)
-@Import({ TriageRegistrationService.class, TriageClassifier.class, SlaProperties.class,
-		TriageControllerTest.TestSecurity.class })
+@Import({ TriageRegistrationService.class, PatientLifecycleService.class, TriageClassifier.class,
+		SlaProperties.class, TriageControllerTest.TestSecurity.class })
 class TriageControllerTest {
 
 	@MockitoBean
 	private PatientRepository patientRepository;
 
 	@MockitoBean
-	private OutboxEventoRepository outboxRepository;
+	private AuditEntryRepository auditRepository;
+
+	@MockitoBean
+	private OutboxEventWriter eventWriter;
+
+	@MockitoBean
+	private TransactionalOperator transactionalOperator;
 
 	@Autowired
 	private WebTestClient client;
 
 	@BeforeEach
+	@SuppressWarnings("unchecked")
 	void setUp() {
 		when(patientRepository.save(any(PatientEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(outboxRepository.save(any(OutboxEvento.class)))
+		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_registrado", "{}",
+						UUID.randomUUID(), 1, OffsetDateTime.now(), UUID.randomUUID())));
+		when(transactionalOperator.transactional(any(Mono.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
 	@Test
