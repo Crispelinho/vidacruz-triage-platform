@@ -6,45 +6,75 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.kafka.sender.KafkaSender;
-import reactor.kafka.sender.SenderRecord;
 
-/** Publishes claimed outbox rows to triaje.eventos with lease protection and failure recording. */
+/** Publishes claimed outbox rows to triaje.eventos with lease protection and failure recording (G-T25). */
 @Component
 @ConditionalOnProperty(prefix = "app.outbox", name = "publisher-enabled", havingValue = "true")
 public class OutboxPublisher {
 
+	private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
+
 	private final OutboxEventoRepository repository;
-	private final KafkaSender<String, String> sender;
+	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final String topic;
 	private final int batchSize;
 	private final long leaseSeconds;
 	private final String owner = UUID.randomUUID().toString();
+	private final long publishIntervalMs;
+	private Disposable timer;
 
 	public OutboxPublisher(OutboxEventoRepository repository,
-			KafkaSender<String, String> sender,
+			KafkaTemplate<String, String> kafkaTemplate,
 			@Value("${app.outbox.topic}") String topic,
 			@Value("${app.outbox.batch-size}") int batchSize,
-			@Value("${app.outbox.lease-seconds}") long leaseSeconds) {
+			@Value("${app.outbox.lease-seconds}") long leaseSeconds,
+			@Value("${app.outbox.publish-interval-ms}") long publishIntervalMs) {
 		this.repository = repository;
-		this.sender = sender;
+		this.kafkaTemplate = kafkaTemplate;
 		this.topic = topic;
 		this.batchSize = batchSize;
 		this.leaseSeconds = leaseSeconds;
+		this.publishIntervalMs = publishIntervalMs;
 	}
 
-	@Scheduled(fixedDelayString = "${app.outbox.publish-interval-ms}")
-	public void publishBatch() {
-		publish().block(Duration.ofSeconds(leaseSeconds));
+	private Disposable startTimer() {
+		return Flux.interval(Duration.ofMillis(this.publishIntervalMs))
+				.concatMap(ignored -> publish()
+						.onErrorResume(error -> {
+							log.warn("Outbox publication cycle failed", error);
+							return Mono.empty();
+						}))
+				.subscribe(count -> {
+					if (count > 0) {
+						log.debug("Published {} outbox event(s)", count);
+					}
+				}, error -> log.warn("Outbox publisher timer stopped", error));
+	}
+
+	@PostConstruct
+	void activatesTimer() {
+		timer = startTimer();
+	}
+
+	@PreDestroy
+	void stopTimer() {
+		if (timer != null) {
+			timer.dispose();
+		}
 	}
 
 	/** Returns the number of rows published by this run. */
@@ -62,9 +92,11 @@ public class OutboxPublisher {
 					if (claimed != 1) {
 						return Mono.just(0);
 					}
-					ProducerRecord<String, String> record = new ProducerRecord<>(
-							topic, event.getPacienteId().toString(), event.getPayload());
-					return sender.send(Mono.just(SenderRecord.create(record, event.getEventId())))
+					return Mono.defer(() -> Mono.fromFuture(
+									() -> kafkaTemplate.send(topic, event.getPacienteId().toString(),
+											event.getPayload()),
+									false))
+							.timeout(Duration.ofSeconds(leaseSeconds))
 							.then(repository.markPublished(event.getEventId(),
 									OffsetDateTime.now(ZoneOffset.UTC)))
 							.thenReturn(1);
