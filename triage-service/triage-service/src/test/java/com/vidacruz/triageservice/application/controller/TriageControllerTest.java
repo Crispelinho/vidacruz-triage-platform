@@ -30,6 +30,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.service.OperationReportService;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.RequestFingerprint;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
@@ -41,14 +42,15 @@ import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
+import com.vidacruz.triageservice.infrastructure.persistence.OperationReportRepository;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(controllers = TriageController.class)
-@Import({ TriageRegistrationService.class, PatientLifecycleService.class, TriageClassifier.class,
-		SlaProperties.class, TriageControllerTest.TestSecurity.class })
+@Import({ TriageRegistrationService.class, PatientLifecycleService.class, OperationReportService.class,
+		TriageClassifier.class, SlaProperties.class, TriageControllerTest.TestSecurity.class })
 class TriageControllerTest {
 
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -64,6 +66,9 @@ class TriageControllerTest {
 
 	@MockitoBean
 	private IdempotencyKeyRepository idempotencyRepository;
+
+	@MockitoBean
+	private OperationReportRepository operationReportRepository;
 
 	@MockitoBean
 	private TransactionalOperator transactionalOperator;
@@ -184,6 +189,20 @@ class TriageControllerTest {
 				.expectStatus().isEqualTo(HttpStatus.CONFLICT)
 				.expectBody()
 				.jsonPath("$.code").isEqualTo("IDEMPOTENCY_KEY_REUSED")
+				.jsonPath("$.correlationId").exists();
+	}
+
+	@Test
+	void reportRangeViolationReturnsNfr20Body() {
+		client.get().uri(uriBuilder -> uriBuilder.path("/triage/reportes/operacion")
+						.queryParam("desde", "2026-11-30T00:00:00Z")
+						.queryParam("hasta", "2026-11-29T00:00:00Z")
+						.build())
+				.exchange()
+				.expectStatus().isBadRequest()
+				.expectBody()
+				.jsonPath("$.code").isEqualTo("INVALID_REPORT_RANGE")
+				.jsonPath("$.errors[0].campo").isEqualTo("desde")
 				.jsonPath("$.correlationId").exists();
 	}
 

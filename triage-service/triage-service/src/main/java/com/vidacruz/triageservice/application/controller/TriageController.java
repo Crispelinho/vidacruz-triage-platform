@@ -11,15 +11,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vidacruz.triageservice.application.dto.OperationReportBucket;
 import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.application.dto.StateChangeRequest;
+import com.vidacruz.triageservice.domain.service.OperationReportService;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -28,11 +32,14 @@ public class TriageController {
 
 	private final TriageRegistrationService registrationService;
 	private final PatientLifecycleService lifecycleService;
+	private final OperationReportService operationReportService;
 
 	public TriageController(TriageRegistrationService registrationService,
-			PatientLifecycleService lifecycleService) {
+			PatientLifecycleService lifecycleService,
+			OperationReportService operationReportService) {
 		this.registrationService = registrationService;
 		this.lifecycleService = lifecycleService;
+		this.operationReportService = operationReportService;
 	}
 
 	@PostMapping("/pacientes")
@@ -52,5 +59,12 @@ public class TriageController {
 	@GetMapping("/pacientes/{id}")
 	public Mono<PatientDetailResponse> getPatient(@PathVariable UUID id) {
 		return lifecycleService.getPatient(id);
+	}
+
+	@GetMapping("/reportes/operacion")
+	public Flux<OperationReportBucket> operationReport(
+			@RequestParam String desde,
+			@RequestParam String hasta) {
+		return operationReportService.hourly(desde, hasta);
 	}
 }

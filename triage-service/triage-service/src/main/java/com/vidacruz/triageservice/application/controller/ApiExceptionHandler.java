@@ -1,5 +1,6 @@
 package com.vidacruz.triageservice.application.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -10,7 +11,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ServerWebExchange;
 
 import com.vidacruz.triageservice.application.dto.ApiError;
+import com.vidacruz.triageservice.domain.exception.FieldError;
 import com.vidacruz.triageservice.domain.exception.IdempotencyKeyReusedException;
+import com.vidacruz.triageservice.domain.exception.InvalidReportRangeException;
 import com.vidacruz.triageservice.domain.exception.InvalidPatientDataException;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
@@ -28,6 +31,15 @@ public class ApiExceptionHandler {
 			ServerWebExchange exchange) {
 		String correlationId = correlationId(exchange);
 		ApiError body = new ApiError("VALIDATION_ERROR", exception.getMessage(), exception.errors(), correlationId);
+		return withCorrelation(exchange, body);
+	}
+
+	@ExceptionHandler(InvalidReportRangeException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public Mono<ApiError> handleInvalidReportRange(InvalidReportRangeException exception,
+			ServerWebExchange exchange) {
+		ApiError body = new ApiError("INVALID_REPORT_RANGE", exception.getMessage(),
+				List.of(new FieldError(exception.field(), exception.getMessage())), correlationId(exchange));
 		return withCorrelation(exchange, body);
 	}
 
