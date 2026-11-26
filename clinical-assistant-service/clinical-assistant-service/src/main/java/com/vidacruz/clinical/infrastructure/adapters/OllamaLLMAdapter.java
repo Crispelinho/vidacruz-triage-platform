@@ -34,11 +34,20 @@ public class OllamaLLMAdapter implements LLMProvider {
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
 		// Neither the question nor the evidence text is echoed or logged (CA-G-16).
 		return Mono.fromSupplier(() -> "[FIXTURE:" + model + "] Respuesta simulada a partir de " + evidence.size()
-				+ " fragmento(s) de evidencia.")
+				+ " fragmento(s) de evidencia." + citationMarkers(evidence.size()))
 				.delayElement(latency)
 				.timeout(timeout)
 				.onErrorMap(TimeoutException.class,
 						ex -> new LLMUnavailableException("LLM call exceeded " + timeout, ex));
+	}
+
+	/** Canned citations {@code [1] [2] ...}: always valid, so the fixture pipeline exercises citation tracking. */
+	private static String citationMarkers(int count) {
+		StringBuilder markers = new StringBuilder();
+		for (int i = 1; i <= count; i++) {
+			markers.append(" [").append(i).append(']');
+		}
+		return markers.toString();
 	}
 
 }

@@ -23,6 +23,14 @@ public record RAGResponse(String answer, List<EvidenceFragment> sources) {
 		return new RAGResponse(NO_PROTOCOL_NOTICE, List.of());
 	}
 
+	/**
+	 * Provenance of every source, numbered like the markers in the answer. Derived from {@code sources}, so it can
+	 * never reference a fragment that was not retrieved.
+	 */
+	public List<Citation> citations() {
+		return Citation.fromEvidence(sources);
+	}
+
 	public boolean hasEvidence() {
 		return !sources.isEmpty();
 	}

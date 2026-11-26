@@ -13,8 +13,10 @@ import reactor.core.publisher.Mono;
 /**
  * RAG use case: embed the question, retrieve evidence, generate a grounded answer.
  *
- * <p>Scaffold scope: the relevance gate is "no retrieved fragments". A similarity-score threshold and citation
- * validation (RN-05, R-10) belong to C-06 and are not implemented here.
+ * <p>Pipeline: validate (done by {@link PromptRequest}) -> embed -> retrieve top-K -> generate -> check citations.
+ * The relevance gate is "no retrieved fragments"; a similarity-score threshold is not implemented because score
+ * semantics depend on the embedding model (ADR-05). Citation markers in the answer are validated against the
+ * retrieved evidence: an answer citing a fragment that was not retrieved is rejected, never repaired.
  */
 public class RAGService {
 
@@ -39,7 +41,11 @@ public class RAGService {
 						return Mono.just(RAGResponse.noEvidence());
 					}
 					return llmProvider.generate(request.question(), fragments)
-							.map(answer -> new RAGResponse(answer, fragments));
+							.map(answer -> {
+								// Throws InvalidCitationException when the answer cites evidence that was not retrieved.
+								CitationValidator.resolve(answer, fragments);
+								return new RAGResponse(answer, fragments);
+							});
 				});
 	}
 

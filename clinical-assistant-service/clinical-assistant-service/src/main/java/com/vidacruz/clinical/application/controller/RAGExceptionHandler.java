@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ServerWebExchange;
 
 import com.vidacruz.clinical.application.dto.ErrorResponseDTO;
+import com.vidacruz.clinical.domain.exceptions.InvalidCitationException;
 import com.vidacruz.clinical.domain.exceptions.InvalidPromptException;
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 
@@ -20,6 +21,8 @@ public class RAGExceptionHandler {
 
 	static final String LLM_UNAVAILABLE_MESSAGE = "El asistente no está disponible temporalmente";
 
+	static final String INVALID_LLM_RESPONSE_MESSAGE = "La respuesta del asistente no pudo validarse";
+
 	@ExceptionHandler(InvalidPromptException.class)
 	ResponseEntity<ErrorResponseDTO> invalidPrompt(InvalidPromptException ex, ServerWebExchange exchange) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -30,6 +33,14 @@ public class RAGExceptionHandler {
 	ResponseEntity<ErrorResponseDTO> llmUnavailable(LLMUnavailableException ex, ServerWebExchange exchange) {
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
 				.body(new ErrorResponseDTO("LLM_UNAVAILABLE", LLM_UNAVAILABLE_MESSAGE, correlationId(exchange)));
+	}
+
+	/** The model cited evidence that was not retrieved: nothing is shown, the failure is upstream (502). */
+	@ExceptionHandler(InvalidCitationException.class)
+	ResponseEntity<ErrorResponseDTO> invalidCitation(InvalidCitationException ex, ServerWebExchange exchange) {
+		return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+				.body(new ErrorResponseDTO("INVALID_LLM_RESPONSE", INVALID_LLM_RESPONSE_MESSAGE,
+						correlationId(exchange)));
 	}
 
 	private static String correlationId(ServerWebExchange exchange) {
