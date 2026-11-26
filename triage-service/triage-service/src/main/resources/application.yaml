@@ -1,3 +1,31 @@
 spring:
   application:
     name: triage-service
+  r2dbc:
+    url: ${R2DBC_URL:r2dbc:postgresql://localhost:5432/vidacruz_triage}
+    username: ${TRIAGE_DB_USER:triage_app}
+    password: ${TRIAGE_DB_PASSWORD:}
+    pool:
+      initial-size: 2
+      max-size: 10
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+app:
+  sla:
+    defaults:
+      CRITICO: 5
+      URGENTE: 10
+      URGENTE_2: 30
+      NO_URGENTE: 60
+      NO_URGENTE_2: 120

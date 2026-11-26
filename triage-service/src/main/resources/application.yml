@@ -6,7 +6,7 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://triage-db:5432/vidacruz_triage
     username: triage_app
-    password: triage_password
+    password: ${TRIAGE_DB_PASSWORD:}
     pool:
       initial-size: 10
       max-size: 20
