@@ -1,6 +1,10 @@
 spring:
   application:
     name: clinical-assistant-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   flyway:
     # Flyway owns the schema (ADR-04). Runs over the explicit JDBC DataSource (see JdbcConfiguration).
     enabled: true
@@ -15,6 +19,16 @@ spring:
         dimensions: ${clinical.vector-store.dimensions}
         distance-type: COSINE_DISTANCE
         index-type: HNSW
+
+adapters:
+  kafka:
+    patient-events:
+      enabled: ${URGENCY_CONSUMER_ENABLED:true}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      topic: ${PATIENT_EVENTS_TOPIC:triaje.eventos}
+      group-id: ${URGENCY_CONSUMER_GROUP:clinical-assistant-urgency}
+  urgency-state:
+    discharged-retention: ${URGENCY_DISCHARGED_RETENTION:PT24H}
 
 clinical:
   vector-store:
