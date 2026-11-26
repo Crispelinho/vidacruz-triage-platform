@@ -17,7 +17,7 @@ class Resilience4jConfigurationTest {
 			.withUserConfiguration(Resilience4jConfiguration.class);
 
 	@Test
-	void exposesAPassiveClosedBreakerWithTheProvisionalDefaults() {
+	void exposesAClosedBreakerWithTheRecordedC17Defaults() {
 		runner.run(context -> {
 			CircuitBreaker breaker = context.getBean("llmCircuitBreaker", CircuitBreaker.class);
 			CircuitBreakerConfig config = breaker.getCircuitBreakerConfig();
@@ -25,7 +25,7 @@ class Resilience4jConfigurationTest {
 			assertThat(breaker.getName()).isEqualTo("llm");
 			assertThat(breaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
 			assertThat(breaker.getMetrics().getNumberOfBufferedCalls()).isZero();
-			assertThat(config.getSlidingWindowSize()).isEqualTo(20);
+			assertThat(config.getSlidingWindowSize()).isEqualTo(10);
 			assertThat(config.getMinimumNumberOfCalls()).isEqualTo(10);
 			assertThat(config.getFailureRateThreshold()).isEqualTo(50f);
 			assertThat(config.getSlowCallRateThreshold()).isEqualTo(100f);

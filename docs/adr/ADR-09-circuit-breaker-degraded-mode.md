@@ -1,8 +1,8 @@
 # ADR-09: Circuit breaker and degraded mode for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. Option A is the proposed route; the numeric timeout and breaker values and the complete failure classification remain open.
+- **Status:** Proposed. Not accepted. Option A is the proposed route, amended by the Developer/User on 2026-11-26 with per-node breakers and numeric values (C17). Acceptance of this ADR still depends on the verification section below.
 - **Date:** 2026-11-25
-- **Deciders:** developer (pending)
+- **Deciders:** developer; numeric values and failure classification recorded 2026-11-26, ADR acceptance still pending verification
 - **Scope:** C-06. This ADR covers the Resilience4j circuit breaker, timeout and 503 fallback for LLM calls. The relevance gate and citation validation stay in C-06 under RN-05 and R-10, as recorded in `adr-roadmap.md` §2.
 - **Accepted sub-decision (developer, 2026-11-25):** the LLM never participates in readiness. An unavailable model returns `503 LLM_UNAVAILABLE` and recovers automatically; breaker values and failure classification remain open (G-05, CA-G-05).
 - **Related:** DEC-07, NFR-03, NFR-08, NFR-20, TC-05, R-04, R-10, CA-G-05, CA-G-16, CA-G-22, G-05, G-12, API-04, TST-RES, TST-RAG in [clinical-assistant-service.md](../services/clinical-assistant-service.md), [requirements.md](../requirements.md) and [ADR-05](ADR-05-assistant-llm-provider.md)
@@ -37,10 +37,29 @@ DER-01 requires startup validation of required configuration, including the prov
 
 **Proposed: Option A.** Wrap the LLM port with one Resilience4j `CircuitBreaker` and timeout configuration. Do not retry LLM calls. Count a failure when a call times out, fails to connect, or returns a failure type classified under CA-G-05; 429 and 5xx responses are candidates but are not finally classified here. When the circuit is open or a timeout occurs, return HTTP 503 with `code` `LLM_UNAVAILABLE` and a NFR-20 body including `correlationId`. Missing required configuration fails startup under DER-01 and G-12; a model unavailable at startup is not a readiness failure: the service may become ready, LLM-dependent endpoints return 503, the provider state is recorded and recovery is automatic when it returns (CA-G-22, developer 2026-11-25). A runtime provider outage also returns 503 and does not make the service unready. Record LLM state through `vidacruz.llm.latency` with an `outcome` tag, and never log question or answer text (CA-G-16). Retrieval failures stay with C-06 and G-05, not this ADR, and do not use `LLM_UNAVAILABLE`. The relevance gate remains in C-06. This is a proposal, not an accepted decision.
 
+### Developer decision recorded 2026-11-26 (C17 — per-node breakers and numeric values)
+
+Option A is amended from one breaker around the LLM port to **one independent Resilience4j breaker per chain node** (`ollama`, `gemini`, `opencode`), each taken from the same `CircuitBreakerRegistry`. The recorded values are:
+
+| Setting | Value | Scope |
+|---|---|---|
+| Timeout | `15s` per provider, `45s` worst case for three sequential nodes | `rag.llm.timeout` |
+| Sliding window | `10` calls, count-based | per node |
+| Minimum calls | `10` | per node |
+| Failure rate threshold | `50%` | per node |
+| Slow-call rate threshold | `100%` | per node |
+| Slow-call duration | `20s` | per node |
+| Open wait | `30s` before `HALF_OPEN` | per node |
+| Permitted calls in half-open | `3` | per node |
+
+A node failure caused by timeout, connection error, HTTP `429` or HTTP `5xx` fails over to the next node. This classifies `429` and `5xx` as failures, closing the CA-G-05 question for this chain. **Cross-provider failover is not a retry**: no node is called twice for one request, so the "Do not retry LLM calls" rule of Option A is preserved. An open breaker yields `CallNotPermittedException`, which is mapped to `LLMUnavailableException` and causes failover to the next node. When all nodes fail, the endpoint returns HTTP 503 with `code = LLM_UNAVAILABLE` and `correlationId`; the Java exception is `LLMUnavailableException`. The `modelo_usado` field reports the exact responding node as `node/model`, or `none` on terminal failure. The LLM remains excluded from readiness.
+
+These values are recorded by the Developer/User and implemented in `application.yaml`; they do not by themselves accept this ADR, close G-05, or authorize fault-injection execution.
+
 ## Consequences
 
-- Positive: the fallback is deterministic, no clinical content is generated during degradation, and a saturated model is protected from retry storms.
-- Negative: an open circuit keeps returning 503 until it half-closes; numeric values must be chosen and measured.
+- Positive: the fallback is deterministic, no clinical content is generated during degradation, and a saturated node is protected from retry storms; a degraded node yields to the next configured node.
+- Negative: an open circuit keeps returning 503 until it half-closes; the recorded numeric values still have to be validated by TST-RES fault injection before acceptance.
 - C-06 keeps ownership of RN-05 gate and citation rules; this ADR owns only the LLM failure path.
 - C-11 reports LLM state (startup and runtime) as a metric/health detail and excludes it from readiness; the separate startup check remains under CA-G-22. ADR-05 no longer proposes "service not ready" for an unavailable model.
 - ADR-05 was aligned on readiness (2026-11-25): an unavailable model returns 503 and does not remove the service from readiness. The failure-type classification for 429/5xx remains pending under CA-G-05 and this ADR.

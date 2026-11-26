@@ -11,12 +11,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
-import com.vidacruz.clinical.domain.ports.LLMProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
+import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OllamaLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 
 import reactor.core.scheduler.Scheduler;
 
@@ -28,10 +30,12 @@ class RAGConfigurationTest {
 			.withBean(DataSource.class, () -> mock(DataSource.class));
 
 	@Test
-	void wiresPortsToTheScaffoldAdapters() {
+	void wiresPortsToTheFailoverChain() {
 		runner.run(context -> {
 			assertThat(context).hasNotFailed();
-			assertThat(context.getBean(LLMProvider.class)).isInstanceOf(OllamaLLMAdapter.class);
+			assertThat(context.getBeansOfType(NamedLLMProvider.class)).hasSize(3);
+			assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
+			assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 			assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(FixtureEmbeddingAdapter.class);
 			assertThat(context.getBean(VectorStore.class)).isInstanceOf(PgvectorVectorStoreAdapter.class);
 			assertThat(context).hasSingleBean(RAGService.class);
@@ -43,8 +47,12 @@ class RAGConfigurationTest {
 		runner.run(context -> {
 			OllamaProperties ollama = context.getBean(OllamaProperties.class);
 			assertThat(ollama.url()).isEqualTo("http://localhost:11434");
-			assertThat(ollama.timeout()).isEqualTo(Duration.ofSeconds(30));
+			assertThat(ollama.timeout()).isEqualTo(Duration.ofSeconds(15));
 			assertThat(ollama.fixture().latency()).isEqualTo(Duration.ofMillis(1200));
+
+			LLMRouterProperties chain = context.getBean(LLMRouterProperties.class);
+			assertThat(chain.providerKeys()).containsExactly("ollama", "gemini", "opencode");
+			assertThat(chain.timeout()).isEqualTo(Duration.ofSeconds(15));
 
 			VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
 			assertThat(vector.dimensions()).isEqualTo(768);
@@ -66,10 +74,21 @@ class RAGConfigurationTest {
 	}
 
 	@Test
+	void chainOrderAndTimeoutAreConfigurable() {
+		runner.withPropertyValues("rag.llm.chain=opencode,ollama", "rag.llm.timeout=2s").run(context -> {
+			LLMRouterProperties chain = context.getBean(LLMRouterProperties.class);
+			assertThat(chain.providerKeys()).containsExactly("opencode", "ollama");
+			assertThat(chain.timeout()).isEqualTo(Duration.ofSeconds(2));
+			assertThat(context).hasNotFailed();
+		});
+	}
+
+	@Test
 	void invalidPropertiesFailStartup() {
 		runner.withPropertyValues("clinical.vector-store.dimensions=0")
 				.run(context -> assertThat(context).hasFailed());
 		runner.withPropertyValues("ollama.timeout=0s").run(context -> assertThat(context).hasFailed());
+		runner.withPropertyValues("rag.llm.chain=unknown").run(context -> assertThat(context).hasFailed());
 	}
 
 	@Test

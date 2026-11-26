@@ -6,14 +6,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Ollama settings. The model is provisional until ADR-05 / ADR-11 are accepted. The adapter is fixture-only for now,
- * so {@code fixture.latency} simulates the model's response time.
+ * Ollama settings for the first node of the C17 chain. {@code url} binds from {@code OLLAMA_BASE_URL}. The fixture
+ * latency is retained for tests that must not call the network.
  *
  * @param timeout hard limit for one LLM call; exceeding it is an {@code LLMUnavailableException} (ADR-09)
  */
 @ConfigurationProperties(prefix = "ollama")
 public record OllamaProperties(@DefaultValue("http://localhost:11434") String url,
-		@DefaultValue("llama3.1:8b") String model, @DefaultValue("30s") Duration timeout,
+		@DefaultValue("llama3.1:8b") String model, @DefaultValue("15s") Duration timeout,
 		@DefaultValue Fixture fixture) {
 
 	public OllamaProperties {

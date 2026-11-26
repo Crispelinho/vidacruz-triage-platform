@@ -6,11 +6,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * LLM circuit breaker thresholds (ADR-09, NFR-08). The defaults are provisional: the numeric values and the failure
- * classification for 429 and 5xx are still open under G-05 and CA-G-05. There are no retries by design.
+ * Per-node circuit breaker thresholds (ADR-09, NFR-08, C17 developer record). The values are recorded by the
+ * Developer/User; each chain node gets its own instance from the registry. There is no retry against the same
+ * provider; failover moves to the next node.
  */
 @ConfigurationProperties(prefix = "clinical.resilience.llm-circuit-breaker")
-public record CircuitBreakerProperties(@DefaultValue("20") int slidingWindowSize,
+public record CircuitBreakerProperties(@DefaultValue("10") int slidingWindowSize,
 		@DefaultValue("10") int minimumNumberOfCalls, @DefaultValue("50") float failureRateThreshold,
 		@DefaultValue("100") float slowCallRateThreshold, @DefaultValue("20s") Duration slowCallDurationThreshold,
 		@DefaultValue("30s") Duration waitDurationInOpenState, @DefaultValue("3") int permittedCallsInHalfOpenState) {

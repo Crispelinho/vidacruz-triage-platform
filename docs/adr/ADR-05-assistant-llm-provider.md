@@ -1,8 +1,8 @@
 # ADR-05: LLM provider and embedding model for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. Option D is the proposed route; model, dimension, hardware, budget and ADR-11 evidence are still pending.
+- **Status:** Proposed. Not accepted. Option D is the proposed route; the provider chain was recorded by the Developer/User on 2026-11-26 (C17), but model availability, dimension, hardware, budget and ADR-11 evidence are still pending.
 - **Date:** 2026-11-25
-- **Deciders:** developer (pending)
+- **Deciders:** developer; provider chain recorded 2026-11-26, ADR acceptance still pending verification
 - **Scope:** Choice of the chat model and the embedding model behind Spring AI for C-06. This ADR does not choose the Azure compute target (ADR-11), the vector store access model (ADR-04), the breaker values (ADR-09) or the relevance gate and citation validation (RN-05, R-10).
 - **Related:** DEC-06, DEC-07, AMB-11, AMB-15, AMB-16, NFR-01, NFR-03, NFR-14, R-04, R-05, R-06, R-10, CA-G-01, CA-G-02, CA-G-05, CA-G-16, CA-G-22, TST-RXN, TST-RAG in [clinical-assistant-service.md](../services/clinical-assistant-service.md) and [requirements.md](../requirements.md)
 
@@ -52,10 +52,24 @@ Spring AI 1.1.1 is pinned by DEC-12. Static inspection identifies `spring.ai.oll
 
 A startup check of the endpoint and model is proposed as a separate check under CA-G-22. It does not replace the runtime readiness rule in ADR-09, which excludes LLM state from readiness.
 
+### Developer decision recorded 2026-11-26 (C17 — LLM failover chain)
+
+The Developer/User recorded a three-node chat chain, configured by `RAG_LLM_CHAIN` (`rag.llm.chain`):
+
+| Order | Node | Endpoint / source | Model | Cost characterization |
+|---|---|---|---|---|
+| 1 | `ollama` | Local Ollama exposed through Cloudflare Tunnel via `OLLAMA_BASE_URL` | `llama3.1:8b` (alternative `mistral:7b`) | Already-owned hardware; no new Azure GPU spend |
+| 2 | `gemini` | Google AI Studio free tier, `generateContent` endpoint | `gemini-2.5-flash` (declared by the Developer/User) | Declared free by the Developer/User; exact id still to be verified with Google |
+| 3 | `opencode` | `https://opencode.ai/inference/openai/v1/chat/completions` | `glm-5.3` (alternative `mistral-large-4`) | Prepaid with nonzero per-token pricing, not free |
+
+A failed node fails over to the next one; when all nodes fail the endpoint returns HTTP 503 with `code = LLM_UNAVAILABLE` and a `correlationId`, surfaced in code as `LLMUnavailableException`. The exact responding node is returned as `modelo_usado` in the form `node/model`, and is `none` when no LLM was called. `429` and `5xx` responses and timeouts count as node failures; there is no retry against the same node. Numeric breaker and timeout values and the failure classification are recorded in [ADR-09](ADR-09-circuit-breaker-degraded-mode.md).
+
+This record removes the **Azure GPU requirement** from the ADR-05 workload: Ollama runs on hardware the Developer/User already owns. It does **not** make the total cost zero — OpenCode inference is prepaid — and it does not verify the Gemini model id, model quality, latency or the clinical evaluation criteria. Acceptance of this ADR still depends on the verification section below.
+
 ## Consequences
 
 - The vector dimension becomes a fixed constant in the migration; changing the embedding model requires full re-ingestion.
-- GPU capacity becomes a deployment dependency. If it is unavailable, the Assistant returns `503 LLM_UNAVAILABLE` per NFR-03 and ADR-09; Triage is unaffected. Provider availability is recorded as a metric, never as a readiness gate, and LLM-dependent endpoints recover automatically when the provider returns (developer decision, 2026-11-25).
+- Under the C17 record, GPU capacity is **not** an Azure deployment dependency: the first node is local Ollama behind a Cloudflare Tunnel. The cloud nodes remain external dependencies; if all three nodes fail, the Assistant returns `503 LLM_UNAVAILABLE` per NFR-03 and ADR-09 and Triage is unaffected. Provider availability is recorded as a metric, never as a readiness gate, and LLM-dependent endpoints recover automatically when a provider returns (developer decision, 2026-11-25). Cloud nodes receive the grounded prompt, so the data-residency analysis must be revisited before clinical use (C-06).
 - Under Option D, model calls stay inside the Azure perimeter. Logs, telemetry and traces are still in scope for CA-G-16.
 - Tests keep a mocked model (DEC-06). Threshold calibration needs the real model in the test environment, not in unit tests.
 - If ADR-11 cannot host the workload, this ADR must be updated before any provider route is accepted.

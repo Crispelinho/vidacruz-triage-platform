@@ -25,10 +25,9 @@ clinical:
       thread-cap: 4
       queued-task-cap: 100
   resilience:
-    # LLM circuit breaker (ADR-09). Configured but passive: nothing wraps the LLM with it yet.
-    # Values are provisional defaults; numeric thresholds and failure classification are open (G-05, CA-G-05).
+    # Per-node circuit breaker (ADR-09, C17 developer record). Each chain node gets its own instance.
     llm-circuit-breaker:
-      sliding-window-size: 20
+      sliding-window-size: 10
       minimum-number-of-calls: 10
       failure-rate-threshold: 50
       slow-call-rate-threshold: 100
@@ -36,10 +35,28 @@ clinical:
       wait-duration-in-open-state: 30s
       permitted-calls-in-half-open-state: 3
 
+rag:
+  llm:
+    # C17: ordered failover chain and one timeout per node. No retry against the same node.
+    chain: ${RAG_LLM_CHAIN:ollama,gemini,opencode}
+    timeout: 15s
+
 ollama:
-  # The adapter is a fixture for now: it never calls this URL. Model is provisional (ADR-05, ADR-11 pending).
   url: ${OLLAMA_BASE_URL:http://localhost:11434}
   model: llama3.1:8b
-  timeout: 30s
+  timeout: 15s
   fixture:
+    # Used only by tests that must not call the network.
     latency: 1200ms
+
+gemini:
+  base-url: https://generativelanguage.googleapis.com/v1beta/models
+  # Availability of this exact id in Google AI Studio still has to be verified (C17 record).
+  model: gemini-2.5-flash
+  api-key: ${GEMINI_API_KEY:}
+
+opencode:
+  url: https://opencode.ai/inference/openai/v1/chat/completions
+  # OpenCode inference is prepaid, not free (C17 record).
+  model: glm-5.3
+  api-key: ${OPENCODE_API_KEY:}

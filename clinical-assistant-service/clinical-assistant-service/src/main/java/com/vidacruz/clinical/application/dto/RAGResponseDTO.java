@@ -7,12 +7,13 @@ import com.vidacruz.clinical.domain.models.Citation;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 
 /**
- * Response body: {@code { "respuesta": "...", "fuentes": [{ "protocolo", "seccion" }], "citas": [...] }}.
+ * Response body: {@code { "respuesta": "...", "fuentes": [...], "citas": [...], "modelo_usado": "node/model" }}.
  * {@code fuentes} is the API-04 shape. {@code citas} is additive provenance: one entry per retrieved fragment,
- * numbered like the {@code [n]} markers in the answer. There is deliberately no confidence field: the LLM provides no
- * calibrated clinical probability.
+ * numbered like the {@code [n]} markers in the answer. {@code modelo_usado} is the exact node/model that answered,
+ * or {@code none} when no LLM was called. There is deliberately no confidence field: the LLM provides no calibrated
+ * clinical probability.
  */
-public record RAGResponseDTO(String respuesta, List<FuenteDTO> fuentes, List<CitaDTO> citas) {
+public record RAGResponseDTO(String respuesta, List<FuenteDTO> fuentes, List<CitaDTO> citas, String modelo_usado) {
 
 	public record FuenteDTO(String protocolo, String seccion) {
 	}
@@ -34,7 +35,7 @@ public record RAGResponseDTO(String respuesta, List<FuenteDTO> fuentes, List<Cit
 				.distinct()
 				.toList();
 		List<CitaDTO> citas = response.citations().stream().map(CitaDTO::from).toList();
-		return new RAGResponseDTO(response.answer(), fuentes, citas);
+		return new RAGResponseDTO(response.answer(), fuentes, citas, response.modelo_usado());
 	}
 
 }
