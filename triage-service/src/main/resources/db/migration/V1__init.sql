@@ -1,0 +1,2 @@
+CREATE TABLE auditoria_clinica (id SERIAL PRIMARY KEY, creado_en TIMESTAMP DEFAULT NOW());
+CREATE TABLE outbox_evento (id UUID PRIMARY KEY, creado_en TIMESTAMP DEFAULT NOW());
