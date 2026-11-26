@@ -114,7 +114,8 @@ class FixtureRagPipelineTest {
 		LLMProvider hallucinating = (question, evidence) -> Mono.just("segun el protocolo [7]");
 		RAGService strict = new RAGService(embeddings, store, hallucinating);
 
-		StepVerifier.create(strict.answer(PromptRequest.of("tema-alfa"))).expectError(InvalidCitationException.class)
+		StepVerifier.create(strict.answer(PromptRequest.of("tema-alfa")))
+				.expectError(InvalidCitationException.class)
 				.verify();
 	}
 

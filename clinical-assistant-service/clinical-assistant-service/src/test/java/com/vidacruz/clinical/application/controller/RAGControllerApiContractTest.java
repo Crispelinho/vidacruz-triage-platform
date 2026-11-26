@@ -125,7 +125,7 @@ class RAGControllerApiContractTest {
 	}
 
 	@Test
-	void invalidCitationIsA502WithoutLeakingAnswerText() {
+	void invalidCitationReturnsFixedNoticeWithoutLeakingAnswerText() {
 		when(ragService.answer(any(PromptRequest.class)))
 				.thenReturn(Mono.error(new InvalidCitationException("answer cites position 7 but only 1 exist")));
 
@@ -133,11 +133,13 @@ class RAGControllerApiContractTest {
 				.header("X-Correlation-Id", "corr-9")
 				.bodyValue("{\"pregunta\":\"q\"}")
 				.exchange()
-				.expectStatus().isEqualTo(502)
+				.expectStatus().isOk()
 				.expectBody()
-				.jsonPath("$.code").isEqualTo("INVALID_LLM_RESPONSE")
-				.jsonPath("$.message").isEqualTo("La respuesta del asistente no pudo validarse")
-				.jsonPath("$.correlationId").isEqualTo("corr-9");
+				.jsonPath("$.respuesta").isEqualTo("no existe protocolo disponible")
+				.jsonPath("$.fuentes.length()").isEqualTo(0)
+				.jsonPath("$.citas.length()").isEqualTo(0)
+				.jsonPath("$.modelo_usado").isEqualTo("none");
 	}
 
 }
+

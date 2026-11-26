@@ -35,12 +35,15 @@ public class RAGExceptionHandler {
 				.body(new ErrorResponseDTO("LLM_UNAVAILABLE", LLM_UNAVAILABLE_MESSAGE, correlationId(exchange)));
 	}
 
-	/** The model cited evidence that was not retrieved: nothing is shown, the failure is upstream (502). */
+	/**
+	 * RN-05.3-C / anti-hallucination: invented or out-of-context citations must not be returned.
+	 * Respond with the fixed notice and no clinical content.
+	 */
 	@ExceptionHandler(InvalidCitationException.class)
-	ResponseEntity<ErrorResponseDTO> invalidCitation(InvalidCitationException ex, ServerWebExchange exchange) {
-		return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-				.body(new ErrorResponseDTO("INVALID_LLM_RESPONSE", INVALID_LLM_RESPONSE_MESSAGE,
-						correlationId(exchange)));
+	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidCitation(InvalidCitationException ex,
+			ServerWebExchange exchange) {
+		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
+				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));
 	}
 
 	private static String correlationId(ServerWebExchange exchange) {
