@@ -35,6 +35,8 @@ app:
   outbox:
     publisher-enabled: ${OUTBOX_PUBLISHER_ENABLED:false}
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
+  report:
+    max-range: ${REPORT_MAX_RANGE:P90D}
 triage:
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
