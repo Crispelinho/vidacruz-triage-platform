@@ -35,6 +35,9 @@ app:
   outbox:
     publisher-enabled: ${OUTBOX_PUBLISHER_ENABLED:false}
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
+  idempotency:
+    cleanup-enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:false}
+    cleanup-interval-ms: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS}
 triage:
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}

@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,8 +37,9 @@ public class TriageController {
 
 	@PostMapping("/pacientes")
 	public Mono<ResponseEntity<PatientRegistrationResponse>> register(
+			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
 			@RequestBody Mono<PatientRegistrationRequest> body) {
-		return body.flatMap(registrationService::register)
+		return body.flatMap(request -> registrationService.register(request, idempotencyKey))
 				.map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
 	}
 
