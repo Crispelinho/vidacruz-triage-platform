@@ -1,8 +1,8 @@
 # ADR-08: Urgency projection store for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. Option A is the proposed route; the order, duplicate, future-event and rebuild protocol is fixed below. OPEN-09/OPEN-10 is closed as Option A with G-T29 = 7 days; G-11, G-24, OD-5 and the API-05 error code remain open where numeric values or clinical retention are involved.
+- **Status:** ACCEPTED — AMENDED. The Developer/User substantive record of 2026-11-26 (D2, in the C05 consolidated disposition package §4/§14) accepts Option A — Redis with atomic Lua — and expressly amends this ADR to that effect. Scope: selection of the urgency projection store and its update model only. G-11, G-24, OD-5, the API-05 error code and all numeric durability, fsync, TTL and retention values remain open; ART-03, ART-04, ART-06, ART-07 and ART-10 remain unproduced/unexecuted; F04-B (spring-kafka upgrade) remains UNSELECTED. This status change does not accept ADR-02, close any gate, authorize implementation or assert a verifiable-closure criterion. OPEN-09/OPEN-10 is closed as Option A with G-T29 = 7 days; G-11, G-24, OD-5 and the API-05 error code remain open where numeric values or clinical retention are involved.
 - **Date:** 2026-11-25
-- **Deciders:** developer (pending)
+- **Deciders:** developer; D2 accepted and ADR amended 2026-11-26
 - **Scope:** C-07, RF-04-B and API-05. This ADR chooses the store and update model for the urgency projection. It does not change the event envelope (ADR-02), the projection consumer technology (ADR-02), or the retention decision OD-3.
 - **Related:** RF-04-B, API-05, DEC-10, DER-03, DER-09, NFR-01, NFR-02, NFR-19, R-08, G-07, G-11, G-24, OD-3, OD-5, ADR-02, TST-PRJ in [clinical-assistant-service.md](../services/clinical-assistant-service.md), [capabilities-map.md](../capabilities-map.md) and [adr-roadmap.md](../adr-roadmap.md)
 
@@ -27,15 +27,15 @@ Rebuild uses the retained topic and, for full reconstruction, Triage's accepted 
 
 | Option | Description | Pros | Cons | Status / why not chosen |
 |---|---|---|---|---|
-| **A. Redis with atomic Lua updates, per-patient hashes and expiring event markers** | One count hash, one hash per patient and one `SET NX PX` marker per event; all rules run in one Lua script | Matches DEC-10 and the reactive skeleton; atomic read/update; rebuildable; dedupe has a natural TTL | Durability and TTL values are still open; multi-key scripts across Redis Cluster slots fail; patient keys grow with every patient ever seen | **Proposed**, not rejected. Acceptance depends on G-11 and G-24 |
+| **A. Redis with atomic Lua updates, per-patient hashes and expiring event markers** | One count hash, one hash per patient and one `SET NX PX` marker per event; all rules run in one Lua script | Matches DEC-10 and the reactive skeleton; atomic read/update; rebuildable; dedupe has a natural TTL | Durability and TTL values are still open; multi-key scripts across Redis Cluster slots fail; patient keys grow with every patient ever seen | **ACCEPTED — AMENDED (2026-11-26, D2)** as the store and update model. G-11 and G-24 remain open for their own numeric values |
 | **B. PostgreSQL projection table in the Assistant database with R2DBC** | Store counts and per-patient state in relational tables; dedupe in an indexed table with TTL cleanup | Durable, familiar semantics; no Redis Cluster constraint; transactional updates | Adds R2DBC writes to the consumer path and more load on the Assistant database; TTL cleanup becomes a job; loses the purpose of the Redis reservation in DEC-10 | Rejected: DEC-10 reserves Redis for this projection and the skeleton already provides reactive Redis |
 | **C. In-memory map with periodic snapshot** | Keep counts in process memory and persist a snapshot | Simplest implementation; no external store dependency | Projection lost on restart unless the snapshot is current; no dedupe across instances; snapshot and replay leave a correctness gap | Rejected: it does not meet the rebuild and idempotency requirements |
 
 ## Decision
 
-**Proposed: Option A.** Keep `EstadoUrgenciaProyeccion` in Redis as a projection, not a source of truth. Adopt the section 8.2 key layout and the section 8.3 Lua update rules, including `pacienteSequence` ordering and `eventId` dedupe. Use a single Redis node in the three-day scope; if a cluster is used instead, all keys touched by one script must share a hash tag. Two rebuild modes are distinguished: replay from the earliest retained Kafka offset for a normal reset, and full reconstruction from Triage's durable record under OD-3 when the retained window is not enough. That record is `EventoHistorico` (OPEN-09/OPEN-10 closed as Option A on 2026-11-25); the retained-outbox alternative was rejected.
+**Accepted and amended: Option A (2026-11-26, D2).** Keep `EstadoUrgenciaProyeccion` in Redis as a projection, not a source of truth. Adopt the section 8.2 key layout and the section 8.3 Lua update rules, including `pacienteSequence` ordering and `eventId` dedupe. Use a single Redis node in the three-day scope; if a cluster is used instead, all keys touched by one script must share a hash tag. Two rebuild modes are distinguished: replay from the earliest retained Kafka offset for a normal reset, and full reconstruction from Triage's durable record under OD-3 when the retained window is not enough. That record is `EventoHistorico` (OPEN-09/OPEN-10 closed as Option A on 2026-11-25); the retained-outbox alternative was rejected.
 
-Redis persistence is proposed as AOF, with the fsync policy set from the measured loss tolerance; `no` persistence is rejected. The `ProcessedEvent` TTL is proposed as the effective Kafka retention plus a safety margin; the numeric margin is pending explicit confirmation under G-11. ADR-02 depends on this durability level for its acknowledgement order and does not decide it. The API-05 503 error code is pending G-07. This is a proposal, not an accepted decision.
+Redis persistence is proposed as AOF, with the fsync policy set from the measured loss tolerance; `no` persistence is rejected. The `ProcessedEvent` TTL is proposed as the effective Kafka retention plus a safety margin; the numeric margin is pending explicit confirmation under G-11. ADR-02 depends on this durability level for its acknowledgement order and does not decide it. The API-05 503 error code is pending G-07. The store selection is accepted; the AOF policy, TTL margin and API-05 error code remain proposed and pending their gates.
 
 ## Update and rebuild protocol
 
@@ -67,14 +67,14 @@ The Lua script is the enforcement point for the protocol defined in ADR-02 and S
 ## Risks and mitigations
 
 - **R-08 (duplicates and out-of-order events):** Lua rules use `eventId` markers and `pacienteSequence`; the worked examples in section 8.3 are test cases.
-- **G-11 (layout, persistence and TTL):** adopt section 8.2/8.3, AOF persistence and the retention-plus-margin TTL; confirm the numeric margin explicitly before acceptance.
+- **G-11 (layout, persistence and TTL):** adopt section 8.2/8.3, AOF persistence and the retention-plus-margin TTL; confirm the numeric margin explicitly before those values can be closed.
 - **G-24 (rebuild completeness):** request full reconstruction from `EventoHistorico` (accepted Option A) rather than relying only on Kafka retention; the production retention period remains OD-5.
 - **G-07 (API-05 error contract):** define the error code and detection rule before the client contract is frozen.
 - **NFR-01:** use reactive Redis; no `.block()` on the consumer or request path.
 
 ## Verification
 
-- **TST-PRJ replay:** clearing the projection and replaying from the earliest retained offset restores the same counts as live consumption; full reconstruction from the accepted durable record `EventoHistorico` must restore the same counts without relying on the Kafka window. The store and TTL values in this ADR remain proposed.
+- **TST-PRJ replay:** clearing the projection and replaying from the earliest retained offset restores the same counts as live consumption; full reconstruction from the accepted durable record `EventoHistorico` must restore the same counts without relying on the Kafka window. The store selection is accepted; the TTL and durability values remain proposed and unverified.
 - **TST-PRJ edge cases:** duplicate events return `DUPLICATE`, stale sequences return `STALE`, EVT-04 before EVT-01 returns `GAP` and stays unacknowledged until the missing event arrives or the DLT timeout fires, and a gap in state sequence follows section 8.3 with no negative counts.
 - **TST-PRJ cutover:** after replay or full reconstruction, counts are compared with the pre-clear baseline; a mismatch blocks activation and raises an alert. No API-05 response is served from a projection that failed this comparison.
 - **TST-PRJ unavailability:** Redis timeout on API-05 returns 503 with the code agreed under G-07.
