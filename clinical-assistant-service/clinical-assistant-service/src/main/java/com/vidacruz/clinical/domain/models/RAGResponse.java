@@ -6,11 +6,11 @@ import java.util.Objects;
 /**
  * Result of the RAG use case: an answer and the evidence it was grounded on.
  *
- * <p>When no evidence exists the answer is the fixed notice, {@code sources} is empty and {@code modelo_usado} is
- * {@code none} because no LLM node was called (RN-05, AMB-08). Otherwise {@code modelo_usado} is the exact
- * {@code node/model} that answered, as required by the C17 failover record.
+ * <p>When no evidence exists the answer is the fixed notice, {@code sources} is empty and {@code usedModel} is
+ * {@code none} because no LLM node was called (RN-05, AMB-08). Otherwise {@code usedModel} is the exact
+ * {@code node/model} that answered, as required by the C17 failover record. The wire key remains {@code modelo_usado}.
  */
-public record RAGResponse(String answer, List<EvidenceFragment> sources, String modelo_usado) {
+public record RAGResponse(String answer, List<EvidenceFragment> sources, String usedModel) {
 
 	public static final String NO_PROTOCOL_NOTICE = "no existe protocolo disponible";
 
@@ -20,8 +20,8 @@ public record RAGResponse(String answer, List<EvidenceFragment> sources, String 
 		if (answer == null || answer.isBlank()) {
 			throw new IllegalArgumentException("answer must not be blank");
 		}
-		if (modelo_usado == null || modelo_usado.isBlank()) {
-			throw new IllegalArgumentException("modelo_usado must not be blank");
+		if (usedModel == null || usedModel.isBlank()) {
+			throw new IllegalArgumentException("usedModel must not be blank");
 		}
 		sources = List.copyOf(Objects.requireNonNull(sources, "sources"));
 	}

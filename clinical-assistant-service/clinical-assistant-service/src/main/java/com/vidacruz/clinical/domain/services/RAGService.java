@@ -52,7 +52,7 @@ public class RAGService {
 							.map(completion -> {
 								// Throws InvalidCitationException when the answer cites evidence that was not retrieved.
 								CitationValidator.resolve(completion.answer(), fragments);
-								return new RAGResponse(completion.answer(), fragments, completion.modeloUsado());
+								return new RAGResponse(completion.answer(), fragments, completion.usedModel());
 							});
 				});
 	}

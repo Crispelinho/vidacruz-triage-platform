@@ -57,7 +57,7 @@ class ResilientLLMRouterTest {
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.assertNext(completion -> {
 					assertThat(completion.answer()).isEqualTo("respuesta [1]");
-					assertThat(completion.modeloUsado()).isEqualTo("gemini/gemini-2.5-flash");
+					assertThat(completion.usedModel()).isEqualTo("gemini/gemini-2.5-flash");
 				})
 				.verifyComplete();
 		assertThat(firstCalls.get()).isEqualTo(1);
@@ -89,7 +89,7 @@ class ResilientLLMRouterTest {
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second), registry, Duration.ofSeconds(1));
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
-				.assertNext(completion -> assertThat(completion.modeloUsado()).isEqualTo("opencode/glm-5.3"))
+				.assertNext(completion -> assertThat(completion.usedModel()).isEqualTo("opencode/glm-5.3"))
 				.verifyComplete();
 		assertThat(skippedCalls.get()).isZero();
 	}
@@ -102,7 +102,7 @@ class ResilientLLMRouterTest {
 				CircuitBreakerRegistry.ofDefaults(), Duration.ofMillis(20));
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
-				.assertNext(completion -> assertThat(completion.modeloUsado()).isEqualTo("gemini/gemini-2.5-flash"))
+				.assertNext(completion -> assertThat(completion.usedModel()).isEqualTo("gemini/gemini-2.5-flash"))
 				.expectComplete()
 				.verify(Duration.ofSeconds(2));
 	}

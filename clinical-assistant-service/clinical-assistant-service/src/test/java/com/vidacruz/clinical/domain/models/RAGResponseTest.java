@@ -22,7 +22,7 @@ class RAGResponseTest {
 
 		assertThat(response.answer()).isEqualTo("no existe protocolo disponible");
 		assertThat(response.sources()).isEmpty();
-		assertThat(response.modelo_usado()).isEqualTo("none");
+		assertThat(response.usedModel()).isEqualTo("none");
 		assertThat(response.hasEvidence()).isFalse();
 	}
 
@@ -42,7 +42,7 @@ class RAGResponseTest {
 	void reportsTheExactRespondingNode() {
 		RAGResponse response = new RAGResponse("respuesta", List.of(fragment()), "ollama/llama3.1:8b");
 
-		assertThat(response.modelo_usado()).isEqualTo("ollama/llama3.1:8b");
+		assertThat(response.usedModel()).isEqualTo("ollama/llama3.1:8b");
 		assertThatThrownBy(() -> new RAGResponse("respuesta", List.of(), " "))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
