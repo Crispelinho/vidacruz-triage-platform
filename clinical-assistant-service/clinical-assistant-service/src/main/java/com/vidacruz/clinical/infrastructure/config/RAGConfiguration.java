@@ -116,8 +116,9 @@ class RAGConfiguration {
 	}
 
 	@Bean
-	RAGService ragService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter) {
-		return new RAGService(fixtureEmbeddingAdapter, vectorStore, llmRouter);
+	RAGService ragService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
+			VectorStoreProperties properties) {
+		return new RAGService(fixtureEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
 	}
 
 }

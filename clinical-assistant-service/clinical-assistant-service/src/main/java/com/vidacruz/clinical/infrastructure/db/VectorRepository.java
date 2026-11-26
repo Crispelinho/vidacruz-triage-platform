@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 
 /**
  * Blocking JDBC access to {@code evidence_fragments} (schema owned by Flyway, {@code V3}). Never call it from an
@@ -74,15 +75,24 @@ public class VectorRepository {
 
 	/** Nearest fragments by cosine distance, closest first. */
 	public List<EvidenceFragment> searchSimilar(float[] queryEmbedding, int topK) {
+		return searchSimilarWithScores(queryEmbedding, topK).stream().map(ScoredEvidenceFragment::fragment).toList();
+	}
+
+	/**
+	 * Nearest fragments with cosine similarity score in [0, 1], closest first.
+	 * Score is {@code 1 - cosine_distance}.
+	 */
+	public List<ScoredEvidenceFragment> searchSimilarWithScores(float[] queryEmbedding, int topK) {
 		if (topK < 1) {
 			throw new IllegalArgumentException("topK must be positive");
 		}
 		float[] query = requireDimensions(queryEmbedding);
-		return jdbc.sql("SELECT " + COLUMNS + " FROM evidence_fragments "
-				+ "ORDER BY embedding <=> CAST(:query AS vector) LIMIT :limit")
+		return jdbc.sql("SELECT " + COLUMNS
+				+ ", GREATEST(0, LEAST(1, 1 - (embedding <=> CAST(:query AS vector)))) AS score "
+				+ "FROM evidence_fragments ORDER BY embedding <=> CAST(:query AS vector) LIMIT :limit")
 				.param("query", toVectorLiteral(query))
 				.param("limit", topK)
-				.query(ROW_MAPPER)
+				.query(VectorRepository::mapScoredRow)
 				.list();
 	}
 
@@ -122,6 +132,10 @@ public class VectorRepository {
 		return new EvidenceFragment(rs.getObject("id", UUID.class), rs.getObject("document_id", UUID.class),
 				rs.getInt("chunk_index"), rs.getString("protocol"), rs.getString("section"),
 				rs.getString("content"), parseVector(rs.getString("embedding_text")));
+	}
+
+	private static ScoredEvidenceFragment mapScoredRow(ResultSet rs, int rowNum) throws SQLException {
+		return new ScoredEvidenceFragment(mapRow(rs, rowNum), rs.getDouble("score"));
 	}
 
 }

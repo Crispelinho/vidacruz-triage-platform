@@ -55,31 +55,37 @@ class RAGServiceTest {
 				new float[] { 0.1f, 0.2f, 0.3f });
 	}
 
+	private static com.vidacruz.clinical.domain.models.ScoredEvidenceFragment scored(EvidenceFragment fragment,
+			double score) {
+		return new com.vidacruz.clinical.domain.models.ScoredEvidenceFragment(fragment, score);
+	}
+
 	@Test
 	void happyPathEmbedsRetrievesThenGenerates() {
 		PromptRequest request = new PromptRequest("medidas ante crisis hipertensiva", 2);
 		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"),
 				fragment("PROTO-001", "Seguimiento"));
 		when(embeddingProvider.embed("medidas ante crisis hipertensiva")).thenReturn(Mono.just(QUERY_EMBEDDING));
-		when(vectorStore.similaritySearch(QUERY_EMBEDDING, 2)).thenReturn(Mono.just(evidence));
-		when(llmProvider.generate("medidas ante crisis hipertensiva", evidence)).thenReturn(Mono.just("respuesta"));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, 2))
+				.thenReturn(Mono.just(evidence.stream().map(f -> scored(f, 0.9d)).toList()));
+		when(llmProvider.generate("medidas ante crisis hipertensiva", evidence)).thenReturn(Mono.just("respuesta [1]"));
 
 		StepVerifier.create(service.answer(request)).assertNext(response -> {
-			assertThat(response.answer()).isEqualTo("respuesta");
+			assertThat(response.answer()).isEqualTo("respuesta [1]");
 			assertThat(response.sources()).isEqualTo(evidence);
 			assertThat(response.hasEvidence()).isTrue();
 		}).verifyComplete();
 
 		InOrder order = inOrder(embeddingProvider, vectorStore, llmProvider);
 		order.verify(embeddingProvider).embed("medidas ante crisis hipertensiva");
-		order.verify(vectorStore).similaritySearch(QUERY_EMBEDDING, 2);
+		order.verify(vectorStore).similaritySearchWithScores(QUERY_EMBEDDING, 2);
 		order.verify(llmProvider).generate("medidas ante crisis hipertensiva", evidence);
 	}
 
 	@Test
 	void noEvidenceReturnsFixedNoticeAndNeverCallsTheLlm() {
 		when(embeddingProvider.embed("diabetes tipo 2")).thenReturn(Mono.just(QUERY_EMBEDDING));
-		when(vectorStore.similaritySearch(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
 				.thenReturn(Mono.just(List.of()));
 
 		StepVerifier.create(service.answer(PromptRequest.of("diabetes tipo 2")))
@@ -90,11 +96,50 @@ class RAGServiceTest {
 	}
 
 	@Test
+	void belowThresholdReturnsFixedNoticeAndNeverCallsTheLlm() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		service = new RAGService(embeddingProvider, vectorStore, (LLMRouter) (q, ev) -> llmProvider.generate(q, ev).map(a -> new com.vidacruz.clinical.domain.models.LLMCompletion("single", "unknown", a)), 0.75d);
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.4d))));
+
+		StepVerifier.create(service.answer(PromptRequest.of("q"))).expectNext(RAGResponse.noEvidence()).verifyComplete();
+
+		verifyNoInteractions(llmProvider);
+	}
+
+	@Test
+	void requestThresholdOverridesConfiguredThreshold() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		service = new RAGService(embeddingProvider, vectorStore, (LLMRouter) (q, ev) -> llmProvider.generate(q, ev).map(a -> new com.vidacruz.clinical.domain.models.LLMCompletion("single", "unknown", a)), 0.10d);
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.4d))));
+
+		StepVerifier.create(service.answer(new PromptRequest("q", PromptRequest.DEFAULT_TOP_K, null, 0.75d)))
+				.expectNext(RAGResponse.noEvidence()).verifyComplete();
+
+		verifyNoInteractions(llmProvider);
+	}
+
+	@Test
+	void invalidCitationFromLlmIsRejected() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
+		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just("respuesta inventada [9]"));
+
+		StepVerifier.create(service.answer(PromptRequest.of("q")))
+				.expectError(com.vidacruz.clinical.domain.exceptions.InvalidCitationException.class).verify();
+	}
+
+	@Test
 	void llmFailurePropagatesAsLlmUnavailable() {
 		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
 		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
-		when(vectorStore.similaritySearch(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
-				.thenReturn(Mono.just(evidence));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
 		when(llmProvider.generate("q", evidence)).thenReturn(Mono.error(new LLMUnavailableException("timeout")));
 
 		StepVerifier.create(service.answer(PromptRequest.of("q"))).expectError(LLMUnavailableException.class).verify();
@@ -103,12 +148,12 @@ class RAGServiceTest {
 	@Test
 	void retrievalFailureDoesNotReachTheLlm() {
 		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
-		when(vectorStore.similaritySearch(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
 				.thenReturn(Mono.error(new IllegalStateException("db down")));
 
 		StepVerifier.create(service.answer(PromptRequest.of("q"))).expectError(IllegalStateException.class).verify();
 
-		verify(vectorStore).similaritySearch(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K);
+		verify(vectorStore).similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K);
 		verifyNoInteractions(llmProvider);
 	}
 

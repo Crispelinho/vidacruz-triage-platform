@@ -7,6 +7,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
+import com.vidacruz.clinical.domain.ports.ScoredVectorStore;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
 import reactor.core.publisher.Mono;
@@ -18,7 +20,7 @@ import reactor.core.publisher.Mono;
  *
  * <p>Ties are broken by (documentId, chunkIndex) so rankings are deterministic.
  */
-public class FixtureVectorStoreAdapter implements VectorStore {
+public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore {
 
 	private final Map<UUID, EvidenceFragment> fragments = new ConcurrentHashMap<>();
 
@@ -42,29 +44,42 @@ public class FixtureVectorStoreAdapter implements VectorStore {
 
 	@Override
 	public Mono<List<EvidenceFragment>> similaritySearch(float[] queryEmbedding, int topK) {
+		return similaritySearchWithScores(queryEmbedding, topK)
+				.map(results -> results.stream().map(ScoredEvidenceFragment::fragment).toList());
+	}
+
+	@Override
+	public Mono<List<ScoredEvidenceFragment>> similaritySearchWithScores(float[] queryEmbedding, int topK) {
 		return Mono.fromSupplier(() -> {
 			if (topK < 1) {
 				throw new IllegalArgumentException("topK must be positive");
 			}
-			Comparator<EvidenceFragment> byScore = Comparator
-					.comparingDouble((EvidenceFragment f) -> cosine(queryEmbedding, f.embedding())).reversed();
+			Comparator<ScoredEvidenceFragment> byScore = Comparator
+					.comparingDouble(ScoredEvidenceFragment::score).reversed();
 			return fragments.values().stream()
 					.filter(f -> f.embedding().length == queryEmbedding.length)
-					.sorted(byScore.thenComparing(EvidenceFragment::documentId)
-							.thenComparingInt(EvidenceFragment::chunkIndex))
+					.map(f -> new ScoredEvidenceFragment(f, normalizedCosine(queryEmbedding, f.embedding())))
+					.sorted(byScore.thenComparing(f -> f.fragment().documentId())
+							.thenComparingInt(f -> f.fragment().chunkIndex()))
 					.limit(topK)
 					.toList();
 		});
 	}
 
-	private static double cosine(float[] a, float[] b) {
-		double dot = 0, normA = 0, normB = 0;
+	private static double normalizedCosine(float[] a, float[] b) {
+		double dot = 0;
+		double normA = 0;
+		double normB = 0;
 		for (int i = 0; i < a.length; i++) {
 			dot += (double) a[i] * b[i];
 			normA += (double) a[i] * a[i];
 			normB += (double) b[i] * b[i];
 		}
-		return normA == 0 || normB == 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
+		double cosine = normA == 0 || normB == 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
+		if (!Double.isFinite(cosine)) {
+			return 0d;
+		}
+		return Math.max(0d, Math.min(1d, cosine));
 	}
 
 }
