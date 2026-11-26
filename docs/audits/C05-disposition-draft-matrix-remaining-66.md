@@ -111,7 +111,7 @@ Full draft replacement text for all 16 specifications is recorded in the local v
 | Column 2 Status | `NEEDS REVISION` | ACCEPTED/CONDITIONAL/REJECTED reserved to Developer/User; `BLOCKED` describes evidence/runtime reliance | `BLOCKED` misapplied to an ADR or gate | ________ |
 | Column 3 Normative source | `NEEDS REVISION` | Requires exact document, version, section and verbatim quote | A paraphrase promoted to a normative source | ________ |
 | Column 4 Finding statement | `NEEDS REVISION` | Literal-statement rule; no reinterpretation | A finding silently reclassified | ________ |
-| Column 5 Authority / owner | `NEEDS REVISION` | Already fully compliant; Developer/User decides, OpenCode investigates, Claude audits, integrator drafts | An agent recorded as a decision authority | ________ |
+| Column 5 Authority / owner | `ACCEPT` | Already fully compliant (auditor correction: draft previously marked it `NEEDS REVISION` with a contradictory reason); Developer/User decides, OpenCode investigates, Claude audits, integrator drafts | An agent recorded as a decision authority | ________ |
 | Column 6 Dependencies | `NEEDS REVISION` | Draft adds a fifth kind `informational`; V3.1 §4 lines 98–105 has four kinds; seed rows misstate edges 1, 48 and 16 | Wrong edge kinds propagated into the master register | ________ |
 | Column 7 Evidence / closure | `NEEDS REVISION` | Draft vocabulary differs from the V3.1 §9 four-state vocabulary | A criterion recorded as satisfied without evidence | ________ |
 | Column 8 Cross-workstream trace | `NEEDS REVISION` | C1–C5 and RC-1–RC-8 distinct and open | A reference treated as closing a contradiction or selecting an option | ________ |
@@ -126,6 +126,15 @@ Full draft replacement text for all 16 specifications is recorded in the local v
 
 ## Draft totals
 
-`ACCEPT` 6 (A8, A9, A10, XW-03, XW-04, XW-11) · `NEEDS REVISION` 60 · `REJECT` 0 · `DEFER` 0 · signed 0 of 66.
+`ACCEPT` 7 (A8, A9, A10, XW-03, XW-04, XW-11, Column 5) · `NEEDS REVISION` 59 · `REJECT` 0 · `DEFER` 0 · signed 0 of 66.
+
+## Auditor correction notes
+
+Recorded by the independent audit (Claude) on the branch `docs/c05-draft-disposition-matrix-remaining-66`. These notes do not change any draft value except Column 5 above. They are findings for OpenCode to fix before the Developer decides.
+
+1. **Cited line ranges exceed the cited file.** `docs/audits/C05-v3.1-independent-review-and-dispositions.md` has 104 lines in this branch. Rows that cite V3.1 lines above 104 (for example "V3.1 §7 lines 248–251", "lines 253–256", and "line 19" as a declaration) cannot be located in that file. Each such citation must be re-anchored to the correct file, version and line, or removed.
+2. **Unversioned source for Cluster E.** The full replacement text for ART-01…ART-16 is recorded only in a "local v2 working instrument §4 P-05" that is not in the repository. It cannot be reviewed from this branch. Commit it under a named path, or delete the reference.
+3. **Scope claim not in the row.** The note under Cluster D says Cluster E "proposes the ART-01 correction-register scope". The ART-01 row does not state that scope. Either add it to ART-01 or remove the claim.
+4. **Verified citations.** Spot-checked and correct: ADR-02 lines 3, 82 and 122–127 (XW-14 header and proposal table) and ADR-08 lines 30–32 (Options A, B and C of D2).
 
 **Restatement:** all values above are OpenCode recommendations. No cell is signed. No disposition, closure, acceptance, gate decision, artifact production, test run or integration is authorized by this file.
