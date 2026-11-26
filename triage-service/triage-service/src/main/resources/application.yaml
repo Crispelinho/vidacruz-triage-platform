@@ -67,4 +67,4 @@ triage:
   api-key: ${TRIAGE_API_KEY:test-triage-key}
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
-    evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL_MS}
+    evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL_MS:60000}
