@@ -1,3 +1,45 @@
 spring:
   application:
     name: clinical-assistant-service
+  flyway:
+    # Flyway owns the schema (ADR-04). Runs over the explicit JDBC DataSource (see JdbcConfiguration).
+    enabled: true
+    locations: classpath:db/migration
+  ai:
+    vectorstore:
+      pgvector:
+        # Mirrors V3__pgvector_evidence_schema.sql. Spring AI must not create or alter the table.
+        initialize-schema: false
+        schema-name: public
+        table-name: evidence_fragments
+        dimensions: ${clinical.vector-store.dimensions}
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
+
+clinical:
+  vector-store:
+    # PROVISIONAL until ADR-05 picks the embedding model (G-01). Must match vector(N) in the Flyway migration.
+    dimensions: 768
+    scheduler:
+      # Bounded pool isolating blocking pgvector JDBC calls from the event loop (ADR-04, NFR-01).
+      thread-cap: 4
+      queued-task-cap: 100
+  resilience:
+    # LLM circuit breaker (ADR-09). Configured but passive: nothing wraps the LLM with it yet.
+    # Values are provisional defaults; numeric thresholds and failure classification are open (G-05, CA-G-05).
+    llm-circuit-breaker:
+      sliding-window-size: 20
+      minimum-number-of-calls: 10
+      failure-rate-threshold: 50
+      slow-call-rate-threshold: 100
+      slow-call-duration-threshold: 20s
+      wait-duration-in-open-state: 30s
+      permitted-calls-in-half-open-state: 3
+
+ollama:
+  # The adapter is a fixture for now: it never calls this URL. Model is provisional (ADR-05, ADR-11 pending).
+  url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: llama3.1:8b
+  timeout: 30s
+  fixture:
+    latency: 1200ms
