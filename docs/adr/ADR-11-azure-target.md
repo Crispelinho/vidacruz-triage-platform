@@ -1,8 +1,8 @@
 # ADR-11: Azure target for deployment
 
-- **Status:** Proposed. Not accepted. Option A is the proposed route; it is blocked by R-06 until access and quota are verified. GPU support is a separate ADR-05 input, not part of R-06.
+- **Status:** Proposed. Not accepted. Option A is the proposed route; it is blocked by R-06 until access and quota are verified. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17); Azure Free Tier is the environment constraint, not a verified deployment quota.
 - **Date:** 2026-11-25
-- **Deciders:** developer (pending)
+- **Deciders:** developer; environment constraint recorded 2026-11-26, ADR acceptance still pending R-06 evidence
 - **Scope:** C-01 Azure manifests only. This ADR chooses the Azure compute target. Dockerfiles, docker-compose and CI do not wait for it, as recorded in `adr-roadmap.md` §3.3.
 - **Related:** NFR-13, NFR-14, AMB-11, R-06, G-20, CA-G-18, DEC-12, DEC-13, §14 of [analysis.md](../analysis.md), [ADR-05](ADR-05-assistant-llm-provider.md), T-22, T-23, T-24 in [implementation-roadmap.md](../implementation-roadmap.md)
 
@@ -10,7 +10,7 @@
 
 NFR-14 requires an Azure target. D0 §14 lists AKS and Azure Container Apps: Container Apps is simpler for the three-day evaluation window; AKS demonstrates Kubernetes directly. AMB-11 and R-06 record that manifests are delivered regardless, but the deployment URL depends on subscription access and quota.
 
-The target also has to support ADR-05. Option D of that ADR proposes serving chat and embedding models through Ollama inside the Azure perimeter, with a provisional GPU requirement. ADR-05 needs evidence that the chosen target can host that workload; this ADR produces that evidence but is not blocked by it. If the evidence shows the workload is not viable, ADR-05 changes route. GPU availability, regional availability and quota are not assumed for either option.
+The target also has to support ADR-05. Option D of that ADR originally proposed serving chat and embedding models through Ollama inside the Azure perimeter, with a provisional GPU requirement. The Developer/User record of 2026-11-26 (C17) removes that requirement from the chat workload: Ollama runs on hardware the Developer/User already owns and is reached through a Cloudflare Tunnel, with Google AI Studio and OpenCode inference as the cloud failover nodes. Azure is therefore used for lightweight containers, Kafka and pgvector under the recorded Free Tier constraint, not for GPU model serving. ADR-05 still needs evidence that the chosen target can host that reduced workload; this ADR produces that evidence but is not blocked by it. If the evidence shows the workload is not viable, ADR-05 changes route. Regional availability and quota are not assumed for either option.
 
 Local delivery is independent: T-22 delivers Dockerfiles and docker-compose, and T-23 delivers Kubernetes manifests. Only the Azure deployment in T-24 depends on this decision. No secret may be committed; configuration goes through ConfigMap and Secret resources under NFR-13.
 
@@ -40,7 +40,7 @@ Local delivery is independent: T-22 delivers Dockerfiles and docker-compose, and
 - Positive: a simple managed target keeps the delivery path short and leaves local delivery untouched.
 - Negative: ADR-05 remains blocked until the target is verified; Option A demonstrates Kubernetes less directly than AKS.
 - C-01 Azure manifests wait for this ADR; the rest of C-01 does not.
-- ADR-05 Option D is not viable until the GPU, region, quota and budget evidence recorded here exists.
+- ADR-05 Option D is not viable until the region, quota and budget evidence recorded here exists; GPU capacity is no longer an input after the C17 record of 2026-11-26. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost.
 - A blocked deployment still produces a manifest deliverable and a named R-06 record.
 
 ## Risks and mitigations

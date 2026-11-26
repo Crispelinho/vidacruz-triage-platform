@@ -22,6 +22,7 @@ class RAGResponseTest {
 
 		assertThat(response.answer()).isEqualTo("no existe protocolo disponible");
 		assertThat(response.sources()).isEmpty();
+		assertThat(response.usedModel()).isEqualTo("none");
 		assertThat(response.hasEvidence()).isFalse();
 	}
 
@@ -35,6 +36,15 @@ class RAGResponseTest {
 		assertThat(response.sources()).hasSize(1);
 		assertThat(response.hasEvidence()).isTrue();
 		assertThatThrownBy(() -> response.sources().add(fragment())).isInstanceOf(UnsupportedOperationException.class);
+	}
+
+	@Test
+	void reportsTheExactRespondingNode() {
+		RAGResponse response = new RAGResponse("respuesta", List.of(fragment()), "ollama/llama3.1:8b");
+
+		assertThat(response.usedModel()).isEqualTo("ollama/llama3.1:8b");
+		assertThatThrownBy(() -> new RAGResponse("respuesta", List.of(), " "))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test

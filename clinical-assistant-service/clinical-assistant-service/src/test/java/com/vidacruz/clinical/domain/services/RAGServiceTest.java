@@ -22,6 +22,7 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
@@ -117,7 +118,7 @@ class RAGServiceTest {
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> new RAGService(embeddingProvider, null, llmProvider))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new RAGService(embeddingProvider, vectorStore, null))
+		assertThatThrownBy(() -> new RAGService(embeddingProvider, vectorStore, (LLMRouter) null))
 				.isInstanceOf(NullPointerException.class);
 	}
 

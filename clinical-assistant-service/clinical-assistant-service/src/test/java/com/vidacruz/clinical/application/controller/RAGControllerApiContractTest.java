@@ -47,7 +47,8 @@ class RAGControllerApiContractTest {
 		EvidenceFragment second = EvidenceFragment.create(UUID.randomUUID(), 0, "PROTO-002", "Seguimiento",
 				"otro texto", new float[] { 1f });
 		when(ragService.answer(any(PromptRequest.class)))
-				.thenReturn(Mono.just(new RAGResponse("segun [1] y [2]", List.of(first, second))));
+				.thenReturn(Mono.just(new RAGResponse("segun [1] y [2]", List.of(first, second),
+						"ollama/llama3.1:8b")));
 
 		client.post().uri("/rag").contentType(MediaType.APPLICATION_JSON)
 				.bodyValue("{\"pregunta\":\"q\"}")
@@ -62,6 +63,7 @@ class RAGControllerApiContractTest {
 				.jsonPath("$.citas[0].protocolo").isEqualTo("PROTO-001")
 				.jsonPath("$.citas[1].posicion").isEqualTo(2)
 				.jsonPath("$.citas[1].seccion").isEqualTo("Seguimiento")
+				.jsonPath("$.modelo_usado").isEqualTo("ollama/llama3.1:8b")
 				.jsonPath("$.confianza").doesNotExist()
 				.jsonPath("$..embedding").doesNotExist()
 				.jsonPath("$..content").doesNotExist()
@@ -77,7 +79,8 @@ class RAGControllerApiContractTest {
 				.exchange()
 				.expectStatus().isOk()
 				.expectBody()
-				.jsonPath("$.citas.length()").isEqualTo(0);
+				.jsonPath("$.citas.length()").isEqualTo(0)
+				.jsonPath("$.modelo_usado").isEqualTo("none");
 	}
 
 	@Test

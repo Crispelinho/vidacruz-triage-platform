@@ -2,9 +2,11 @@ package com.vidacruz.clinical.domain.services;
 
 import java.util.Objects;
 
+import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
@@ -24,12 +26,18 @@ public class RAGService {
 
 	private final VectorStore vectorStore;
 
-	private final LLMProvider llmProvider;
+	private final LLMRouter llmRouter;
 
-	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider) {
+	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter) {
 		this.embeddingProvider = Objects.requireNonNull(embeddingProvider, "embeddingProvider");
 		this.vectorStore = Objects.requireNonNull(vectorStore, "vectorStore");
-		this.llmProvider = Objects.requireNonNull(llmProvider, "llmProvider");
+		this.llmRouter = Objects.requireNonNull(llmRouter, "llmRouter");
+	}
+
+	/** Compatibility constructor for a single provider; production wiring uses the resilient router. */
+	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider) {
+		this(embeddingProvider, vectorStore, (LLMRouter) (question, evidence) -> llmProvider
+				.generate(question, evidence).map(answer -> new LLMCompletion("single", "unknown", answer)));
 	}
 
 	public Mono<RAGResponse> answer(PromptRequest request) {
@@ -40,11 +48,11 @@ public class RAGService {
 						// RN-05: no evidence means the fixed notice and no LLM call.
 						return Mono.just(RAGResponse.noEvidence());
 					}
-					return llmProvider.generate(request.question(), fragments)
-							.map(answer -> {
+					return llmRouter.generate(request.question(), fragments)
+							.map(completion -> {
 								// Throws InvalidCitationException when the answer cites evidence that was not retrieved.
-								CitationValidator.resolve(answer, fragments);
-								return new RAGResponse(answer, fragments);
+								CitationValidator.resolve(completion.answer(), fragments);
+								return new RAGResponse(completion.answer(), fragments, completion.usedModel());
 							});
 				});
 	}
