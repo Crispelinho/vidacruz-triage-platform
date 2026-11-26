@@ -9,5 +9,5 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-      - run: cd triage-service && ./gradlew build
-      - run: cd clinical-assistant-service && ./gradlew build
+      - run: cd triage-service/triage-service && ./gradlew build
+      - run: cd clinical-assistant-service/clinical-assistant-service && ./gradlew build
