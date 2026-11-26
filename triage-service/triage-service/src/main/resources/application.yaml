@@ -43,3 +43,4 @@ alerts:
 triage:
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
+    evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL:60000}
