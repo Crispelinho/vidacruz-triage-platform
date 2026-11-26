@@ -38,10 +38,12 @@ class TriageClassifierTest {
 	void rejectsOutOfRangeValuesWithTheFieldName() {
 		assertThatThrownBy(() -> registration(19, 180, 110, 97, 36.8, 8, 15, "Dolor torácico"))
 				.isInstanceOf(InvalidPatientDataException.class)
-				.hasMessageContaining("frecuencia cardíaca");
+				.satisfies(error -> assertThat(((InvalidPatientDataException) error).errors())
+						.anySatisfy(field -> assertThat(field.campo()).isEqualTo("frecuencia_cardiaca")));
 		assertThatThrownBy(() -> registration(72, 180, 185, 97, 36.8, 8, 15, "Dolor torácico"))
 				.isInstanceOf(InvalidPatientDataException.class)
-				.hasMessageContaining("presión diastólica");
+				.satisfies(error -> assertThat(((InvalidPatientDataException) error).errors())
+						.anySatisfy(field -> assertThat(field.campo()).isEqualTo("presion_diastolica")));
 	}
 
 	private static PatientRegistration registration(int heartRate, int systolic, int diastolic, int spo2,
