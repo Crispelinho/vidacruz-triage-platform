@@ -14,6 +14,15 @@ import java.util.UUID;
 @Repository
 public interface OutboxEventoRepository extends R2dbcRepository<OutboxEvento, UUID> {
 
+    Mono<OutboxEvento> findFirstByPacienteIdOrderByPacienteSequenceDesc(UUID pacienteId);
+
+    @Query("UPDATE outbox_evento SET lease_until = :leaseUntil, lease_owner = :leaseOwner " +
+           "WHERE event_id = :eventId AND publicado_en IS NULL " +
+           "AND (lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP)")
+    Mono<Integer> claimLeaseIfAvailable(@Param("eventId") UUID eventId,
+                                        @Param("leaseUntil") OffsetDateTime leaseUntil,
+                                        @Param("leaseOwner") String leaseOwner);
+
     @Query("SELECT * FROM outbox_evento WHERE publicado_en IS NULL " +
            "AND (lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP) " +
            "ORDER BY created_at ASC LIMIT :limit")
