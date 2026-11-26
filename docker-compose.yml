@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  triage-db:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+  assistant-db:
+    image: postgres:16-alpine
+    ports: ["5433:5432"]
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    ports: ["9092:9092"]
+  redis:
+    image: redis:7.2-alpine
+    ports: ["6379:6379"]

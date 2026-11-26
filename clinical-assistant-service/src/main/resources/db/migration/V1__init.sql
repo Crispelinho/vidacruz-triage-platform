@@ -1,0 +1,2 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE documento_clinico (id UUID PRIMARY KEY);
