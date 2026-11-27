@@ -1,4 +1,4 @@
-// Azure resources of VidaCruz, in one resource group: AKS (Gateway API with the application routing add-on and
+﻿// Azure resources of VidaCruz, in one resource group: AKS (Gateway API with the application routing add-on and
 // managed Istio; Microsoft Entra ID sign-in with Azure RBAC and no local accounts), the container registry, PostgreSQL Flexible Server, the public IPs of the cluster and the identity
 // that GitHub Actions uses to deploy (OIDC, no stored keys). Kafka and Redis run inside the cluster (infra/k8s).
 // Deployed by infra/azure/provision.ps1.
@@ -11,8 +11,8 @@ param location string = resourceGroup().location
 @maxLength(12)
 param namePrefix string = 'vidacruz'
 
-@description('Size of the nodes of the cluster. With 4 vCPU one node runs the platform and two replicas of each service.')
-param nodeVmSize string = 'Standard_B4ms'
+@description('Size of the nodes of the cluster. ADR-11 records Standard_B4as_v2 on Azure for Students in northcentralus; override only with an explicitly approved SKU.')
+param nodeVmSize string = 'Standard_B4as_v2'
 
 @description('Nodes of the cluster (a node more needs vCPU quota in the region).')
 @minValue(1)

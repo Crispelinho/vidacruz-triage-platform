@@ -1,11 +1,11 @@
 # ADR-11: Azure target for deployment
 
-- **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires the R-06 artifact in the repository and the ADR-10 support-risk acceptance. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
-- **Date:** 2026-11-25 (amended 2026-11-27)
-- **Delivered artifacts:** [ADR-12](ADR-12-aks-deployment.md) records the AKS manifests and IaC delivered for deliverable 4.
-- **Deciders:** developer; AKS amendment and infrastructure parameters recorded 2026-11-27, ADR acceptance still pending the R-06 repository artifact
+- **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires closing the verification gates below; ADR-10 is still Proposed but its R-02 support-risk decision is recorded in writing. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
+- **Date:** 2026-11-25 (amended 2026-11-27; evidence/gates updated 2026-11-27)
+- **Delivered artifacts:** [ADR-12](ADR-12-aks-deployment.md) records AKS manifests/IaC. [Despliegue en Kubernetes y registro de pruebas](../operations/despliegue-azure-y-pruebas.md) is the in-repo R-06/T-24 execution record for the validated AKS run, including blockers and pending hardening.
+- **Deciders:** developer; AKS amendment and infrastructure parameters recorded 2026-11-27, ADR acceptance still pending verification gates
 - **Scope:** C-01 Azure manifests only. This ADR chooses the Azure compute target. Dockerfiles, docker-compose and CI do not wait for it, as recorded in `adr-roadmap.md` §3.3.
-- **Related:** NFR-13, NFR-14, AMB-11, R-06, G-20, CA-G-18, DEC-12, DEC-13, §14 of [analysis.md](../analysis.md), [ADR-05](ADR-05-assistant-llm-provider.md), T-22, T-23, T-24 in [implementation-roadmap.md](../implementation-roadmap.md)
+- **Related:** NFR-13, NFR-14, AMB-11, R-06, G-20, CA-G-18, DEC-12, DEC-13, §14 of [analysis.md](../analysis.md), [ADR-05](ADR-05-assistant-llm-provider.md), [ADR-12](ADR-12-aks-deployment.md), T-22, T-23, T-24 in [implementation-roadmap.md](../implementation-roadmap.md)
 
 ## Context
 
@@ -60,20 +60,28 @@ AKS is chosen for the three-day evaluation window because it demonstrates Kubern
 
 ## Risks and mitigations
 
-- **R-06 (access or quota):** the Developer/User validation record is not a repository artifact. Deliver manifests first; if access is unavailable, T-24 records the blocker with its evidence.
+- **R-06 (access or quota):** the in-repo execution record exists at `docs/operations/despliegue-azure-y-pruebas.md`, but it documents manual workarounds and pending hardening. Keep it as evidence, not as proof of a fully reproducible unattended deployment.
 - **Budget overrun:** configure the 50 % and 80 % alerts on the Azure for Students subscription and verify them before the evaluation window; the US$100/year value is recorded, not monitored by this ADR.
-- **Regional/SKU availability:** `northcentralus`, `Standard_B4as_v2` and PostgreSQL Flexible `Standard_B1ms` are recorded as validated by the Developer/User; re-check availability before the Azure build rather than inferring it from another subscription.
+- **Regional/SKU availability:** `northcentralus`, `Standard_B4as_v2` and PostgreSQL Flexible `Standard_B1ms` are recorded as validated by the Developer/User; re-check availability before the Azure build rather than inferring it from another subscription. The Bicep default should match the recorded node SKU or require an explicit override.
 - **ADR-05 dependency:** record workload support, region and cost as evidence for ADR-05; do not infer support from documentation for another line. A negative result changes ADR-05, not this ADR automatically.
 - **CA-G-18 (version consistency):** verify the pinned Boot, Spring Cloud and Spring AI versions before the first Azure build under DEC-12.
 - **G-20 (deployment artifacts):** T-22 and T-23 produce the container image and manifests independently of R-06.
-- **NFR-09/NFR-10:** keep credentials in Secret resources and scan the image and repository for committed secrets.
+- **NFR-09/NFR-10:** keep credentials in Secret resources and scan the image and repository for committed secrets. Rotate any credential exposed during validation.
 
 ## Verification
 
-- **T-24:** a deployment URL is available, or a blocker record explicitly names R-06 with the access, quota or region evidence.
-- **T-23:** Kubernetes manifests validate with a schema check and describe the `Standard_B4as_v2` node and `northcentralus` region.
-- **T-22:** `docker compose up` still starts both services locally with PostgreSQL, Kafka, Redis and the webhook mock.
-- **Budget alerts:** the 50 % and 80 % alerts are shown as configured on the Azure for Students subscription.
-- **NFR-14 evidence:** the deployed target is reachable through the documented endpoints.
-- **ADR-05 evidence:** the chosen target is recorded as able or unable to host the model workload in the target region and within budget; the record is an input to ADR-05. Chat GPU capacity is not an input after the C17 record.
-- **Secret scan:** no credential appears in the repository or the image.
+Repository evidence currently present:
+
+- [x] **T-23 manifests/IaC delivered:** Kubernetes manifests and Azure IaC exist in `infra/k8s/`, `infra/azure/`, and service `deployment/k8s/` directories; ADR-12 documents the topology.
+- [x] **R-06/T-24 execution record present:** `docs/operations/despliegue-azure-y-pruebas.md` records the AKS deployment, public HTTPS URL, validation, manual workarounds, and pending hardening. It is repository evidence, but not a clean unattended rerun.
+- [x] **T-22 local stack present:** `docker-compose.yml`, Dockerfiles, and service workflows exist; local/E2E verification remains the separate E2E track.
+
+Pending before formal acceptance:
+
+- [ ] **R-06 reproducible rerun:** rerun `infra/azure/provision.ps1` and `deploy.yml` from current `develop`/target commit with OIDC/RBAC hardening; attach CI run URL/log showing no manual `kubectl scale` workaround.
+- [ ] **IaC/SKU alignment:** align `infra/azure/main.bicep` node default/comment with the recorded `Standard_B4as_v2` decision, or document an explicit approved override; keep PostgreSQL `Standard_B1ms` and `northcentralus` consistent.
+- [ ] **Budget alerts evidence:** show 50 % and 80 % Azure for Students budget alerts configured (screenshot/export/reference), not just recorded.
+- [ ] **Manifest/schema validation evidence:** attach `kubectl apply --dry-run=client`/schema validation output for delivered manifests.
+- [ ] **Secret hygiene:** confirm no credential in repo/image/history; rotate credentials exposed during validation and record rotation without publishing values.
+- [ ] **ADR-10 gate:** ADR-10 remains Proposed until its remaining verification evidence is attached; ADR-11 acceptance should not outrun the platform baseline acceptance.
+- [ ] **ADR-05 target evidence:** record that the chosen AKS target can host the reduced ADR-05 workload in region/budget; chat GPU capacity is not required after C17.
