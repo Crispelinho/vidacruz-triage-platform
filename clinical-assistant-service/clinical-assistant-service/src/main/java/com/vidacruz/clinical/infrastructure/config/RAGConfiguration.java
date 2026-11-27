@@ -59,68 +59,64 @@ class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
 	@Bean
-	VectorRepository evidenceVectorRepository(DataSource dataSource, VectorStoreProperties properties) {
-		return new VectorRepository(JdbcClient.create(dataSource), properties.dimensions());
+	VectorRepository vectorRepository(DataSource dataSource) {
+		return new VectorRepository(JdbcClient.create(dataSource));
 	}
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
 	@Bean
-	VectorStore pgvectorVectorStoreAdapter(VectorRepository evidenceVectorRepository, Scheduler pgvectorJdbcScheduler) {
-		return new PgvectorVectorStoreAdapter(evidenceVectorRepository, pgvectorJdbcScheduler);
+	VectorStore pgvectorStore(VectorRepository repository, Scheduler pgvectorJdbcScheduler) {
+		return new PgvectorVectorStoreAdapter(repository, pgvectorJdbcScheduler);
 	}
 
-	@Bean
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "fixture")
-	VectorStore fixtureVectorStoreAdapter() {
+	@Bean
+	VectorStore fixtureStore() {
 		return new FixtureVectorStoreAdapter();
 	}
 
 	@Bean
-	@ConditionalOnMissingBean(WebClient.Builder.class)
-	WebClient.Builder webClientBuilder() {
-		return WebClient.builder();
+	EmbeddingProvider embeddingProvider() {
+		return new FixtureEmbeddingAdapter();
 	}
 
 	@Bean
-	NamedLLMProvider ollamaNode(WebClient.Builder builder, OllamaProperties properties) {
-		return new OllamaHttpLLMAdapter(builder, properties);
+	NamedLLMProvider ollamaProvider(WebClient.Builder builder, OllamaProperties properties) {
+		return new OllamaHttpLLMAdapter(builder, properties.baseUrl(), properties.chatModel(), properties.embeddingModel(),
+				properties.timeoutSeconds());
 	}
 
 	@Bean
-	NamedLLMProvider geminiNode(WebClient.Builder builder, GeminiProperties properties) {
-		return new GeminiHttpLLMAdapter(builder, properties);
+	NamedLLMProvider geminiProvider(WebClient.Builder builder, GeminiProperties properties) {
+		return new GeminiHttpLLMAdapter(builder, properties.baseUrl(), properties.apiKey(), properties.chatModel(),
+				properties.embeddingModel(), properties.timeoutSeconds());
 	}
 
 	@Bean
-	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
-		return new OpenCodeHttpLLMAdapter(builder, properties);
+	NamedLLMProvider opencodeProvider(WebClient.Builder builder, OpenCodeProperties properties) {
+		return new OpenCodeHttpLLMAdapter(builder, properties.baseUrl(), properties.apiKey(), properties.chatModel(),
+				properties.embeddingModel(), properties.timeoutSeconds());
 	}
 
 	@Bean
-	LLMRouter llmRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry,
-			LLMRouterProperties properties, MeterRegistry meterRegistry) {
-		Map<String, NamedLLMProvider> byKey = providers.stream()
-				.collect(Collectors.toMap(NamedLLMProvider::key, provider -> provider));
+	@ConditionalOnMissingBean(LLMRouter.class)
+	LLMRouter llmRouter(LLMRouterProperties properties, List<NamedLLMProvider> providers,
+			CircuitBreakerRegistry circuitBreakerRegistry, MeterRegistry meterRegistry) {
+		Map<String, NamedLLMProvider> byName = providers.stream()
+				.collect(Collectors.toMap(NamedLLMProvider::name, provider -> provider));
 		List<NamedLLMProvider> ordered = new ArrayList<>();
-		for (String key : properties.providerKeys()) {
-			NamedLLMProvider provider = byKey.get(key);
-			if (provider == null) {
-				throw new IllegalArgumentException("rag.llm.chain names unknown provider: " + key);
+		for (String name : properties.chain()) {
+			NamedLLMProvider provider = byName.get(name);
+			if (provider != null) {
+				ordered.add(provider);
 			}
-			ordered.add(provider);
 		}
-		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry));
+		return new ResilientLLMRouter(ordered, circuitBreakerRegistry, new LlmCallMetrics(meterRegistry),
+				"clinical-assistant");
 	}
 
 	@Bean
-	EmbeddingProvider fixtureEmbeddingAdapter(VectorStoreProperties properties) {
-		return new FixtureEmbeddingAdapter(properties.dimensions());
+	RAGService ragService(VectorStore vectorStore, EmbeddingProvider embeddingProvider, LLMRouter llmRouter) {
+		return new RAGService(vectorStore, embeddingProvider, llmRouter);
 	}
-
-	@Bean
-	RAGService ragService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
-			VectorStoreProperties properties) {
-		return new RAGService(fixtureEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
-	}
-
 }
