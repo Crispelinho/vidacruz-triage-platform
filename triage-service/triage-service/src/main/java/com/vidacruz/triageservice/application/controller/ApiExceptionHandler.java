@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.vidacruz.triageservice.application.dto.ApiError;
 import com.vidacruz.triageservice.domain.exception.InvalidPatientDataException;
+import com.vidacruz.triageservice.domain.exception.InvalidReportRequestException;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
 
@@ -19,6 +20,12 @@ public class ApiExceptionHandler {
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public Mono<ApiError> handleInvalidPatientData(InvalidPatientDataException exception) {
 		return Mono.just(new ApiError("VALIDATION_ERROR", exception.getMessage()));
+	}
+
+	@ExceptionHandler(InvalidReportRequestException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public Mono<ApiError> handleInvalidReportRequest(InvalidReportRequestException exception) {
+		return Mono.just(new ApiError(exception.code(), exception.getMessage(), exception.field()));
 	}
 
 	@ExceptionHandler(InvalidStateTransitionException.class)
