@@ -115,7 +115,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Latencia de proveedor LLM (p95 por desenlace)",
+      "title": "LLM provider latency (p50/p95 by outcome)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
@@ -124,7 +124,12 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(assistant_llm_latency_seconds_bucket[5m])))",
-          "legendFormat": "{{outcome}}"
+          "legendFormat": "p95 {{outcome}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum by (le, outcome) (rate(assistant_llm_latency_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{outcome}}"
         }
       ]
     },
@@ -164,6 +169,112 @@
         "expr": "sum by (application, status) (rate(http_server_requests_seconds_count{status=~\"4..|5..\"}[1m]))",
         "legendFormat": "{{application}} {{status}}"
       }]
+    },
+    {
+      "type": "bargauge",
+      "title": "LLM attempts by outcome (selected range)",
+      "description": "Provider attempts recorded by the failover router, including failures before failover.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum by (outcome) (increase(assistant_llm_latency_seconds_count[$__range]))",
+        "legendFormat": "{{outcome}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka consumer lag by partition",
+      "description": "Lag of the urgency consumer on the canonical patient-events topic.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "max by (partition) (kafka_consumer_fetch_manager_records_lag{topic=\"triaje_eventos\"})",
+        "legendFormat": "partition {{partition}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM heap memory by service",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\"})",
+        "legendFormat": "{{application}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process CPU by service",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "max by (application) (process_cpu_usage)",
+        "legendFormat": "{{application}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL pool connections by service",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (application) (r2dbc_pool_acquired_connections)", "legendFormat": "{{application}} acquired" },
+        { "refId": "B", "expr": "sum by (application) (r2dbc_pool_idle_connections)", "legendFormat": "{{application}} idle" },
+        { "refId": "C", "expr": "sum by (application) (r2dbc_pool_pending_connections)", "legendFormat": "{{application}} pending" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Redis command latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(rate(lettuce_command_completion_seconds_sum[1m])) / clamp_min(sum(rate(lettuce_command_completion_seconds_count[1m])), 1)",
+        "legendFormat": "average command"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p95 by route",
+      "description": "Actuator and docs routes are excluded so the application paths stay readable.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "histogram_quantile(0.95, sum by (le, application, method, uri) (rate(http_server_requests_seconds_bucket{uri!~\"/actuator/.*|/health.*|/prometheus|/v3/api-docs.*|/swagger-ui.*|/webjars.*\"}[5m])))",
+        "legendFormat": "{{application}} {{method}} {{uri}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Escalations and acknowledgements (per minute)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 72 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(triage_patients_escalated_total[1m]))", "legendFormat": "escalated" },
+        { "refId": "B", "expr": "sum(increase(triage_alerts_acknowledged_total[1m]))", "legendFormat": "acknowledged" }
+      ]
     }
   ]
 }
