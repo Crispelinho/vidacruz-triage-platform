@@ -26,7 +26,8 @@ class OutboxEventWriterEnvelopeTest {
         when(repository.save(any(OutboxEvento.class)))
                 .thenAnswer(call -> Mono.just(call.getArgument(0)));
 
-        var writer = new OutboxEventWriter(repository, new ObjectMapper());
+        var writer = new OutboxEventWriter(repository, new ObjectMapper(),
+                io.micrometer.tracing.Tracer.NOOP, io.micrometer.tracing.propagation.Propagator.NOOP);
         var patientId = UUID.randomUUID();
         var event = writer.write(patientId, "EVT_01_PACIENTE_REGISTRADO",
                 Map.of("nivel", "CRITICO", "estado", "REGISTRADO"), Instant.parse("2026-11-26T10:00:00Z"))
