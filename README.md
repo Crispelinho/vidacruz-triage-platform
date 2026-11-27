@@ -68,11 +68,84 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - **RF-04 compatibility alias.** `POST /rag` remains available as a compatibility alias for existing clients; new clients should use `POST /asistente/consulta`.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
-- **No idempotency header.** RF-01 does not yet implement `Idempotency-Key`; replaying a registration creates a new patient.
+- **Idempotent registration is opt-in.** `POST /triage/pacientes` accepts an optional `Idempotency-Key` header: the same key with the same body replays the original `201`, and the same key with a different body returns `409`. Without the header, every call creates a new patient ([ADR-12 (Idempotency)](docs/adr/ADR-12-idempotency-key.md)).
+- **Report range.** `hasta` in `GET /triage/reportes/operacion` is an inclusive calendar day in UTC: the report covers up to the end of that day.
 - **E2E tests.** Local Testcontainers has no usable Docker socket in this environment; CI runs the full suite including PostgreSQL LISTEN/NOTIFY.
 
-## Architecture and decisions
+## Architecture
 
-Spring Boot 3.5.16 / Java 21, Spring WebFlux, R2DBC + Flyway, Kafka with transactional outbox, Redis projections, pgvector. Services own separate databases (ADR-14). See [`docs/adr/`](docs/adr/), [`docs/services/`](docs/services/) and [`docs/requirements.md`](docs/requirements.md).
+Two reactive services that never call each other synchronously. They integrate only through the `triaje.eventos` topic, so the triage service keeps working when the assistant or the LLM is down.
+
+```mermaid
+flowchart LR
+    Client["Nurse / clinician client"]
+    Medical["Medical team<br/>(SSE client)"]
+    subgraph Triage["triage-service (WebFlux, R2DBC)"]
+        TAPI["Triage API<br/>RF-01, RF-02, RF-05"]
+        SLA["SLA evaluator<br/>RF-03, RN-03"]
+        TOUT["Outbox publisher"]
+        ALERTS["Alerts API + SSE stream<br/>RF-06"]
+    end
+    subgraph Assistant["clinical-assistant-service (WebFlux)"]
+        AAPI["Assistant API<br/>RF-04 A, RF-04 B"]
+        PROJ["triaje.eventos consumer"]
+        RAG["RAG + citation validation<br/>RN-05"]
+        CB["Circuit breaker per LLM node<br/>503 degraded mode"]
+    end
+    KAFKA[("Kafka<br/>triaje.eventos")]
+    TPG[("PostgreSQL triage DB<br/>patients, audit, outbox, alerts")]
+    APG[("PostgreSQL + pgvector<br/>assistant DB")]
+    REDIS[("Redis<br/>urgency projection")]
+    LLM["LLM provider chain<br/>Ollama, Gemini, OpenCode"]
+
+    Client --> TAPI
+    Client --> AAPI
+    TAPI -- "patient + audit + outbox row<br/>(one transaction)" --> TPG
+    SLA -- "flag + audit + outbox row + alert<br/>(one transaction)" --> TPG
+    TPG -- "claimed rows" --> TOUT
+    TOUT --> KAFKA
+    TPG -- "pg_notify" --> ALERTS
+    ALERTS -- "SSE" --> Medical
+    KAFKA --> PROJ
+    PROJ --> REDIS
+    AAPI --> REDIS
+    AAPI --> RAG
+    RAG --> APG
+    RAG --> CB
+    CB --> LLM
+```
+
+More views (registration sequence, escalation race guard, state machine, event flow, RAG flow, breaker states) are in [`docs/architecture/diagrams.md`](docs/architecture/diagrams.md).
+
+### Technologies
+
+| Area | Choice |
+|---|---|
+| Runtime | Java 21, Spring Boot 3.5.16, Spring WebFlux, Project Reactor |
+| Persistence | PostgreSQL 16, R2DBC (triage), Flyway; pgvector over JDBC on a bounded scheduler (assistant) |
+| Messaging | Kafka, topic `triaje.eventos`, JSON events with an envelope (`eventType`, `eventId`, `schemaVersion`, `pacienteId`, `pacienteSequence`, `occurredAt`, `correlationId`), keyed by patient id |
+| Projection | Redis with atomic Lua scripts |
+| Resilience | Resilience4j circuit breaker and timeout per LLM node, failover chain, `503 LLM_UNAVAILABLE` fallback |
+| Observability | Actuator health/readiness probes, Micrometer + Prometheus + Grafana, OpenTelemetry traces to Jaeger, structured JSON logs with `correlationId`, `traceId` and `spanId` |
+| Security | `X-API-Key` on every endpoint except health, keys from environment variables |
+| Tests | JUnit 5, Reactor `StepVerifier`, Testcontainers (PostgreSQL, Kafka, pgvector), BlockHound |
+| Deployment | Docker Compose (local), AKS with Kustomize manifests, Bicep IaC, GitHub Actions |
+
+### Key decisions
+
+| Decision | Why | ADR |
+|---|---|---|
+| Two services, integrated only by events | The triage flow must not depend on the assistant or the LLM | [ADR-01](docs/adr/ADR-01-service-decomposition.md) |
+| Transactional outbox | A state change and its event commit together, so no event is lost or invented | [ADR-03](docs/adr/ADR-03-transactional-outbox.md) |
+| Conditional `UPDATE` for escalation | Escalate once (RN-03), even with several replicas evaluating at the same time | [ADR-13](docs/adr/ADR-13-sla-evaluation.md) |
+| RF-06 alerts as persisted rows streamed over SSE | An alert exists if and only if the escalation committed; no external receiver needed | [ADR-15](docs/adr/ADR-15-persisted-sse-alerts.md) |
+| pgvector as vector store | Same PostgreSQL engine; JDBC isolated off the event loop | [ADR-04](docs/adr/ADR-04-pgvector-jdbc-isolation.md) |
+| Citation validation against corpus and retrieved set | RN-05: no answer without a valid source; no LLM call when nothing relevant is retrieved | [ADR-05](docs/adr/ADR-05-assistant-llm-provider.md) |
+| Circuit breaker with 503 degraded mode | A failing LLM yields a clear 503 instead of timeouts | [ADR-09](docs/adr/ADR-09-circuit-breaker-degraded-mode.md) |
+| Redis urgency projection rebuilt from Kafka | RF-04 B without calling the triage API | [ADR-08](docs/adr/ADR-08-urgency-projection-store.md) |
+| API key authentication | Simple service-to-service auth; JWT rejected for this scope | [ADR-07](docs/adr/ADR-07-authentication-api-key.md) |
+| One database per service | Clear data ownership; no shared schema | [ADR-14](docs/adr/ADR-14-database-ownership-one-db-per-service.md) |
+
+The full list, with status and where each decision is implemented, is in [`docs/adr/README.md`](docs/adr/README.md). Services are documented in [`docs/services/`](docs/services/) and requirements in [`docs/requirements.md`](docs/requirements.md).
 
 **Production note:** Boot 3.5.16 reached EOL on 2026-06-30. Production requires commercial Spring support or a migration to Boot 4.1+ (ADR-10).

@@ -6,38 +6,41 @@ Status: **draft for review.** Diagrams are derived from `docs/requirements.md` (
 
 ```mermaid
 flowchart LR
-    Client["Nurse / Clinician client"]
+    Client["Nurse / clinician client"]
+    Medical["Medical team<br/>(SSE client)"]
     subgraph Triage["triage-service (WebFlux, R2DBC)"]
-        TAPI["Triage API<br/>API-01, API-02, API-03, API-06"]
-        SLA["SLA evaluator<br/>RF-03, RN-03"]
-        TOUT["Outbox relayer<br/>(ADR-03)"]
+        TAPI["Triage API<br/>RF-01, RF-02, RF-05"]
+        SLA["SLA evaluator<br/>RF-03, RN-03 (ADR-13)"]
+        TOUT["Outbox publisher<br/>(ADR-03)"]
+        ALERTS["Alerts API + SSE stream<br/>RF-06 (ADR-15)"]
     end
     subgraph Assistant["clinical-assistant-service (WebFlux)"]
-        AAPI["Assistant API<br/>API-04, API-05"]
-        PROJ["Urgency projection consumer<br/>(ADR-08)"]
-        RAG["RAG pipeline<br/>(ADR-04, ADR-05)"]
+        AAPI["Assistant API<br/>RF-04 A, RF-04 B"]
+        PROJ["triaje.eventos consumer<br/>(ADR-02, ADR-08)"]
+        RAG["RAG pipeline + citation validation<br/>RN-05 (ADR-04, ADR-05)"]
+        CB["Circuit breaker per LLM node<br/>503 degraded mode (ADR-09)"]
     end
     KAFKA[("Kafka<br/>triaje.eventos")]
-    TPG[("PostgreSQL<br/>triage DB")]
+    TPG[("PostgreSQL triage DB<br/>patients, audit, outbox, medical_alert")]
     APG[("PostgreSQL + pgvector<br/>assistant DB")]
     REDIS[("Redis<br/>urgency projection")]
-    LLM["LLM provider<br/>(ADR-05, Proposed)"]
-    MED["Medical team alert channel<br/>(RF-06, ADR-06, Proposed)"]
+    LLM["LLM provider chain<br/>Ollama, Gemini, OpenCode"]
 
     Client --> TAPI
     Client --> AAPI
-    TAPI --> TPG
-    SLA --> TPG
-    TPG --> TOUT
+    TAPI -- "patient + audit + outbox row<br/>(one transaction)" --> TPG
+    SLA -- "escalation flag + audit + outbox row<br/>+ medical_alert (one transaction)" --> TPG
+    TPG -- "claimed rows" --> TOUT
     TOUT --> KAFKA
-    SLA --> KAFKA
+    TPG -- "pg_notify" --> ALERTS
+    ALERTS -- "SSE" --> Medical
     KAFKA --> PROJ
     PROJ --> REDIS
     AAPI --> REDIS
     AAPI --> RAG
     RAG --> APG
-    RAG --> LLM
-    KAFKA --> MED
+    RAG --> CB
+    CB --> LLM
     Triage -. "no synchronous call (NFR-04)" .-> Assistant
 ```
 
