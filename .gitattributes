@@ -1,0 +1,4 @@
+# Applies to the root wrapper and the two nested service wrappers copied into Linux images.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary

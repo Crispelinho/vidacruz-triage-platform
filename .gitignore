@@ -1,17 +1,9 @@
-# Compiled class file
+# Java and compiled output
 *.class
 
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Archives
 *.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -19,6 +11,36 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Secrets and local configuration (API keys, credentials)
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
+application-local.*
+
+# Binary and lock files
+*.bin
+*.lock
+
+# Tool state files (not the Gradle wrapper: gradle-wrapper.properties must stay tracked)
+cache.properties
+gc.properties
+
+# Logs and JVM crash dumps
+*.log
 hs_err_pid*
 replay_pid*
+
+# BlueJ
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Build output and IDE state at repository root (services also ignore these in their own .gitignore)
+.gradle/
+build/
+.idea/
+*.iml
+.vscode/

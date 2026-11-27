@@ -1,0 +1,26 @@
+# The workloads of the namespace vidacruz: the platform (Kafka, Redis) and both microservices. infra/azure/deploy.ps1
+# renders it (kubectl kustomize), replaces the __TOKENS__ with the outputs of main.bicep and applies it, with write
+# access to this namespace only. infra/azure/provision.ps1 prepares the rest: the cluster-wide resources (cluster/),
+# the gateway (edge/), the namespace (namespace.yaml) and the public routes (routes/). The secrets are created by
+# deploy.ps1.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vidacruz
+resources:
+  - kafka.yaml
+  - kafka-topic.yaml
+  - redis.yaml
+  - ../../triage-service/deployment/k8s
+  - ../../clinical-assistant-service/deployment/k8s
+patches:
+  - path: kafka-topic-wait-patch.yaml
+    target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/part-of=vidacruz
+images:
+  - name: vidacruz/triage-service
+    newName: __REGISTRY__/triage-service
+    newTag: __IMAGE_TAG__
+  - name: vidacruz/clinical-assistant-service
+    newName: __REGISTRY__/clinical-assistant-service
+    newTag: __IMAGE_TAG__

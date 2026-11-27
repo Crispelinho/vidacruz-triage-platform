@@ -1,0 +1,72 @@
+# Local-only overlay for Docker Desktop Kubernetes and Minikube.
+# It reuses the platform workloads from infra/k8s and replaces every deployment-specific value:
+# local images, local placeholder Secrets, one local PostgreSQL database, and the cluster default StorageClass.
+# No ingress, TLS material, public route or cloud resource is part of this overlay.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vidacruz
+resources:
+  - namespace.yaml
+  - ../../infra/k8s
+  - local-db.yaml
+  - local-jaeger.yaml
+  - local-secrets.yaml
+configMapGenerator:
+  - name: local-db-init
+    files:
+      - init.sql=local-db-init.sql
+images:
+  # The base kustomization renders these two names with placeholder registry and tag values.
+  - name: __REGISTRY__/triage-service
+    newName: triage-service
+    newTag: local
+  - name: __REGISTRY__/clinical-assistant-service
+    newName: clinical-assistant-service
+    newTag: local
+patches:
+  - path: local-config-patch.yaml
+  - path: local-runtime-bindings.yaml
+  - path: local-runtime-secrets.yaml
+  # managed-csi does not exist on a local cluster; omitting the class selects the cluster default.
+  - target:
+      kind: StatefulSet
+      name: kafka
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+  # Docker Desktop hostpath PVCs cannot be chowned by the postgres image under restricted PodSecurity.
+  # Use disposable local storage and keep PGDATA in a subdirectory the entrypoint can create itself.
+  - target:
+      kind: StatefulSet
+      name: local-db
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: data
+          emptyDir: {}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/timeoutSeconds
+        value: 5
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/failureThreshold
+        value: 10
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+        value: 5
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/failureThreshold
+        value: 10

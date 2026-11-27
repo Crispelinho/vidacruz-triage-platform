@@ -1,0 +1,58 @@
+# Creates the only application topic explicitly. auto-create stays disabled on the broker, so a client typo cannot
+# create a topic by accident. A KafkaTopic CR would need Strimzi CRDs; this platform runs the broker as a plain
+# StatefulSet with no operator, so a namespace-scoped Job is the authoritative mechanism. The Job talks only to the
+# broker, uses no API access and therefore needs no ServiceAccount or RBAC beyond the default one.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topic-init
+  labels:
+    app.kubernetes.io/name: kafka-topic-init
+    app.kubernetes.io/part-of: vidacruz
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-topic-init
+        app.kubernetes.io/part-of: vidacruz
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        # appuser of the apache/kafka image, the same broker image used by this Job
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-topic-init
+          image: apache/kafka:3.9.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              attempt=0
+              until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-0.kafka:9092 \
+                --create --if-not-exists --topic triaje.eventos --partitions 3 \
+                --config retention.ms=2592000000 && \
+                /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka-0.kafka:9092 \
+                --alter --entity-type topics --entity-name triaje.eventos \
+                --add-config retention.ms=2592000000; do
+                attempt=$((attempt + 1))
+                if [ "$attempt" -ge 60 ]; then
+                  echo "Topic triaje.eventos was not ready after 5 minutes" >&2
+                  exit 1
+                fi
+                sleep 5
+              done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

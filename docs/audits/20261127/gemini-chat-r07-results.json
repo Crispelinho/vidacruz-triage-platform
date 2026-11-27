@@ -1,0 +1,36 @@
+{
+  "gate": "R-07",
+  "recordedAt": "2026-11-27T18:35:00Z",
+  "stack": "docker compose -f docker-compose.yml -f docker-compose.demo.yml -p vidacruz-e2e --profile ollama",
+  "override": "RAG_LLM_CHAIN=gemini, RAG_LLM_TIMEOUT=600s, GEMINI_API_KEY injected only as an environment variable",
+  "endpoint": "POST /asistente/consulta",
+  "authentication": "X-API-Key",
+  "status": 200,
+  "usedModel": "gemini/gemini-3.5-flash-lite",
+  "responseKeys": ["respuesta", "fuentes", "citas", "modelo_usado"],
+  "hasCitationMarker": true,
+  "sourcesCount": 1,
+  "citationsCount": 1,
+  "wallClockMs": 8239,
+  "applicationLlmLatencySeconds": 7.167916953,
+  "applicationLlmOutcome": "success",
+  "applicationLlmSuccessSamples": 1,
+  "providerTokenProbe": {
+    "purpose": "Independent usageMetadata probe, not the RAG request body",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+    "modelVersion": "gemini-3.5-flash-lite",
+    "promptTokens": 7,
+    "candidateTokens": 1,
+    "totalTokens": 8
+  },
+  "cost": {
+    "status": "not measured",
+    "reason": "No billing API was queried; the documented Gemini free tier for this model carries no per-token charge",
+    "openCodePrepaidCost": "not measured"
+  },
+  "privacy": {
+    "promptInLogs": false,
+    "credentialPatternInLogs": false,
+    "answerStoredInArtifact": false
+  }
+}

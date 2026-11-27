@@ -1,0 +1,169 @@
+{
+  "uid": "vidacruz-nfr07",
+  "title": "VidaCruz — NFR-07 flow and latency",
+  "tags": ["vidacruz", "nfr-07"],
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Pacientes clasificados",
+      "description": "RF-01 registrations in the selected range, by triage level.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(triage_patients_classified_total[$__range]))" }]
+    },
+    {
+      "type": "stat",
+      "title": "Escalados por SLA",
+      "description": "RF-03 escalations in the selected range.",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(triage_patients_escalated_total[$__range]))" }]
+    },
+    {
+      "type": "stat",
+      "title": "Alertas reconocidas",
+      "description": "RF-06 acknowledgements in the selected range.",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(triage_alerts_acknowledged_total[$__range]))" }]
+    },
+    {
+      "type": "stat",
+      "title": "Escalados sin reconocer",
+      "description": "Escalations minus acknowledgements in the selected range, floored at zero.",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{
+        "refId": "A",
+        "expr": "round(clamp_min(sum(increase(triage_patients_escalated_total[$__range])) - sum(increase(triage_alerts_acknowledged_total[$__range])), 0))"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Clasificación y escalado por nivel",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (level) (rate(triage_patients_classified_total[1m]))", "legendFormat": "clasificados {{level}}" },
+        { "refId": "B", "expr": "sum by (level) (rate(triage_patients_escalated_total[1m]))", "legendFormat": "escalados {{level}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Alertas reconocidas por nivel",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (level) (rate(triage_alerts_acknowledged_total[1m]))", "legendFormat": "{{level}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Preguntas respondidas",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"answered\"}[$__range]))" }]
+    },
+    {
+      "type": "stat",
+      "title": "Sin protocolo",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"no_evidence\"}[$__range]))" }]
+    },
+    {
+      "type": "stat",
+      "title": "Modo degradado (503)",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"unavailable\"}[$__range]))" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Desenlace de consultas",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (outcome) (rate(assistant_answers_total[1m]))", "legendFormat": "{{outcome}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latencia de proveedor LLM (p95 por desenlace)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(assistant_llm_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Eventos de urgencia procesados",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (result) (rate(assistant_urgency_events_total[1m]))", "legendFormat": "{{result}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latencia HTTP p95 por servicio",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket[5m])))",
+        "legendFormat": "{{application}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Respuestas HTTP 4xx/5xx por servicio",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum by (application, status) (rate(http_server_requests_seconds_count{status=~\"4..|5..\"}[1m]))",
+        "legendFormat": "{{application}} {{status}}"
+      }]
+    }
+  ]
+}

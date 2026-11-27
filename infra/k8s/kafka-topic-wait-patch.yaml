@@ -1,0 +1,33 @@
+# Init container shared by both service Deployments. It only reads the topic from the broker, so the Job remains the
+# single writer and no service container starts before triaje.eventos exists.
+- op: add
+  path: /spec/template/spec/initContainers
+  value:
+    - name: wait-for-kafka-topic
+      image: apache/kafka:3.9.1
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          attempt=0
+          until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-0.kafka:9092 \
+            --describe --topic triaje.eventos >/dev/null 2>&1; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 60 ]; then
+              echo "Topic triaje.eventos was not created after 5 minutes" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      securityContext:
+        # Same user as the apache/kafka image and the broker, independent of the service container user
+        runAsUser: 1000
+        runAsGroup: 1000
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]

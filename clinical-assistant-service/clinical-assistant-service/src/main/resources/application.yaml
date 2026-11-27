@@ -1,0 +1,123 @@
+spring:
+  application:
+    name: clinical-assistant-service
+  # Observations and trace context must survive Reactor boundaries (NFR-16).
+  reactor:
+    context-propagation: auto
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  flyway:
+    # Flyway owns the schema (ADR-04). Runs over the explicit JDBC DataSource (see JdbcConfiguration).
+    enabled: true
+    locations: classpath:db/migration
+  # ADR-04: this service owns its pgvector adapter (RAGConfiguration). The Spring AI starter would add a second
+  # VectorStore bean and fail startup because it requires an EmbeddingModel that this repo deliberately does not use.
+  autoconfigure:
+    exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+  ai:
+    vectorstore:
+      pgvector:
+        # Mirrors V3__pgvector_evidence_schema.sql. Spring AI must not create or alter the table.
+        initialize-schema: false
+        schema-name: public
+        table-name: evidence_fragments
+        dimensions: ${clinical.vector-store.dimensions}
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
+
+adapters:
+  kafka:
+    patient-events:
+      enabled: ${URGENCY_CONSUMER_ENABLED:true}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      topic: ${PATIENT_EVENTS_TOPIC:triaje.eventos}
+      group-id: ${URGENCY_CONSUMER_GROUP:clinical-assistant-urgency}
+  urgency-state:
+    discharged-retention: ${URGENCY_DISCHARGED_RETENTION:PT24H}
+
+clinical:
+  vector-store:
+    # Definitive pgvector schema dimension (ADR-05, 2026-11-27). Must match vector(N) in the Flyway migration.
+    # LexicalEmbeddingAdapter emits deterministic 768-dim stem-overlap vectors without an external API key;
+    # V6 updates the V4 seed vectors to this adapter. FixtureEmbeddingAdapter remains test-only.
+    dimensions: 768
+    # Lexical stays the default: V4/V6 seed vectors were built with it. Switching to gemini requires a full
+    # re-ingestion with gemini-embedding-2 and the TST-RAG calibration (ADR-05).
+    embedding-provider: ${EMBEDDING_PROVIDER:lexical}
+    # Calibrated on the seeded corpus: PROTO-001 ~= 0.29, PROTO-002 ~= 0.31, unmatched query <= 0.14 (ADR-05).
+    relevance-threshold: 0.20
+    scheduler:
+      # Bounded pool isolating blocking pgvector JDBC calls from the event loop (ADR-04, NFR-01).
+      thread-cap: 4
+      queued-task-cap: 100
+  resilience:
+    # Per-node circuit breaker (ADR-09, C17 developer record). Each chain node gets its own instance.
+    llm-circuit-breaker:
+      sliding-window-size: 10
+      minimum-number-of-calls: 10
+      failure-rate-threshold: 50
+      slow-call-rate-threshold: 100
+      slow-call-duration-threshold: 20s
+      wait-duration-in-open-state: 30s
+      permitted-calls-in-half-open-state: 3
+
+rag:
+  llm:
+    # C17: ordered failover chain and one timeout per node. No retry against the same node.
+    chain: ${RAG_LLM_CHAIN:ollama,gemini,opencode}
+    timeout: 15s
+
+ollama:
+  url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: llama3.1:8b
+  timeout: 15s
+  fixture:
+    # Used only by tests that must not call the network.
+    latency: 1200ms
+
+gemini:
+  base-url: https://generativelanguage.googleapis.com/v1beta/models
+  # Stable Gemini model, available in Google AI Studio Free Tier; chosen over the deprecated gemini-2.5-flash (ADR-05).
+  model: gemini-3.5-flash-lite
+  api-key: ${GEMINI_API_KEY:}
+  embedding:
+    # Current embeddings API: gemini-embedding-2 has no task_type parameter, so retrieval prefixes are sent in the text.
+    base-url: ${GEMINI_EMBEDDING_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
+    model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-2}
+    api-key: ${GEMINI_API_KEY:}
+    dimensions: ${clinical.vector-store.dimensions}
+    task-prefixes: true
+
+opencode:
+  url: https://opencode.ai/inference/openai/v1/chat/completions
+  # OpenCode inference is prepaid, not free (C17 record).
+  model: glm-5.3
+  api-key: ${OPENCODE_API_KEY:}
+
+assistant:
+  # Local/demo default only. Override ASSISTANT_API_KEY outside localhost (ADR-07).
+  api-key: ${ASSISTANT_API_KEY:test-assistant-key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    # Fixed buckets let the dashboards compute a p95 per route (NFR-07).
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  # W3C traceparent is the Spring Boot default. Span export is enabled only when
+  # MANAGEMENT_OTLP_TRACING_ENDPOINT is set (local Jaeger); logs always carry traceId/spanId.
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}

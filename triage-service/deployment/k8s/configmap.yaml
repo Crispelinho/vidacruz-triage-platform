@@ -1,0 +1,30 @@
+# Runtime and connection configuration of triage-service. Secrets are created by infra/azure/deploy.ps1 from the
+# "azure" GitHub environment. __DB_HOST__ is replaced with the Azure PostgreSQL FQDN at deploy time.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-service-config
+data:
+  SERVER_PORT: "8081"
+  TRACING_SAMPLING_PROBABILITY: "1.0"
+  # Azure Database for PostgreSQL requires TLS. The password comes from triage-service-secrets.
+  R2DBC_URL: r2dbc:postgresql://__DB_HOST__:5432/triage?sslMode=require
+  # Flyway runs over JDBC; the password is injected from triage-service-secrets in the Deployment.
+  SPRING_DATASOURCE_URL: jdbc:postgresql://__DB_HOST__:5432/triage?sslmode=require
+  SPRING_DATASOURCE_USERNAME: triage_admin
+  TRIAGE_DB_USER: triage_admin
+  KAFKA_BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+  TRIAGE_EVENTS_TOPIC: triaje.eventos
+  OUTBOX_PUBLISHER_ENABLED: "true"
+  OUTBOX_BATCH_SIZE: "100"
+  OUTBOX_LEASE_SECONDS: "30"
+  OUTBOX_PUBLISH_INTERVAL_MS: "5000"
+  TRIAGE_SLA_EVALUATION_ENABLED: "true"
+  TRIAGE_SLA_EVALUATION_INTERVAL_MS: "15000"
+  SLA_CRITICO_MINUTES: "5"
+  SLA_URGENTE_MINUTES: "10"
+  SLA_URGENTE_2_MINUTES: "30"
+  SLA_NO_URGENTE_MINUTES: "60"
+  SLA_NO_URGENTE_2_MINUTES: "120"
+  REPORT_MAX_RANGE: P31D
+  ALERTS_HEARTBEAT_INTERVAL: 15s

@@ -1,0 +1,20 @@
+# Local-only runtime bindings. The base ConfigMaps target Azure PostgreSQL and the Compose-only Jaeger service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clinical-assistant-service-config
+data:
+  # The R2DBC starter is on the classpath even though Flyway uses JDBC; both URLs must be present.
+  SPRING_R2DBC_URL: r2dbc:postgresql://local-db:5432/assistant
+  SPRING_R2DBC_USERNAME: triage_admin
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-service-config
+data:
+  # JdbcConfiguration needs a local JDBC URL so Flyway runs; the base value contains the Azure host token.
+  SPRING_DATASOURCE_URL: jdbc:postgresql://local-db:5432/triage
+  SPRING_DATASOURCE_USERNAME: triage_admin
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces

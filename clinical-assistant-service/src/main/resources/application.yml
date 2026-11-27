@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: clinical-assistant-service
+  webflux:
+    base-path: /api
+  r2dbc:
+    url: r2dbc:postgresql://assistant-db:5432/vidacruz_assistant
+  data:
+    redis:
+      host: redis
+      port: 6379
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,readiness

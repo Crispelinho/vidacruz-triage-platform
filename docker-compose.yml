@@ -1,0 +1,224 @@
+name: vidacruz-triage-platform
+
+# Local evaluation stack only. No Azure resources and no public URL are involved.
+# Start with: docker compose up -d --build
+services:
+  triage-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vidacruz_triage
+      POSTGRES_USER: triage_app
+      POSTGRES_PASSWORD: ${TRIAGE_DB_PASSWORD:-triage_local}
+    ports:
+      - "${TRIAGE_DB_PORT:-5432}:5432"
+    volumes:
+      - triage-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triage_app -d vidacruz_triage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  assistant-db:
+    # pgvector image is required by V3__pgvector_evidence_schema.sql (CREATE EXTENSION vector).
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vidacruz_assistant
+      POSTGRES_USER: assistant_app
+      POSTGRES_PASSWORD: ${ASSISTANT_DB_PASSWORD:-assistant_local}
+    ports:
+      - "${ASSISTANT_DB_PORT:-5433}:5432"
+    volumes:
+      - assistant-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assistant_app -d vidacruz_assistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    environment:
+      # cp-kafka's KRaft entrypoint requires a cluster ID; without it the broker exits before listening.
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # 30 days, matching the AKS broker and the triaje.eventos topic config
+      KAFKA_LOG_RETENTION_HOURS: "720"
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      # The CLI JVM can take longer than 10s to start on a loaded host; a short timeout marks a healthy broker down.
+      timeout: 30s
+      retries: 12
+
+  # Idempotent topic creation with the same client image as the broker. The services wait for this one-shot container.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -c
+      - |
+        attempt=0
+        until kafka-topics --bootstrap-server kafka:29092 \
+          --create --if-not-exists --topic triaje.eventos --partitions 3 \
+          --config retention.ms=2592000000 && \
+          kafka-configs --bootstrap-server kafka:29092 --alter \
+          --entity-type topics --entity-name triaje.eventos \
+          --add-config retention.ms=2592000000; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 60 ]; then
+            echo "Topic triaje.eventos was not ready" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # NFR-16: local trace collector and UI. Both services export OTLP/HTTP here; no cloud backend.
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    ports:
+      - "${JAEGER_PORT:-16686}:16686"
+
+  # NFR-07: local metrics UI. The scraper sends the demo API keys because both actuators are protected (ADR-07).
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin-local}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/vidacruz.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+
+  triage-service:
+    build:
+      context: ./triage-service/triage-service
+      dockerfile: Dockerfile
+    depends_on:
+      triage-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "${TRIAGE_PORT:-8081}:8080"
+    environment:
+      R2DBC_URL: r2dbc:postgresql://triage-db:5432/vidacruz_triage
+      TRIAGE_DB_USER: triage_app
+      TRIAGE_DB_PASSWORD: ${TRIAGE_DB_PASSWORD:-triage_local}
+      # Flyway needs JDBC; JdbcConfiguration only activates when spring.datasource.url is present.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://triage-db:5432/vidacruz_triage
+      SPRING_DATASOURCE_USERNAME: triage_app
+      SPRING_DATASOURCE_PASSWORD: ${TRIAGE_DB_PASSWORD:-triage_local}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      TRIAGE_EVENTS_TOPIC: triaje.eventos
+      TRIAGE_API_KEY: ${TRIAGE_API_KEY:-test-triage-key}
+      OUTBOX_PUBLISHER_ENABLED: "true"
+      TRIAGE_SLA_EVALUATION_ENABLED: "true"
+      SLA_CRITICO_MINUTES: ${SLA_CRITICO_MINUTES:-1}
+      SLA_URGENTE_MINUTES: ${SLA_URGENTE_MINUTES:-1}
+      SLA_URGENTE_2_MINUTES: ${SLA_URGENTE_2_MINUTES:-2}
+      SLA_NO_URGENTE_MINUTES: ${SLA_NO_URGENTE_MINUTES:-5}
+      SLA_NO_URGENTE_2_MINUTES: ${SLA_NO_URGENTE_2_MINUTES:-5}
+      ALERTS_HEARTBEAT_INTERVAL: 15s
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1}
+
+  clinical-assistant-service:
+    build:
+      context: ./clinical-assistant-service/clinical-assistant-service
+      dockerfile: Dockerfile
+    depends_on:
+      assistant-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "${ASSISTANT_PORT:-8082}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://assistant-db:5432/vidacruz_assistant
+      SPRING_DATASOURCE_USERNAME: assistant_app
+      SPRING_DATASOURCE_PASSWORD: ${ASSISTANT_DB_PASSWORD:-assistant_local}
+      # The R2DBC starter is still on the classpath for DatabaseClient-based tests; give it the same database.
+      SPRING_R2DBC_URL: r2dbc:postgresql://assistant-db:5432/vidacruz_assistant
+      SPRING_R2DBC_USERNAME: assistant_app
+      SPRING_R2DBC_PASSWORD: ${ASSISTANT_DB_PASSWORD:-assistant_local}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PATIENT_EVENTS_TOPIC: triaje.eventos
+      URGENCY_CONSUMER_ENABLED: "true"
+      ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-test-assistant-key}
+      RAG_LLM_CHAIN: ${RAG_LLM_CHAIN:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1}
+
+  # Optional: real Ollama chat LLM for RF-04. The model must be pulled explicitly.
+  # Embeddings stay fixture-backed until ADR-05 selects a real embedding model.
+  # Without the chat model, the RAG endpoint demonstrates the 503 degraded-mode notice.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  triage-db-data:
+  assistant-db-data:
+  ollama-data:
+  prometheus-data:
