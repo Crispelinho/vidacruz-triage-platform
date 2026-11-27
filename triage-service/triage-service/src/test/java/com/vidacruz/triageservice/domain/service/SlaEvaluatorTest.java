@@ -2,6 +2,7 @@ package com.vidacruz.triageservice.domain.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,6 +25,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.domain.model.AlertStatus;
+import com.vidacruz.triageservice.domain.model.MedicalAlert;
+import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -47,6 +52,9 @@ class SlaEvaluatorTest {
 	private OutboxEventWriter eventWriter;
 
 	@Mock
+	private MedicalAlertRepository alertRepository;
+
+	@Mock
 	private TransactionalOperator transactionalOperator;
 
 	private SlaEvaluator evaluator;
@@ -54,7 +62,9 @@ class SlaEvaluatorTest {
 	@BeforeEach
 	@SuppressWarnings("unchecked")
 	void setUp() {
-		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, transactionalOperator);
+		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
+				transactionalOperator);
+		lenient().when(alertRepository.create(any(MedicalAlert.class))).thenReturn(Mono.empty());
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 	}
@@ -81,6 +91,11 @@ class SlaEvaluatorTest {
 						&& PatientLifecycleService.REGISTERED.equals(entry.nextStatus())));
 		verify(eventWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
 				any(Instant.class));
+		verify(alertRepository).create(argThat(alert -> alert.patientId().equals(patientId)
+				&& alert.level() == TriageLevel.CRITICO
+				&& alert.status() == AlertStatus.PENDIENTE
+				&& alert.responsible() == null
+				&& alert.waitMinutes().compareTo(BigDecimal.valueOf(6.00)) >= 0));
 	}
 
 	@Test

@@ -12,6 +12,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
+import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -41,15 +42,18 @@ public class PatientLifecycleService {
 	private final PatientRepository patientRepository;
 	private final AuditEntryRepository auditRepository;
 	private final OutboxEventWriter eventWriter;
+	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
 
 	public PatientLifecycleService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,
+			MedicalAlertRepository alertRepository,
 			TransactionalOperator transactionalOperator) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
+		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
 	}
 
@@ -90,7 +94,9 @@ public class PatientLifecycleService {
 				.then(auditRepository.save(new AuditEntryEntity(
 						UUID.randomUUID(), patient.id(), changedAt, previousStatus,
 						requestedStatus, auditType)))
-				.then(eventWriter.write(patient.id(), eventType, payload, changedAt));
+				.then(eventWriter.write(patient.id(), eventType, payload, changedAt))
+				// Entering consultation or discharge retires the alert in the same transaction (RF-06, DER-03).
+				.then(alertRepository.resolveForPatient(patient.id(), changedAt));
 
 		return transactionalOperator.transactional(atomicWrite)
 				.thenReturn(toResponse(patient, changedAt, changedAt, requestedStatus));
