@@ -69,8 +69,10 @@ if (-not $SkipBuild) {
     Invoke-Native az acr login --name $outputs.registryName.value
     foreach ($service in $services) {
         $image = "$registry/${service}:$ImageTag"
-        $context = Join-Path $repositoryRoot $service
-        Invoke-Native docker build --file (Join-Path $context 'deployment/Dockerfile') --tag $image $context
+        $serviceRoot = Join-Path $repositoryRoot $service
+        $context = Join-Path $serviceRoot $service
+        $dockerfile = Join-Path $serviceRoot 'deployment/Dockerfile'
+        Invoke-Native docker build --file $dockerfile --tag $image $context
         Invoke-Native docker push $image
     }
 }
