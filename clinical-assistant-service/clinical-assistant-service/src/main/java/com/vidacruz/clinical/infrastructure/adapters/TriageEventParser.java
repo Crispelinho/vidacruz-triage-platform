@@ -10,24 +10,28 @@ import com.vidacruz.clinical.domain.model.urgency.TriageLevel;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
+import static java.util.Map.entry;
+
 /**
- * Reads the outbox payload published by the triage service on {@code triaje.eventos}. The envelope fields are added by
- * the triage when it publishes the row; the Kafka record key is used as a fallback for older messages.
+ * Reads the outbox payload published by the triage service on {@code triaje.eventos}. Envelope fields may be flat at
+ * the root or nested under {@code payload}; the Kafka record key is a fallback for older messages.
  */
 final class TriageEventParser {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    // The published envelope uses these wire names (see docs/requirements.md and the event-driven spec).
-    // The EVT-0x labels are documentation identifiers, not values carried by triaje.eventos.
-    private static final Set<String> PATIENT_EVENTS = Set.of(
-            "paciente_registrado",
-            "paciente_escalado",
-            "paciente_en_consulta",
-            "paciente_alta");
+    private static final Map<String, PatientStatus> PATIENT_EVENTS = Map.ofEntries(
+            entry("paciente_registrado", PatientStatus.REGISTRADO),
+            entry("paciente_escalado", PatientStatus.REGISTRADO),
+            entry("paciente_en_consulta", PatientStatus.EN_CONSULTA),
+            entry("paciente_alta", PatientStatus.ALTA),
+            entry("EVT_01_PACIENTE_REGISTRADO", PatientStatus.REGISTRADO),
+            entry("EVT_02_PACIENTE_ESCALADO", PatientStatus.REGISTRADO),
+            entry("EVT_03_PACIENTE_EN_CONSULTA", PatientStatus.EN_CONSULTA),
+            entry("EVT_04_PACIENTE_ALTA", PatientStatus.ALTA));
 
     private TriageEventParser() {
     }
@@ -36,14 +40,13 @@ final class TriageEventParser {
     static Optional<PatientSnapshot> parse(String message, String recordKey) {
         try {
             var event = JSON.readTree(message == null ? "" : message);
-            var eventType = wireType(event == null ? "" : event.path("eventType").asText());
-            if (!PATIENT_EVENTS.contains(eventType)) {
+            var status = event == null ? null : PATIENT_EVENTS.get(field(event, "eventType").asText());
+            if (status == null) {
                 return Optional.empty();
             }
             var patientId = text(event, "pacienteId", false)
                     .map(UUID::fromString)
                     .orElseGet(() -> UUID.fromString(requireKey(recordKey)));
-            var status = status(eventType);
             var level = text(event, "nivel", status == PatientStatus.REGISTRADO)
                     .map(TriageLevel::fromCode);
             return Optional.of(new PatientSnapshot(
@@ -57,28 +60,14 @@ final class TriageEventParser {
         }
     }
 
-    /** Accepts the legacy EVT-0x codes so older topics and existing tests keep working. */
-    private static String wireType(String eventType) {
-        return switch (eventType) {
-            case "EVT_01_PACIENTE_REGISTRADO" -> "paciente_registrado";
-            case "EVT_02_PACIENTE_ESCALADO" -> "paciente_escalado";
-            case "EVT_03_PACIENTE_EN_CONSULTA" -> "paciente_en_consulta";
-            case "EVT_04_PACIENTE_ALTA" -> "paciente_alta";
-            default -> eventType;
-        };
-    }
-
-    private static PatientStatus status(String eventType) {
-        return switch (eventType) {
-            case "paciente_registrado", "paciente_escalado" -> PatientStatus.REGISTRADO;
-            case "paciente_en_consulta" -> PatientStatus.EN_CONSULTA;
-            case "paciente_alta" -> PatientStatus.ALTA;
-            default -> throw new IllegalArgumentException("Unknown event type " + eventType);
-        };
+    /** Flat envelope fields win over the legacy nested payload when both are present. */
+    private static JsonNode field(JsonNode event, String name) {
+        var value = event.path(name);
+        return value.isMissingNode() || value.isNull() ? event.path("payload").path(name) : value;
     }
 
     private static Optional<String> text(JsonNode event, String name, boolean required) {
-        var value = event.path(name);
+        var value = field(event, name);
         if (!value.isTextual() || value.asText().isBlank()) {
             if (required) {
                 throw new IllegalArgumentException("The event has no " + name);
@@ -105,7 +94,7 @@ final class TriageEventParser {
     }
 
     private static long sequence(JsonNode event) {
-        var value = event.path("pacienteSequence");
+        var value = field(event, "pacienteSequence");
         if (!value.isNumber() || value.asLong() < 1) {
             throw new IllegalArgumentException("The event has no valid pacienteSequence");
         }

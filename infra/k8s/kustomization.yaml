@@ -8,9 +8,15 @@ kind: Kustomization
 namespace: vidacruz
 resources:
   - kafka.yaml
+  - kafka-topic.yaml
   - redis.yaml
   - ../../triage-service/deployment/k8s
   - ../../clinical-assistant-service/deployment/k8s
+patches:
+  - path: kafka-topic-wait-patch.yaml
+    target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/part-of=vidacruz
 images:
   - name: vidacruz/triage-service
     newName: __REGISTRY__/triage-service

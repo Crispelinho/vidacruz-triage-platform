@@ -87,17 +87,17 @@ An offset or `Z` is mandatory and the range cannot exceed 90 days; a wider range
 
 ## 5. RF-04 — assistant (provider-dependent)
 
-The implemented path is `POST /rag`; API-04 documents `/asistente/consulta` but the controller has not been aligned yet.
+The canonical path is `POST /asistente/consulta`; `POST /rag` is kept as a compatibility alias.
 
 ```bash
-curl -sS -X POST http://localhost:8082/rag \
+curl -sS -X POST http://localhost:8082/asistente/consulta \
   -H 'X-API-Key: test-assistant-key' -H 'Content-Type: application/json' \
   -H 'X-Correlation-Id: demo-001' \
   -d '{"pregunta":"¿Cuáles son las medidas iniciales ante una crisis hipertensiva?"}'
 curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-assistant-key'
 ```
 
-With no reachable provider, `/rag` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. To exercise a real answer, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
+With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. To exercise a real answer, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
 
 ## 6. Auth negatives
 
@@ -153,7 +153,7 @@ The `k8s/local` bundle was applied to Docker Desktop Kubernetes (`kubeadm v1.34.
 - NFR-16: Jaeger's `/api/traces/{traceID}` showed spans from both `triage-service` and `clinical-assistant-service`; `triaje.eventos receive` is a child of the triage request span.
 - `/rag` returned the documented `503 LLM_UNAVAILABLE` because no provider/Ollama is deployed in this overlay.
 
-Three production defects were found and fixed while running this overlay: `SlaEvaluator` skipped the alert/outbox/audit writes because an R2DBC `UPDATE` completes empty; `OutboxPublisher` stopped permanently on a `Flux.interval` backpressure overflow and then never sent because it trusted that same empty count; and `TriageEventParser` expected `EVT_0x_*` labels instead of the published wire names, so the assistant discarded every event. The fixes are covered by the unit suites (extended where needed) and were re-verified in the cluster.
+Three production defects surfaced while running this overlay: `SlaEvaluator` skipped the alert/outbox/audit writes because an R2DBC `UPDATE` completes empty; `OutboxPublisher` stopped permanently on a `Flux.interval` backpressure overflow and then never sent because it trusted that same empty count; and `TriageEventParser` expected `EVT_0x_*` labels instead of the published wire names, so the assistant discarded every event. The SLA and outbox fixes are retained in this branch. The parser contract was fixed independently on `develop` (#89), so this branch keeps the regression test for the published wire names and re-verifies the runtime behavior in the cluster.
 
 ## Scope boundary
 

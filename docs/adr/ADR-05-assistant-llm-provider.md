@@ -1,9 +1,9 @@
 # ADR-05: LLM provider, framework and embedding model for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. This is the canonical ADR-05 since 2026-11-27; `ADR-05-llm-provider-spring-ai.md` is superseded by this document. The C17 chat chain (2026-11-26), the definitive 768-dimension schema, OD-16 prompt privacy and the hybrid implementation were recorded by the Developer/User on 2026-11-27. Formal acceptance, provider availability, calibration, cost and test evidence remain open.
+- **Status:** Proposed. Not accepted. This is the canonical ADR-05 since 2026-11-27; `ADR-05-llm-provider-spring-ai.md` is superseded by this document. The C17 chat chain (2026-11-26), the definitive 768-dimension schema, OD-16 prompt privacy, the hybrid implementation and the lexical embedding baseline were recorded on 2026-11-27. Formal acceptance, real-provider availability, cost and the remaining test evidence are still open.
 - **Date:** 2026-11-25 (consolidated and amended 2026-11-27)
 - **Deciders:** developer; provider chain recorded 2026-11-26, embeddings/privacy/framework amendment recorded 2026-11-27, ADR acceptance still pending verification
-- **Scope:** Choice of the chat route, the framework abstraction and the embedding model behind the Clinical Assistant for C-06. This ADR does not choose the Azure compute target (ADR-11), the vector store access model (ADR-04), the breaker values (ADR-09) or the relevance gate and citation validation (RN-05, R-10).
+- **Scope:** Choice of the chat route, the framework abstraction and the embedding model behind the Clinical Assistant for C-06. This ADR does not choose the Azure compute target (ADR-11), the vector store access model (ADR-04), the breaker values (ADR-09) or the relevance gate and citation validation mechanics (RN-05, R-10); it records the embedding-specific threshold used by those gates.
 - **Related:** DEC-06, DEC-07, DEC-12, AMB-11, AMB-15, AMB-16, NFR-01, NFR-03, NFR-14, R-03, R-04, R-05, R-06, R-10, CA-G-01, CA-G-02, CA-G-05, CA-G-16, CA-G-22, TST-RXN, TST-RAG, OD-5 (clinical retention of `EventoHistorico`, unchanged) and OD-16 (prompt privacy, recorded 2026-11-27) in [clinical-assistant-service.md](../services/clinical-assistant-service.md) and [requirements.md](../requirements.md)
 
 ## Context
@@ -44,7 +44,7 @@ This is a framework comparison, not a second provider list. Official documentati
 
 ## Decision
 
-**Proposed: Option D for the embedding route**, with the chat route governed by the C17 record below. The chat model and the embedding model are evaluated separately; they do not have to use the same hardware, latency budget or cost. ADR-11 records whether the chosen compute target can host the required workload in the target region and within quota and budget; ADR-05 uses that record and cannot be accepted without it. A negative record changes this route, not ADR-11 automatically.
+**Proposed: Option D for the embedding route**, with the chat route governed by the C17 record below. The implemented interim baseline is the deterministic `LexicalEmbeddingAdapter` recorded below; it is not Option D and does not satisfy the real-model verification gates. The chat model and the embedding model are evaluated separately; they do not have to use the same hardware, latency budget or cost. ADR-11 records whether the chosen compute target can host the required workload in the target region and within quota and budget; ADR-05 uses that record and cannot be accepted without it. A negative record changes this route, not ADR-11 automatically.
 
 Spring AI 1.1.1 is pinned by DEC-12. Static inspection identifies `spring.ai.ollama.base-url`, `spring.ai.ollama.chat.options.model` and `spring.ai.ollama.embedding.options.model` as the primary keys. `spring.ai.ollama.embedding.model` is an alias. `spring.ai.model.chat=ollama` and `spring.ai.model.embedding=ollama` are optional in 1.1.1 because the autoconfigurations use `matchIfMissing = true`; set them explicitly if more than one provider is on the classpath. The removed 1.0 keys `spring.ai.ollama.chat.enabled` and `spring.ai.ollama.embedding.enabled` must not be used. `EmbeddingModel` is the intended production abstraction; the earlier draft's `EmbeddingClient` name and generic `spring.ai.provider` property are not part of this decision. These keys come from static artifact inspection and are not claimed as the effective runtime configuration.
 
@@ -70,14 +70,14 @@ This record removes the **Azure GPU requirement** from the ADR-05 chat workload:
 
 | Parameter | Recorded value | Implementation evidence |
 |---|---|---|
-| Vector dimension | **768, definitive for the pgvector schema** | `VectorStoreProperties.java:14`, `application.yaml:40`, `V3__pgvector_evidence_schema.sql` |
-| `top-k` | **4** (`DEFAULT_TOP_K`) | `PromptRequest.java:18`; `RAGRequestDTO.java:19` always builds the request with that value, so it is not exposed as a request field |
-| Base relevance threshold | **0.0**, overridable per request via `umbral_relevancia` | `VectorStoreProperties.java:15`, `RAGService.java:57-66` |
-| Embedding provider | **`FixtureEmbeddingAdapter` remains active** until a real model is implemented | `RAGConfiguration.java:115-118` |
+| Vector dimension | **768, definitive for the pgvector schema** | `VectorStoreProperties.java`, `application.yaml`, `V3__pgvector_evidence_schema.sql` |
+| `top-k` | **4** (`DEFAULT_TOP_K`) | `PromptRequest.java`; `RAGRequestDTO.java` always builds the request with that value, so it is not exposed as a request field |
+| Base relevance threshold | **0.20**, overridable per request via `umbral_relevancia` | `VectorStoreProperties.java`, `RAGService.java`, `application.yaml` |
+| Embedding provider | **`LexicalEmbeddingAdapter` in production**: accent-stripped, stopword-filtered stem overlap hashed into 768 dimensions; no external API key. `FixtureEmbeddingAdapter` is test-only | `RAGConfiguration.java`, `LexicalEmbeddingAdapter.java`, `V6__lexical_seed_embeddings.sql` |
 | Candidate real models | `nomic-embed-text` (Ollama) or `text-embedding-004` (768 dimensions) | Not wired in the current code |
-| Calibration | Threshold and `top-k` to be calibrated under TST-RAG | Not executed |
+| Calibration | Lexical baseline: Q1 ~= 0.29, Q2 ~= 0.31, Q3 <= 0.14; threshold 0.20 with `top-k` 4 | `SeededCorpusRn05Test.java` against the V4/V5 seeded corpus in pgvector |
 
-The earlier proposal of an initial 0.70 threshold is **not adopted**; the base remains 0.0 until TST-RAG calibration with the real embedding model. "Definitive" applies to the schema dimension, not to a claim that the real embedding model is implemented or validated. Changing the model still requires re-ingestion and a migration.
+The earlier proposal of an initial 0.70 threshold is **not adopted**. The 0.20 value is calibrated for the lexical adapter only and is not evidence for a real semantic model; TST-RAG with the real model still requires its own calibration. "Definitive" applies to the schema dimension, not to a claim that the real embedding model is implemented or validated. Changing the model still requires re-ingestion and a migration.
 
 ### OD-16 — prompt privacy (Developer decision recorded 2026-11-27)
 
@@ -95,7 +95,7 @@ The Developer/User explicitly amends the framework route above to keep the dedic
 | Layer | What is actually in place | Why |
 |---|---|---|
 | Vector persistence and retrieval | `springAiVersion = 1.1.1` with `spring-ai-starter-vector-store-pgvector`. Flyway owns the schema through migrations V3/V4. The active adapter is `PgvectorVectorStoreAdapter` over the repository's own `VectorRepository` (`JdbcClient`); synchronous JDBC calls run inside `Mono.fromCallable(...).subscribeOn(pgvectorJdbcScheduler)` on the dedicated `Schedulers.newBoundedElastic(4, 100, "pgvector-jdbc")` | Keeps pgvector behind the reactive `VectorStore` port and off the Netty event loop (NFR-01, ADR-04). Using custom JDBC rather than `PgVectorStore` is an implementation detail of that adapter |
-| Embeddings | `EmbeddingModel` is the intended Spring AI abstraction for the future real model; today the bean is `FixtureEmbeddingAdapter` | Allows tests without network calls; a real model must isolate its blocking `call()` on a bounded scheduler |
+| Embeddings | `EmbeddingModel` is the intended Spring AI abstraction for the future real model; today the bean is `LexicalEmbeddingAdapter`, with `FixtureEmbeddingAdapter` reserved for wiring tests | Deterministic stem-overlap retrieval with no network or API key; a real model must isolate its blocking `call()` on a bounded scheduler |
 | Chat inference | `OllamaHttpLLMAdapter`, `GeminiHttpLLMAdapter` and `OpenCodeHttpLLMAdapter` implement `NamedLLMProvider` with `Mono<String>` and share `GroundedPrompt`. `ResilientLLMRouter` returns `LLMCompletion` and protects each provider with `Mono.timeout(...)` plus Resilience4j `CircuitBreakerOperator` and metrics; no `ChatClient` and no `TimeLimiterOperator` | Chosen over Spring AI `ChatClient` to avoid heterogeneous-provider autoconfiguration collisions and keep exact control over each provider's JSON payload, headers and timeouts while staying non-blocking. `ChatClient.call()` is synchronous, but `ChatClient.prompt().stream().content()` returns a `Flux<String>`; "ChatClient is always blocking" is therefore **not** the reason for this amendment |
 | Domain | `RAGService`, ports and models have no Spring AI or provider SDK dependency | Clean architecture: adding or replacing a chain node does not change clinical logic or the RN-05 gates |
 
@@ -106,7 +106,7 @@ This is a design intent to avoid blocking on the event loop, not a claim that Bl
 - `clinical-assistant-service/clinical-assistant-service/build.gradle.kts:20,35,55` pins Spring AI 1.1.1 through the BOM and includes the pgvector starter.
 - The chat chain is implemented with dedicated `WebClient` adapters selected by `rag.llm.chain` and wrapped by `ResilientLLMRouter` with per-node breakers and timeouts; it does **not** use Spring AI `ChatClient`. The 2026-11-27 amendment above records this as the accepted development route for this ADR draft.
 - `application.yaml:59-80` uses custom `ollama.*`, `gemini.*` and `opencode.*` keys, not the Spring AI `spring.ai.ollama.*` keys listed above. Those ADR keys come from static artifact inspection; no runtime spike has confirmed them as effective.
-- Embeddings are still provided by `FixtureEmbeddingAdapter`. The 768 schema dimension is definitive; `top-k` is 4 and the base threshold is 0.0, both as recorded above. No real embedding model or calibration has been recorded.
+- Embeddings in production are provided by `LexicalEmbeddingAdapter`; V6 updates the V4 seed vectors to that adapter. The 768 schema dimension is definitive; `top-k` is 4 and the calibrated lexical threshold is 0.20. No real semantic embedding model has been wired.
 - `docker-compose.yml:166-175` defines an optional `ollama` service under the `ollama` profile and defaults the Assistant to `http://ollama:11434`; that is a local/demo path. The C17 record identifies the first node as an already-owned Ollama endpoint reached through Cloudflare Tunnel via `OLLAMA_BASE_URL`. Neither observation records the Azure deployment target; ADR-11 now records the AKS parameters.
 - No runtime configuration spike, real-provider evaluation, BlockHound run, TST-RAG calibration or R-06 repository artifact has been recorded.
 
@@ -115,7 +115,7 @@ This is a design intent to avoid blocking on the event loop, not a claim that Bl
 - The vector dimension is fixed at 768 in the schema; changing the embedding model requires full re-ingestion and a migration. This is a recorded decision, not evidence that a real embedding model works.
 - Under the C17 record, GPU capacity is **not** an Azure deployment dependency for the chat node: Ollama runs on hardware the Developer/User already owns and is reached through a Cloudflare Tunnel. The cloud nodes remain external dependencies; if all three nodes fail, the Assistant returns `503 LLM_UNAVAILABLE` per NFR-03 and ADR-09 and Triage is unaffected. Provider availability is recorded as a metric, never as a readiness gate, and LLM-dependent endpoints recover automatically when a provider returns (developer decision, 2026-11-25).
 - Only the first chat node is local. OD-16 authorizes nodes 2 and 3 to receive the grounded prompt under the zero-PII rule; `contexto_paciente` is not forwarded. Full perimeter containment is not claimed, and the free-text question remains the residual PII surface until an automated control exists. OD-5 is unchanged.
-- Tests keep a mocked model (DEC-06). Threshold calibration needs the real model in the test environment, not in unit tests.
+- Tests keep a mocked model (DEC-06). The lexical threshold is calibrated against the seeded corpus with a deterministic adapter; a real model still needs its own calibration in the test environment.
 - The framework deviation is resolved by the recorded amendment; it does not waive TST-RXN.
 - If ADR-11 cannot host the workload, this ADR must be updated before any provider route is accepted.
 
@@ -125,7 +125,7 @@ This is a design intent to avoid blocking on the event loop, not a claim that Bl
 - **R-05 (version drift):** pin Spring AI 1.1.1 under DEC-12 and run the runtime spike before relying on static configuration findings.
 - **R-06 (Azure access or quota):** ADR-11 now records AKS and its SKU/region values as Developer/User-validated; the repository still has no R-06 evidence artifact. Do not treat the amendment as that artifact.
 - **R-07 (Gemini runtime verification):** `gemini-3.5-flash-lite` is the stable, active replacement recorded by the Developer/User and is available in the Google AI Studio Free Tier ([official model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)); the earlier `gemini-2.5-flash` deprecation caveat no longer applies to the configured model. The endpoint and id still have to be verified at runtime, and latency and cost measured, before acceptance.
-- **R-10 (relevance and citations):** calibrate threshold and `top-k` per embedding model under CA-G-02 and AMB-16; the base 0.0 is not a calibrated value.
+- **R-10 (relevance and citations):** calibrate threshold and `top-k` per embedding model under CA-G-02 and AMB-16; 0.20 is calibrated for the lexical baseline only and must be recalibrated for a real semantic model.
 - **CA-G-05 (failure classification):** `503 LLM_UNAVAILABLE` for open-circuit and timeout cases; 429 and 5xx classification is in ADR-09.
 - **CA-G-22 (readiness):** keep the proposed startup check separate from runtime readiness.
 - **OD-16 / CA-G-16 (prompt privacy):** send only question plus retrieved fragments to cloud nodes; never include patient identifiers in `pregunta`. No automated scrubber exists, so the rule depends on prompt authoring and test review. OD-5 is unaffected.
@@ -139,10 +139,10 @@ The following are acceptance gates, not completed evidence. None has been record
 - **Runtime configuration spike:** start the pinned stack and confirm that the custom `ollama.*`, `gemini.*` and `opencode.*` keys are effective; the `spring.ai.ollama.*` keys remain static-inspection findings only.
 - **Framework reconciliation:** closed by the 2026-11-27 amendment that keeps the dedicated `WebClient` adapters. Reopen only if the runtime spike contradicts the non-blocking design.
 - **TST-RXN:** BlockHound detects a blocking call made directly from a reactor thread and accepts the pgvector path through the bounded scheduler, with positive and negative controls, covering both vector retrieval and the WebClient chain. Execution requires separate authorization.
-- **TST-RAG:** PROTO-001 and PROTO-002 return the expected content with the mandatory citation. PROTO-003 uses only the unambiguous probes: 4 % mild, 6.5 % moderate, 9 % severe, and 4 % with altered mental status as severe. The proposed pass rule is five out of five runs per probe, fixed before the run.
-- **Negative query:** a question without a matching protocol returns the fixed notice with no clinical content (RN-05.3).
+- **TST-RAG:** PROTO-001 and PROTO-002 return the expected content with the mandatory citation. PROTO-003 uses only the unambiguous probes: 4 % mild, 6.5 % moderate, 9 % severe, and 4 % with altered mental status as severe. The proposed pass rule is five out of five runs per probe, fixed before the run. `SeededCorpusRn05Test` records the deterministic lexical-baseline outcomes for Q1, Q2 and the diabetes negative query; it does not close the five-run real-provider gate.
+- **Negative query:** a question without a matching protocol returns the fixed notice with no clinical content (RN-05.3); the seeded-corpus test also asserts that no LLM node is called.
 - **ADR-11 evidence:** repository artifact showing that the recorded AKS target can host the workload in `northcentralus` within the Azure for Students budget; the Developer/User validation record is not a substitute for that artifact.
-- **Calibration:** with the real embedding model (`nomic-embed-text` or `text-embedding-004`), record the calibrated threshold and `top-k` from TST-RAG. The base 0.0 and `top-k` 4 are starting values, not accepted results.
+- **Calibration:** 0.20 and `top-k` 4 are recorded for the lexical adapter from the seeded corpus. Calibration with the real embedding model (`nomic-embed-text` or `text-embedding-004`) remains open and must be recorded from TST-RAG before this ADR can be accepted.
 - **Real-provider evidence:** verify the `gemini-3.5-flash-lite` endpoint and id at runtime for the account; measure per-node latency and cost and record the OpenCode prepaid cost.
 - **OD-16 control review:** confirm in tests that `contexto_paciente` never reaches the LLM payload and that no patient identifiers appear in the `pregunta` sent to cloud nodes. Decide whether an automated scrubber is required.
 - No ADR in this line is accepted until these verifications pass and the developer approves the result. Consolidation of the two draft documents does not record acceptance.

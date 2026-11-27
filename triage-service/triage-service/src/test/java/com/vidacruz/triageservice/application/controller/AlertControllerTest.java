@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -18,12 +19,15 @@ import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.server.WebFilter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
@@ -32,6 +36,7 @@ import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.service.AcknowledgeAlertUseCase;
 import com.vidacruz.triageservice.domain.service.ListActiveAlertsUseCase;
 import com.vidacruz.triageservice.domain.service.WatchAlertsUseCase;
+import com.vidacruz.triageservice.infrastructure.security.ApiKeyAuthenticationFilter;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -39,10 +44,10 @@ import reactor.test.StepVerifier;
 
 @WebFluxTest(controllers = AlertController.class)
 @TestPropertySource(properties = "alerts.stream.heartbeat=100ms")
-@Import({ ListActiveAlertsUseCase.class, AcknowledgeAlertUseCase.class, WatchAlertsUseCase.class,
-		AlertControllerTest.TestSecurity.class })
+@Import({ ListActiveAlertsUseCase.class, AcknowledgeAlertUseCase.class, AlertControllerTest.TestSecurity.class })
 class AlertControllerTest {
 
+	private static final String API_KEY = "test-alert-key";
 	private static final Instant NOW = Instant.parse("2026-11-26T10:00:00Z");
 
 	@MockitoBean
@@ -51,25 +56,34 @@ class AlertControllerTest {
 	@MockitoBean
 	private TriageMetrics metrics;
 
+	@MockitoBean
+	private WatchAlertsUseCase watchAlerts;
+
 	@Autowired
 	private WebTestClient client;
 
-	@Autowired
-	private AlertController controller;
-
 	@Test
-	void streamsTheActiveSnapshotAndHeartbeats() {
-		when(repository.changes()).thenReturn(Flux.never());
-		when(repository.findActive()).thenReturn(Flux.just(alert(UUID.randomUUID(), AlertStatus.PENDIENTE)));
+	void streamsTheActiveSnapshotAndHeartbeatsOverHttp() {
+		when(watchAlerts.watch()).thenReturn(Flux.just(alert(UUID.randomUUID(), AlertStatus.PENDIENTE)));
 
-		StepVerifier.withVirtualTime(controller::stream)
-				.expectSubscription()
-				.expectNextMatches(event -> "alerta".equals(event.event())
-						&& "CRITICO".equals(event.data().level()))
-				.thenAwait(Duration.ofMillis(100))
-				.expectNextMatches(event -> "latido".equals(event.comment()))
-				.thenCancel()
-				.verify();
+		StepVerifier.create(client.get()
+				.uri("/triage/alertas/stream")
+				.header("X-API-Key", API_KEY)
+				.exchange()
+				.expectStatus().isOk()
+				.expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+				.returnResult(byte[].class)
+				.getResponseBody()
+				.takeUntil(frame -> new String(frame, StandardCharsets.UTF_8).contains(":latido"))
+				.map(bytes -> new String(bytes, StandardCharsets.UTF_8))
+				.reduce("", String::concat))
+				.assertNext(body -> assertThat(body)
+						.contains("event:alerta")
+						.contains("\"nivel\":\"CRITICO\"")
+						.contains(":latido")
+						.doesNotContain("\"nombre\"")
+						.doesNotContain("\"motivo\""))
+				.verifyComplete();
 	}
 
 	@Test
@@ -85,6 +99,7 @@ class AlertControllerTest {
 		when(repository.findActive()).thenReturn(Flux.just(alert(UUID.randomUUID(), AlertStatus.PENDIENTE)));
 
 		client.get().uri("/triage/alertas")
+				.header("X-API-Key", API_KEY)
 				.exchange()
 				.expectStatus().isOk()
 				.expectBody()
@@ -103,6 +118,7 @@ class AlertControllerTest {
 		when(repository.findById(id)).thenReturn(Mono.just(alert(id, AlertStatus.RECONOCIDA)));
 
 		client.post().uri("/triage/alertas/{id}/reconocimiento", id)
+				.header("X-API-Key", API_KEY)
 				.bodyValue(new com.vidacruz.triageservice.application.dto.AcknowledgeAlertRequest("Dra. Pérez"))
 				.exchange()
 				.expectStatus().isOk()
@@ -114,6 +130,7 @@ class AlertControllerTest {
 	@Test
 	void rejectsAShortResponsibleWithTRG004() {
 		client.post().uri("/triage/alertas/{id}/reconocimiento", UUID.randomUUID())
+				.header("X-API-Key", API_KEY)
 				.bodyValue(new com.vidacruz.triageservice.application.dto.AcknowledgeAlertRequest("no"))
 				.exchange()
 				.expectStatus().isBadRequest()
@@ -125,6 +142,7 @@ class AlertControllerTest {
 	@Test
 	void rejectsANonUuidIdWithTRG004() {
 		client.post().uri("/triage/alertas/{id}/reconocimiento", "not-a-uuid")
+				.header("X-API-Key", API_KEY)
 				.bodyValue(new com.vidacruz.triageservice.application.dto.AcknowledgeAlertRequest("Dra. Pérez"))
 				.exchange()
 				.expectStatus().isBadRequest()
@@ -140,6 +158,7 @@ class AlertControllerTest {
 		when(repository.findById(id)).thenReturn(Mono.empty());
 
 		client.post().uri("/triage/alertas/{id}/reconocimiento", id)
+				.header("X-API-Key", API_KEY)
 				.bodyValue(new com.vidacruz.triageservice.application.dto.AcknowledgeAlertRequest("Dra. Pérez"))
 				.exchange()
 				.expectStatus().isNotFound()
@@ -157,6 +176,11 @@ class AlertControllerTest {
 	@TestConfiguration
 	@EnableConfigurationProperties(AlertStreamProperties.class)
 	static class TestSecurity {
+
+		@Bean
+		WebFilter apiKeyAuthenticationFilter(ObjectMapper objectMapper) {
+			return new ApiKeyAuthenticationFilter(API_KEY, objectMapper);
+		}
 
 		@Bean
 		SecurityWebFilterChain permitAll(ServerHttpSecurity http) {

@@ -79,12 +79,13 @@ spec:
               value: "1"
             - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
               value: "0"
-            # Topics are created by their owner service (triage-service), never by a typo in a client
+            # Topics are created explicitly by kafka-topic-init, never by a typo in a client
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
               value: "false"
-            # 7 days, the retention the assistant counts on to rebuild its projection
+            # 30 days, the documented replay window the assistant uses to rebuild its projection. triaje.eventos
+            # also sets retention.ms explicitly, so it does not depend on this broker default.
             - name: KAFKA_LOG_RETENTION_HOURS
-              value: "168"
+              value: "720"
             # A subfolder: the root of the disk has lost+found, which Kafka would take for a partition
             - name: KAFKA_LOG_DIRS
               value: /var/lib/kafka/data/kraft

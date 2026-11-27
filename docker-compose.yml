@@ -50,7 +50,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # 30 days, matching the AKS broker and the triaje.eventos topic config
+      KAFKA_LOG_RETENTION_HOURS: "720"
     ports:
       - "${KAFKA_PORT:-9092}:9092"
     healthcheck:
@@ -58,6 +60,30 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+
+  # Idempotent topic creation with the same client image as the broker. The services wait for this one-shot container.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -c
+      - |
+        attempt=0
+        until kafka-topics --bootstrap-server kafka:29092 \
+          --create --if-not-exists --topic triaje.eventos --partitions 3 \
+          --config retention.ms=2592000000 && \
+          kafka-topics --bootstrap-server kafka:29092 \
+          --alter --topic triaje.eventos --partitions 3 --config retention.ms=2592000000; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 60 ]; then
+            echo "Topic triaje.eventos was not ready" >&2
+            exit 1
+          fi
+          sleep 2
+        done
 
   redis:
     image: redis:7.2-alpine
@@ -113,6 +139,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "${TRIAGE_PORT:-8081}:8080"
     environment:
@@ -144,6 +172,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "${ASSISTANT_PORT:-8082}:8080"
     environment:
