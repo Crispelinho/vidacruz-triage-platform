@@ -85,14 +85,18 @@ $tokens = @{
 # The secrets first, so they exist before the pods that read them
 Set-Secret 'redis-auth' @{ REDIS_PASSWORD = $secrets.REDIS_PASSWORD }
 Set-Secret 'triage-service-secrets' @{
-    TRIAGE_API_KEY    = $secrets.TRIAGE_API_KEY
-    TRIAGE_DB_PASSWORD = $secrets.POSTGRES_PASSWORD
+    TRIAGE_API_KEY             = $secrets.TRIAGE_API_KEY
+    TRIAGE_DB_PASSWORD         = $secrets.POSTGRES_PASSWORD
+    SPRING_DATASOURCE_PASSWORD = $secrets.POSTGRES_PASSWORD
+    SPRING_R2DBC_PASSWORD      = $secrets.POSTGRES_PASSWORD
 }
 Set-Secret 'clinical-assistant-service-secrets' @{
-    ASSISTANT_API_KEY   = $secrets.ASSISTANT_API_KEY
-    ASSISTANT_DB_PASSWORD = $secrets.POSTGRES_PASSWORD
-    GEMINI_API_KEY      = $secrets.GEMINI_API_KEY
-    OPENCODE_API_KEY    = $secrets.OPENCODE_API_KEY
+    ASSISTANT_API_KEY          = $secrets.ASSISTANT_API_KEY
+    ASSISTANT_DB_PASSWORD      = $secrets.POSTGRES_PASSWORD
+    SPRING_DATASOURCE_PASSWORD = $secrets.POSTGRES_PASSWORD
+    SPRING_R2DBC_PASSWORD      = $secrets.POSTGRES_PASSWORD
+    GEMINI_API_KEY             = $secrets.GEMINI_API_KEY
+    OPENCODE_API_KEY           = $secrets.OPENCODE_API_KEY
 }
 
 Send-Manifest (Get-RenderedManifests (Join-Path $repositoryRoot 'infra/k8s') $tokens)
