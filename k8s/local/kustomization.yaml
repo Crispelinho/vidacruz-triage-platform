@@ -9,6 +9,7 @@ resources:
   - namespace.yaml
   - ../../infra/k8s
   - local-db.yaml
+  - local-jaeger.yaml
   - local-secrets.yaml
 configMapGenerator:
   - name: local-db-init
@@ -24,6 +25,8 @@ images:
     newTag: local
 patches:
   - path: local-config-patch.yaml
+  - path: local-runtime-bindings.yaml
+  - path: local-runtime-secrets.yaml
   # managed-csi does not exist on a local cluster; omitting the class selects the cluster default.
   - target:
       kind: StatefulSet
@@ -37,3 +40,33 @@ patches:
     patch: |-
       - op: remove
         path: /spec/volumeClaimTemplates/0/spec/storageClassName
+  # Docker Desktop hostpath PVCs cannot be chowned by the postgres image under restricted PodSecurity.
+  # Use disposable local storage and keep PGDATA in a subdirectory the entrypoint can create itself.
+  - target:
+      kind: StatefulSet
+      name: local-db
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: data
+          emptyDir: {}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/timeoutSeconds
+        value: 5
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/failureThreshold
+        value: 10
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+        value: 5
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/failureThreshold
+        value: 10
