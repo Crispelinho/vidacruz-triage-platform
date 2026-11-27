@@ -3,6 +3,7 @@ package com.vidacruz.clinical.application.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +70,20 @@ class RAGControllerTest {
 				.jsonPath("$..content").doesNotExist();
 
 		assertThat(answers("answered")).isEqualTo(1.0d);
+	}
+
+	@Test
+	void canonicalConsultationPathServesTheSameContract() {
+		when(ragService.answer(any(PromptRequest.class))).thenReturn(Mono.just(RAGResponse.noEvidence()));
+
+		client.post().uri("/asistente/consulta").contentType(MediaType.APPLICATION_JSON)
+				.bodyValue(new RAGRequestDTO("medidas ante crisis hipertensiva"))
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$.respuesta").isEqualTo("no existe protocolo disponible");
+
+		verify(ragService).answer(any(PromptRequest.class));
 	}
 
 	@Test

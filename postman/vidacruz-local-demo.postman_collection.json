@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "VidaCruz local demo (RF-01..RF-06)",
-    "description": "Local-only demo against docker compose. Set the environment variables in postman/vidacruz-local.postman_environment.json. E1-E6 are the six specification examples. RF-04 uses the implemented /rag path; API-04 still documents /asistente/consulta.",
+    "description": "Local-only demo against docker compose. Set the environment variables in postman/vidacruz-local.postman_environment.json. E1-E6 are the six specification examples. RF-04 uses the canonical /asistente/consulta path; /rag is a compatibility alias.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -155,10 +155,17 @@
       "name": "05 - RF-04 assistant",
       "item": [
         {
-          "name": "Ask (implemented path /rag)",
+          "name": "Ask (POST /asistente/consulta)",
           "request": { "method": "POST", "header": [
             { "key": "X-API-Key", "value": "{{assistantKey}}" }, { "key": "Content-Type", "value": "application/json" },
             { "key": "X-Correlation-Id", "value": "demo-001" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"pregunta\": \"¿Cuáles son las medidas iniciales ante una crisis hipertensiva?\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{assistantBase}}/asistente/consulta" } }
+        },
+        {
+          "name": "Ask via compatibility alias (POST /rag)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{assistantKey}}" }, { "key": "Content-Type", "value": "application/json" },
+            { "key": "X-Correlation-Id", "value": "demo-002" }
           ], "body": { "mode": "raw", "raw": "{\n  \"pregunta\": \"¿Cuáles son las medidas iniciales ante una crisis hipertensiva?\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{assistantBase}}/rag" } }
         },
         {
