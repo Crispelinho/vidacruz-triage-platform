@@ -8,12 +8,14 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
@@ -39,6 +41,7 @@ public class SlaEvaluator {
 	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
 	private final Clock clock;
+	private final TriageMetrics metrics;
 
 	public SlaEvaluator(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
@@ -46,12 +49,28 @@ public class SlaEvaluator {
 			MedicalAlertRepository alertRepository,
 			TransactionalOperator transactionalOperator,
 			Clock clock) {
+		this(patientRepository, auditRepository, eventWriter, alertRepository, transactionalOperator, clock, new TriageMetrics() {
+			@Override public void patientClassified(TriageLevel level) {}
+			@Override public void patientEscalated(TriageLevel level) {}
+			@Override public void alertAcknowledged(TriageLevel level) {}
+		});
+	}
+
+	@Autowired
+	public SlaEvaluator(PatientRepository patientRepository,
+			AuditEntryRepository auditRepository,
+			OutboxEventWriter eventWriter,
+			MedicalAlertRepository alertRepository,
+			TransactionalOperator transactionalOperator,
+			Clock clock,
+			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
 		this.clock = clock;
+		this.metrics = metrics;
 	}
 
 	/** Returns the number of patients escalated by this run. */

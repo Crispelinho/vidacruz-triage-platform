@@ -27,6 +27,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
@@ -66,8 +67,7 @@ class SlaEvaluatorTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, metrics,
-				Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC));
+				transactionalOperator, Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC), metrics);
 		lenient().when(alertRepository.create(any(MedicalAlert.class))).thenReturn(Mono.empty());
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
@@ -82,7 +82,7 @@ class SlaEvaluatorTest {
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), patientId, "paciente_escalado", "{}", Instant.now())));
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_escalado", "{}", patientId, 2, java.time.OffsetDateTime.now(), UUID.randomUUID())));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isEqualTo(1))
