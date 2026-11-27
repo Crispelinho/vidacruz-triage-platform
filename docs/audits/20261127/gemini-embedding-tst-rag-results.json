@@ -1,0 +1,261 @@
+{
+  "generatedAt" : "2026-11-27T17:52:22.354250509Z",
+  "endpoint" : "https://generativelanguage.googleapis.com/v1beta/models",
+  "model" : "gemini-embedding-2",
+  "dimensions" : 768,
+  "topK" : 4,
+  "runsPerProbe" : 5,
+  "calibrationTarget" : 0.65,
+  "runtimeThresholdUnchanged" : 0.2,
+  "cost" : {
+    "basis" : "Not measured: no billing API was queried; only request and character counts are recorded",
+    "embeddingRequestsAfterSeeding" : 37,
+    "inputCharactersAfterSeeding" : 3687
+  },
+  "probes" : [ {
+    "protocol" : "PROTO-001",
+    "probe" : "medidas-iniciales",
+    "question" : "¿Cuáles son las medidas iniciales ante una crisis hipertensiva?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-001",
+      "topScore" : 0.8265300289709112,
+      "latencyMs" : 230,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-001",
+      "topScore" : 0.8265300289709112,
+      "latencyMs" : 283,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-001",
+      "topScore" : 0.8265300289709112,
+      "latencyMs" : 252,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-001",
+      "topScore" : 0.8265300289709112,
+      "latencyMs" : 353,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-001",
+      "topScore" : 0.8265300289709112,
+      "latencyMs" : 217,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  }, {
+    "protocol" : "PROTO-002",
+    "probe" : "primer-antibiotico",
+    "question" : "¿Cuándo se administra el primer antibiótico en sepsis?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-002",
+      "topScore" : 0.747346006887521,
+      "latencyMs" : 207,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-002",
+      "topScore" : 0.747346006887521,
+      "latencyMs" : 216,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-002",
+      "topScore" : 0.747346006887521,
+      "latencyMs" : 230,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-002",
+      "topScore" : 0.747346006887521,
+      "latencyMs" : 206,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-002",
+      "topScore" : 0.747346006887521,
+      "latencyMs" : 235,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  }, {
+    "protocol" : "PROTO-003",
+    "probe" : "leve-4",
+    "question" : "Deshidratación pediatrica con perdida de peso del 4 % sin vomito, ¿como se clasifica y rehidrata?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8380755765167857,
+      "latencyMs" : 248,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8380755765167857,
+      "latencyMs" : 207,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8380755765167857,
+      "latencyMs" : 248,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8380755765167857,
+      "latencyMs" : 267,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8380755765167857,
+      "latencyMs" : 226,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  }, {
+    "protocol" : "PROTO-003",
+    "probe" : "moderada-6-5",
+    "question" : "Deshidratación pediatrica con perdida de peso del 6,5 % sin vomito, ¿como se clasifica y rehidrata?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8400169587074725,
+      "latencyMs" : 224,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8400169587074725,
+      "latencyMs" : 215,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8400169587074725,
+      "latencyMs" : 216,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8400169587074725,
+      "latencyMs" : 303,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8400169587074725,
+      "latencyMs" : 272,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  }, {
+    "protocol" : "PROTO-003",
+    "probe" : "severa-9",
+    "question" : "Deshidratación pediatrica con perdida de peso del 9 %, ¿como se clasifica y rehidrata?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8366766723999836,
+      "latencyMs" : 260,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8366766723999836,
+      "latencyMs" : 198,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8366766723999836,
+      "latencyMs" : 199,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8366766723999836,
+      "latencyMs" : 203,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8366766723999836,
+      "latencyMs" : 199,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  }, {
+    "protocol" : "PROTO-003",
+    "probe" : "alterado-4",
+    "question" : "Deshidratación pediatrica con perdida de peso del 4 % y alteracion del estado mental, ¿como se clasifica y rehidrata?",
+    "runs" : [ {
+      "run" : 1,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8405421125727445,
+      "latencyMs" : 213,
+      "passed" : true
+    }, {
+      "run" : 2,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8405421125727445,
+      "latencyMs" : 219,
+      "passed" : true
+    }, {
+      "run" : 3,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8405421125727445,
+      "latencyMs" : 203,
+      "passed" : true
+    }, {
+      "run" : 4,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8405421125727445,
+      "latencyMs" : 210,
+      "passed" : true
+    }, {
+      "run" : 5,
+      "topProtocol" : "PROTO-003",
+      "topScore" : 0.8405421125727445,
+      "latencyMs" : 316,
+      "passed" : true
+    } ],
+    "passedRuns" : 5,
+    "passed" : true
+  } ],
+  "answerChecks" : {
+    "PROTO-001" : {
+      "hasEvidence" : true,
+      "sources" : [ "PROTO-001" ],
+      "passesCitationGate" : true,
+      "llmCalled" : true
+    },
+    "PROTO-002" : {
+      "hasEvidence" : true,
+      "sources" : [ "PROTO-002" ],
+      "passesCitationGate" : true,
+      "llmCalled" : true
+    }
+  },
+  "negativeQuery" : {
+    "question" : "¿Cuál es el tratamiento de primera línea para la diabetes tipo 2?",
+    "topScore" : 0.5842159437489688,
+    "noEvidence" : true,
+    "answerIsFixedNotice" : true,
+    "llmCalled" : false
+  },
+  "minPositiveTopScore" : 0.747346006887521,
+  "finishedAt" : "2026-11-27T17:52:30.466116781Z"
+}
