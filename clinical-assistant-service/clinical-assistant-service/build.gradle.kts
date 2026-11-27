@@ -22,6 +22,9 @@ extra["springCloudVersion"] = "2025.0.3"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	// Micrometer Observation to OpenTelemetry bridge; OTLP export is enabled only where the endpoint is configured.
+	implementation("io.micrometer:micrometer-tracing-bridge-otel")
+	implementation("io.opentelemetry:opentelemetry-exporter-otlp")
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
 	implementation("org.springframework.boot:spring-boot-starter-jdbc")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
