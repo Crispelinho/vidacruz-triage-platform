@@ -36,8 +36,11 @@ adapters:
 clinical:
   vector-store:
     # Definitive pgvector schema dimension (ADR-05, 2026-11-27). Must match vector(N) in the Flyway migration.
-    # The real embedding model is still pending; FixtureEmbeddingAdapter remains active (G-01).
+    # LexicalEmbeddingAdapter emits deterministic 768-dim stem-overlap vectors without an external API key;
+    # V6 updates the V4 seed vectors to this adapter. FixtureEmbeddingAdapter remains test-only.
     dimensions: 768
+    # Calibrated on the seeded corpus: PROTO-001 ~= 0.29, PROTO-002 ~= 0.31, unmatched query <= 0.14 (ADR-05).
+    relevance-threshold: 0.20
     scheduler:
       # Bounded pool isolating blocking pgvector JDBC calls from the event loop (ADR-04, NFR-01).
       thread-cap: 4

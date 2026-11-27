@@ -5,15 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
-import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 
 /**
- * Port-level expectations for {@link EmbeddingProvider}, checked on the fixture. A real provider (ADR-05) must pass
- * the same: finite values, stable dimension, deterministic for equal text.
+ * Port-level expectations for {@link EmbeddingProvider}, checked on the production lexical adapter: finite values,
+ * stable dimension, deterministic for equal text.
  */
 class EmbeddingProviderContractTest {
 
-	private final EmbeddingProvider provider = new FixtureEmbeddingAdapter(768);
+	private final EmbeddingProvider provider = new LexicalEmbeddingAdapter(768);
 
 	@Test
 	void everyEmbeddingHasTheSameDimensionAndOnlyFiniteValues() {
