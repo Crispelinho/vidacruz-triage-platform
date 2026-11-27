@@ -73,7 +73,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 ## 3. Endpoints
 
 ### 3.1 Cross-cutting rules
-- **Authentication:** `X-API-Key` header validated by a WebFlux filter on all `/triage/**` (DEC-05, NFR-10). Missing or wrong key → 401. Actuator probes are public (NFR-05, D1 §9).
+- **Authentication (implemented):** every path except `/actuator/health[/**]` and `/health[/**]` requires the `X-API-Key` header (ADR-07, DEC-05, NFR-10). The key comes from `TRIAGE_API_KEY` (local default `test-triage-key`); comparison is constant-time. Missing or wrong key → 401 with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}` and the same id in `X-Correlation-Id`. Spring Security's generated basic-auth chain is disabled. Browsers cannot set this header with `EventSource`; use streaming `fetch` or a backend proxy for RF-06 SSE.
 - **Correlation:** `X-Correlation-Id` is read or generated, returned in responses, written to logs and propagated to Kafka headers (NFR-06, DER-07).
 - **Error body:** see G-T01 for the shape conflict. Codes are stable and in English; messages follow the Spanish examples of D1 §9.
 - **Field names:** Spanish camelCase in JSON (DEC-08). Timestamps ISO 8601 with offset in responses; stored as UTC (`timestamptz`).

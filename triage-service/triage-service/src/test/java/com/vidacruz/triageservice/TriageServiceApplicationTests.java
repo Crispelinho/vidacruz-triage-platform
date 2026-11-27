@@ -34,11 +34,23 @@ class TriageServiceApplicationTests {
 	}
 
 	@Test
-	void unknownBusinessRouteRequiresAuthentication() {
+	void unknownBusinessRouteRequiresApiKey() {
 		webTestClient.get()
 				.uri("/triage/pacientes/00000000-0000-0000-0000-000000000000")
 				.exchange()
-				.expectStatus().isUnauthorized();
+				.expectStatus().isUnauthorized()
+				.expectHeader().exists("X-Correlation-Id")
+				.expectBody().jsonPath("$.code").isEqualTo("UNAUTHORIZED");
+	}
+
+	@Test
+	void validApiKeyPassesTheSecurityChain() {
+		webTestClient.get()
+				.uri("/triage/pacientes/00000000-0000-0000-0000-000000000000")
+				.header("X-API-Key", "test-triage-key")
+				.exchange()
+				.expectBody()
+				.consumeWith(result -> assertThat(result.getStatus().value()).isNotEqualTo(401));
 	}
 
 	@Test

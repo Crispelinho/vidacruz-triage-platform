@@ -41,5 +41,7 @@ alerts:
   stream:
     heartbeat: ${ALERTS_HEARTBEAT_INTERVAL:15s}
 triage:
+  # Local/demo default only. Override TRIAGE_API_KEY outside localhost (ADR-07).
+  api-key: ${TRIAGE_API_KEY:test-triage-key}
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
