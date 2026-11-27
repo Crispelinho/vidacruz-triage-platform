@@ -14,6 +14,7 @@ import com.vidacruz.clinical.domain.models.IngestedDocument;
 import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.TaskAwareEmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
 import reactor.core.publisher.Flux;
@@ -71,7 +72,8 @@ public class CorpusIngestionService {
 		ProtocolSection pair = ProtocolSection.of(protocol, section);
 		return Flux.fromIterable(IntStream.range(0, chunks.size()).boxed().toList())
 				// concatMap keeps embedding calls sequential: bounded load on the embedding provider.
-				.concatMap(index -> embeddingProvider.embed(chunks.get(index))
+				.concatMap(index -> (embeddingProvider instanceof TaskAwareEmbeddingProvider aware
+						? aware.embedDocument(chunks.get(index)) : embeddingProvider.embed(chunks.get(index)))
 						.flatMap(embedding -> vectorStore.save(new EvidenceFragment(chunkId(documentId, index),
 								documentId, index, protocol, section, chunks.get(index), embedding))))
 				.doOnNext(fragment -> corpusIndex.add(ProtocolSection.from(fragment)))

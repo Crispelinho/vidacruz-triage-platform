@@ -1,0 +1,42 @@
+name: Gemini embedding verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tst-rag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+          cache-dependency-path: clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Require the Gemini Secret
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: test -n "$GEMINI_API_KEY"
+
+      - name: Run real-provider TST-RAG
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        working-directory: clinical-assistant-service/clinical-assistant-service
+        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.GeminiEmbeddingVerificationTest'
+
+      - name: Upload calibration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-embedding-verification
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/gemini-embedding-verification/results.json
+          if-no-files-found: warn
