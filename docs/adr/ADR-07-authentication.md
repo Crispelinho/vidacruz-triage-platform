@@ -1,6 +1,6 @@
 ﻿# ADR-07: Authentication: API key versus JWT
 
-- **Status:** Proposed. Not accepted. API key in `X-API-Key` is the proposed route pending developer confirmation; key lifecycle and 401 error-body details remain open.
+- **Status:** Superseded by [ADR-07-authentication-api-key.md](ADR-07-authentication-api-key.md), which was accepted and implemented. Historical comparison of API key versus JWT only.
 - **Date:** 2026-11-25
 - **Deciders:** developer (pending)
 - **Scope:** Decides the authentication mechanism for protected Triage and Clinical Assistant endpoints: API key in `X-API-Key`, validated by a reactive filter on `/triage/**` and `/asistente/**`, with health/probe endpoints public and keys supplied by environment/secret configuration. It does not decide authorization rules, data protection policy, or functional request validation (C-10/C-02), and it does not decide provider-specific secret handling beyond coordination with ADR-05/ADR-09/ADR-11.
