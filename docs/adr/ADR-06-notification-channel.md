@@ -1,6 +1,8 @@
 ﻿# ADR-06: RF-06 notification channel (webhook)
 
-- **Status:** Proposed. Not accepted. A webhook mock receiver in docker-compose is acceptable only with explicit developer confirmation, and the delivery guarantee conflict remains unresolved until ADR-06 is accepted.
+> **Superseded by [ADR-15](ADR-15-persisted-sse-alerts.md).** RF-06 now uses persisted alerts and SSE; this webhook proposal was not accepted and must not be implemented.
+
+- **Status:** Superseded. Not accepted. Kept for historical traceability only.
 - **Date:** 2026-11-25
 - **Deciders:** developer (pending)
 - **Scope:** Decides the external notification channel for RF-06 escalation alerts: an outbox-driven webhook to a configured endpoint with retries and backoff. It does not redefine escalation detection (C-04), the event envelope or Kafka contract (ADR-02/ADR-13), the outbox mechanism (ADR-03), or projection behavior (ADR-08), which ignores EVT-02 for counts.
