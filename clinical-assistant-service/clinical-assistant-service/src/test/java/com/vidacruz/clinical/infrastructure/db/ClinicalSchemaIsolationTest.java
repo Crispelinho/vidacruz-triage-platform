@@ -40,13 +40,15 @@ class ClinicalSchemaIsolationTest {
 	}
 
 	@Test
-	void migrationsCreateOnlyTheEvidenceTable() {
+	void migrationsCreateOnlyTheClinicalCorpusTables() {
 		List<String> tables = jdbc.sql("SELECT table_name FROM information_schema.tables "
 				+ "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name")
 				.query(String.class)
 				.list();
 
-		assertThat(tables).containsExactlyInAnyOrder("evidence_fragments", "flyway_schema_history");
+		// V5 (RF-04A) adds the document registry; there are still no triage tables.
+		assertThat(tables).containsExactlyInAnyOrder("clinical_documents", "evidence_fragments",
+				"flyway_schema_history");
 	}
 
 	@Test
