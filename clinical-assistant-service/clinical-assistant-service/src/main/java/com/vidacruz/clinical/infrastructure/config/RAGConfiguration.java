@@ -39,6 +39,7 @@ import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
@@ -60,7 +61,7 @@ import reactor.core.scheduler.Schedulers;
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
 @EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
-		OpenCodeProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
+		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
 class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
@@ -119,6 +120,12 @@ class RAGConfiguration {
 	@Bean
 	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
 		return new OpenCodeHttpLLMAdapter(builder, properties);
+	}
+
+	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */
+	@Bean
+	NamedLLMProvider openRouterNode(WebClient.Builder builder, OpenRouterProperties properties) {
+		return new OpenRouterHttpLLMAdapter(builder, properties);
 	}
 
 	@Bean
