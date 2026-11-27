@@ -11,13 +11,16 @@ import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.scheduler.Scheduler;
 
 /** {@code clinical.vector-store.mode} swaps the store; in fixture mode no DataSource and no JDBC beans exist. */
 class FixtureModeWiringTest {
 
 	private final ApplicationContextRunner runner = new ApplicationContextRunner()
-			.withUserConfiguration(RAGConfiguration.class);
+			.withUserConfiguration(RAGConfiguration.class)
+			.withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
 	@Test
 	void fixtureModeNeedsNoDatabaseAndWiresTheInMemoryStore() {

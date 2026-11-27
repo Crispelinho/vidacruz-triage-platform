@@ -24,6 +24,7 @@ import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
@@ -31,6 +32,7 @@ import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
@@ -96,7 +98,7 @@ class RAGConfiguration {
 
 	@Bean
 	LLMRouter llmRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry,
-			LLMRouterProperties properties) {
+			LLMRouterProperties properties, MeterRegistry meterRegistry) {
 		Map<String, NamedLLMProvider> byKey = providers.stream()
 				.collect(Collectors.toMap(NamedLLMProvider::key, provider -> provider));
 		List<NamedLLMProvider> ordered = new ArrayList<>();
@@ -107,7 +109,7 @@ class RAGConfiguration {
 			}
 			ordered.add(provider);
 		}
-		return new ResilientLLMRouter(ordered, registry, properties.timeout());
+		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry));
 	}
 
 	@Bean

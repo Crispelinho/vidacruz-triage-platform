@@ -20,7 +20,9 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.services.RAGService;
+import com.vidacruz.clinical.infrastructure.metrics.MicrometerConsultationMetrics;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,11 +34,15 @@ class RAGControllerApiContractTest {
 
 	private WebTestClient client;
 
+	private SimpleMeterRegistry registry;
+
 	@BeforeEach
 	void setUp() {
 		ragService = mock(RAGService.class);
-		client = WebTestClient.bindToController(new RAGController(ragService))
-				.controllerAdvice(new RAGExceptionHandler())
+		registry = new SimpleMeterRegistry();
+		MicrometerConsultationMetrics metrics = new MicrometerConsultationMetrics(registry);
+		client = WebTestClient.bindToController(new RAGController(ragService, metrics))
+				.controllerAdvice(new RAGExceptionHandler(metrics))
 				.build();
 	}
 
@@ -139,6 +145,9 @@ class RAGControllerApiContractTest {
 				.jsonPath("$.fuentes.length()").isEqualTo(0)
 				.jsonPath("$.citas.length()").isEqualTo(0)
 				.jsonPath("$.modelo_usado").isEqualTo("none");
+
+		assertThat(registry.get("assistant.answers").tag("outcome", "invalid_citation").counter().count())
+				.isEqualTo(1.0d);
 	}
 
 }
