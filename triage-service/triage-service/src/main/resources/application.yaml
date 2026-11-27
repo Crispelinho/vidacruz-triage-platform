@@ -18,6 +18,12 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+logging:
+  # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
+  # Set LOG_FORMAT to an empty value for plain text on a developer console.
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
 management:
   endpoints:
     web:

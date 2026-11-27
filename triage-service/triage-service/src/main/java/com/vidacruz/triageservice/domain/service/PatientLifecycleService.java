@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -25,6 +27,8 @@ import reactor.core.publisher.Mono;
 /** RF-02 clinical state flow with RN-04 audit and EVT-03/EVT-04 outbox rows. */
 @Service
 public class PatientLifecycleService {
+
+	private static final Logger log = LoggerFactory.getLogger(PatientLifecycleService.class);
 
 	public static final String REGISTERED = "REGISTRADO";
 	public static final String IN_CONSULTATION = "EN_CONSULTA";
@@ -103,7 +107,9 @@ public class PatientLifecycleService {
 				.then(alertRepository.resolveForPatient(patient.id(), changedAt));
 
 		return transactionalOperator.transactional(atomicWrite)
-				.thenReturn(toResponse(patient, changedAt, changedAt, requestedStatus));
+				.thenReturn(toResponse(patient, changedAt, changedAt, requestedStatus))
+				.doOnNext(response -> log.info("Patient {} moved from {} to {}", patient.id(), previousStatus,
+						requestedStatus));
 	}
 
 	private static PatientDetailResponse toResponse(PatientEntity patient, Instant statusStart, Instant now,

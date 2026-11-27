@@ -7,6 +7,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
@@ -33,6 +35,8 @@ import reactor.core.publisher.Mono;
 /** RF-01 use case: validate, classify, persist, audit and record the registration event atomically. */
 @Service
 public class TriageRegistrationService {
+
+	private static final Logger log = LoggerFactory.getLogger(TriageRegistrationService.class);
 
 	public static final String REGISTERED_STATUS = "REGISTRADO";
 	public static final String REGISTERED_EVENT = "paciente_registrado";
@@ -90,7 +94,8 @@ public class TriageRegistrationService {
 		Registration registration = prepare(request);
 		return transactionalOperator.transactional(registration.write())
 				.doOnNext(written -> metrics.patientClassified(registration.level()))
-				.thenReturn(registration.response());
+				.thenReturn(registration.response())
+				.doOnNext(TriageRegistrationService::logRegistered);
 	}
 
 	/** DEC-15 / TST-IDM: replay the original response for the same key and body, conflict on body reuse. */
@@ -142,8 +147,15 @@ public class TriageRegistrationService {
 							.then(idempotencyRepository.complete(key, registration.response().id(), 201,
 									responseBody))
 							.doOnNext(completed -> metrics.patientClassified(registration.level()))
-							.thenReturn(registration.response());
+							.thenReturn(registration.response())
+							.doOnNext(TriageRegistrationService::logRegistered);
 				});
+	}
+
+	/** Logs identifiers and the classification only; name and complaint stay out of the logs. */
+	private static void logRegistered(PatientRegistrationResponse response) {
+		log.info("Patient {} registered as {} with a {}-minute SLA", response.id(), response.level(),
+				response.slaMinutes());
 	}
 
 	private Registration prepare(PatientRegistrationRequest request) {

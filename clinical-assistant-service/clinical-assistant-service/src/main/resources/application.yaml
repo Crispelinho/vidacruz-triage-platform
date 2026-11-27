@@ -100,6 +100,12 @@ assistant:
   # Local/demo default only. Override ASSISTANT_API_KEY outside localhost (ADR-07).
   api-key: ${ASSISTANT_API_KEY:test-assistant-key}
 
+logging:
+  # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
+  # Set LOG_FORMAT to an empty value for plain text on a developer console.
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
 management:
   endpoints:
     web:
