@@ -26,6 +26,8 @@ Each service builds independently. Shared contracts (`contracts/events`, `contra
 | 10. Compose smoke test | `develop` | `docker compose up` with health checks | Yes | NFR-12: one command starts everything |
 | 11. Deploy to AKS or Container Apps | tags only | Helm or Kustomize overlays from `infrastructure/kubernetes/overlays/` | Manual approval | NFR-13, NFR-14 |
 
+Release promotion is defined in [`docs/operations/release-policy.md`](release-policy.md): `develop` -> `release/vX.Y.Z` -> PR to `main` -> tag `vX.Y.Z`.
+
 ## 3. Gate decisions
 
 | Gate | Decision | Reason |

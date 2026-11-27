@@ -148,4 +148,6 @@ More views (registration sequence, escalation race guard, state machine, event f
 
 The full list, with status and where each decision is implemented, is in [`docs/adr/README.md`](docs/adr/README.md). Services are documented in [`docs/services/`](docs/services/) and requirements in [`docs/requirements.md`](docs/requirements.md).
 
+Release flow: `develop` -> `release/vX.Y.Z` -> PR to `main` -> tag `vX.Y.Z`. See [`docs/operations/release-policy.md`](docs/operations/release-policy.md).
+
 **Production note:** Boot 3.5.16 reached EOL on 2026-06-30. Production requires commercial Spring support or a migration to Boot 4.1+ (ADR-10).
