@@ -1,8 +1,9 @@
 package com.vidacruz.clinicalassistantservice.security;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -13,6 +14,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -41,14 +46,19 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 			"/asistente/actuator/health/", "/asistente/health/", "/v3/api-docs/", "/swagger-ui/", "/webjars/");
 	private static final Logger LOGGER = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
 
-	private final String expectedKey;
+	/** Exchange attribute holding the authenticated key id, for audit logging. Never the key value. */
+	public static final String KEY_ID_ATTRIBUTE = ApiKeyAuthenticationFilter.class.getName() + ".keyId";
+
+	private final ApiKeyRegistry registry;
 	private final ObjectMapper objectMapper;
 
+	/** Single-key mode: the key gets every scope (backward compatible with the pre-M-2 configuration). */
 	public ApiKeyAuthenticationFilter(String expectedKey, ObjectMapper objectMapper) {
-		if (expectedKey == null || expectedKey.isBlank()) {
-			throw new IllegalArgumentException("API key must not be blank");
-		}
-		this.expectedKey = expectedKey;
+		this(ApiKeyRegistry.single(expectedKey, ClinicalScopes.ALL), objectMapper);
+	}
+
+	public ApiKeyAuthenticationFilter(ApiKeyRegistry registry, ObjectMapper objectMapper) {
+		this.registry = Objects.requireNonNull(registry, "registry");
 		this.objectMapper = objectMapper;
 	}
 
@@ -59,8 +69,12 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 			return chain.filter(exchange);
 		}
 		String providedKey = exchange.getRequest().getHeaders().getFirst(API_KEY_HEADER);
-		if (matches(providedKey)) {
-			return chain.filter(exchange);
+		Optional<ApiKeyRegistry.Principal> principal = registry.authenticate(providedKey);
+		if (principal.isPresent()) {
+			exchange.getAttributes().put(KEY_ID_ATTRIBUTE, principal.get().keyId());
+			// Route authorization (scopes) is decided by the SecurityWebFilterChain from this authentication.
+			return chain.filter(exchange)
+					.contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication(principal.get())));
 		}
 		String correlationId = correlationId(exchange);
 		LOGGER.warn("Rejected {} without a valid {} header (correlationId={})", path, API_KEY_HEADER, correlationId);
@@ -71,31 +85,37 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 		return PUBLIC_PATHS.contains(path) || PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
 	}
 
-	private boolean matches(String providedKey) {
-		if (providedKey == null || providedKey.isBlank()) {
-			return false;
-		}
-		return MessageDigest.isEqual(providedKey.getBytes(StandardCharsets.UTF_8),
-				expectedKey.getBytes(StandardCharsets.UTF_8));
+	private static Authentication authentication(ApiKeyRegistry.Principal principal) {
+		List<SimpleGrantedAuthority> authorities = principal.scopes().stream()
+				.map(ClinicalScopes::authority)
+				.map(SimpleGrantedAuthority::new)
+				.toList();
+		return UsernamePasswordAuthenticationToken.authenticated(principal.keyId(), null, authorities);
 	}
 
-	private static String correlationId(ServerWebExchange exchange) {
+	static String correlationId(ServerWebExchange exchange) {
 		String header = exchange.getRequest().getHeaders().getFirst(CORRELATION_HEADER);
 		return header != null && !header.isBlank() ? header : UUID.randomUUID().toString();
 	}
 
 	private Mono<Void> unauthorized(ServerWebExchange exchange, String correlationId) {
+		return writeError(exchange, objectMapper, HttpStatus.UNAUTHORIZED, UNAUTHORIZED_CODE, UNAUTHORIZED_MESSAGE,
+				correlationId);
+	}
+
+	/** Writes the NFR-20 error body; also used for 403 when a valid key lacks the route's scope. */
+	static Mono<Void> writeError(ServerWebExchange exchange, ObjectMapper objectMapper, HttpStatus status, String code,
+			String message, String correlationId) {
 		ServerHttpResponse response = exchange.getResponse();
-		response.setStatusCode(HttpStatus.UNAUTHORIZED);
+		response.setStatusCode(status);
 		response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 		response.getHeaders().set(CORRELATION_HEADER, correlationId);
 		byte[] body;
 		try {
-			body = objectMapper.writeValueAsBytes(new UnauthorizedResponse(UNAUTHORIZED_CODE, UNAUTHORIZED_MESSAGE,
-					correlationId));
+			body = objectMapper.writeValueAsBytes(new UnauthorizedResponse(code, message, correlationId));
 		} catch (JsonProcessingException exception) {
-			body = ("{\"code\":\"" + UNAUTHORIZED_CODE + "\",\"message\":\"" + UNAUTHORIZED_MESSAGE
-					+ "\",\"correlationId\":\"" + correlationId + "\"}").getBytes(StandardCharsets.UTF_8);
+			body = ("{\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"correlationId\":\"" + correlationId
+					+ "\"}").getBytes(StandardCharsets.UTF_8);
 		}
 		return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));
 	}

@@ -118,6 +118,10 @@ assistant:
   # Required (ADR-07): no default, so a missing ASSISTANT_API_KEY stops startup instead of accepting a public key.
   # Docker Compose and the local K8s overlay supply their own local-only values.
   api-key: ${ASSISTANT_API_KEY:}
+  # M-2: optional scoped keys, "id|scope,scope|key" entries separated by ";". Scopes: assistant:query,
+  # corpus:admin, metrics:read. When blank, the single api-key above is accepted with every scope.
+  # Example: ASSISTANT_API_KEYS="frontend|assistant:query|<key-1>;curator|corpus:admin|<key-2>;prometheus|metrics:read|<key-3>"
+  api-keys: ${ASSISTANT_API_KEYS:}
 
 logging:
   # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
