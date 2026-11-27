@@ -12,6 +12,10 @@ spring:
     # Flyway owns the schema (ADR-04). Runs over the explicit JDBC DataSource (see JdbcConfiguration).
     enabled: true
     locations: classpath:db/migration
+  # ADR-04: this service owns its pgvector adapter (RAGConfiguration). The Spring AI starter would add a second
+  # VectorStore bean and fail startup because it requires an EmbeddingModel that this repo deliberately does not use.
+  autoconfigure:
+    exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   ai:
     vectorstore:
       pgvector:
