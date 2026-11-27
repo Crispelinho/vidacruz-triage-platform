@@ -11,6 +11,11 @@ public final class TestcontainersBlockHoundIntegration implements BlockHoundInte
 		builder
 				// Kafka reads its version from a JAR in a static initializer; this is classloading, not a reactor leak.
 				.allowBlockingCallsInside("org.apache.kafka.common.utils.AppInfoParser", "<clinit>")
+				// Linux NativePRNG reads its entropy source from reactor threads; the test JVM forces /dev/urandom.
+				.allowBlockingCallsInside("java.security.SecureRandom", "nextBytes")
+				.allowBlockingCallsInside("java.security.SecureRandom", "next")
+				.allowBlockingCallsInside("sun.security.provider.NativePRNG", "engineNextBytes")
+				.allowBlockingCallsInside("sun.security.provider.NativePRNG$RandomIO", "readFully")
 				.allowBlockingCallsInside("org.testcontainers.DockerClientFactory", "instance")
 				.allowBlockingCallsInside("org.testcontainers.DockerClientFactory", "lazyClient")
 				.allowBlockingCallsInside("org.testcontainers.DockerClientFactory", "client")

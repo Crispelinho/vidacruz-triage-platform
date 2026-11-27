@@ -66,4 +66,8 @@ tasks.withType<Test> {
 		// BlockHound instruments JDK classes by adding methods (JDK 13+).
 		"-XX:+AllowRedefinitionToAddDeleteMethods"
 	)
+	// Keep CI's Linux entropy source non-blocking (/dev/urandom); Windows uses its native provider.
+	if (!System.getProperty("os.name").lowercase().contains("win")) {
+		systemProperty("java.security.egd", "file:/dev/./urandom")
+	}
 }
