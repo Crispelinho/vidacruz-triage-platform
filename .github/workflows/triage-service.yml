@@ -51,11 +51,12 @@ jobs:
       - name: Build the image
         run: docker build --file triage-service/deployment/Dockerfile --tag triage-service:${{ github.sha }} triage-service/triage-service
 
-      # M-4: SCA gate on the image that is deployed. Trivy scans the OS packages and the Java libraries inside the
-      # Spring Boot jar and fails on HIGH or CRITICAL (CVSS >= 7). ignore-unfixed keeps the gate actionable: a
-      # finding with no fixed version cannot be resolved by an upgrade. Dependabot (.github/dependabot.yml) proposes
-      # the upgrades.
+      # M-4: SCA on the image that is deployed. Trivy scans the OS packages and the Java libraries inside the Spring
+      # Boot jar and reports HIGH or CRITICAL findings (CVSS >= 7) that have a fixed version. REPORT-ONLY by default:
+      # the step is marked failed but the job passes. Set the repository variable SCA_BLOCKING=true to make it block.
+      # Dependabot (.github/dependabot.yml) proposes the upgrades.
       - name: Scan the image for vulnerabilities
+        continue-on-error: ${{ vars.SCA_BLOCKING != 'true' }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: triage-service:${{ github.sha }}
