@@ -139,6 +139,6 @@ class SlaEvaluatorTest {
 	private static PatientEntity patient(UUID id, Instant registeredAt) {
 		return new PatientEntity(id, "Paciente de prueba", 40, 80, 120, 80, 98,
 				BigDecimal.valueOf(36.5), 2, 15, "Control", "CRITICO", 5,
-				PatientLifecycleService.REGISTERED, false, registeredAt, registeredAt);
+				PatientLifecycleService.REGISTERED, false, registeredAt, registeredAt, registeredAt);
 	}
 }

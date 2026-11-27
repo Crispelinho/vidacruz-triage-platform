@@ -74,7 +74,7 @@ class PatientLifecycleServiceTest {
 		UUID patientId = UUID.randomUUID();
 		Instant registeredAt = Instant.now().minus(3, ChronoUnit.MINUTES);
 		when(patientRepository.findById(patientId)).thenReturn(Mono.just(patient(patientId,
-				PatientLifecycleService.REGISTERED, false, registeredAt)));
+				PatientLifecycleService.REGISTERED, false, registeredAt, registeredAt)));
 		when(patientRepository.changeStatus(eq(patientId), eq(PatientLifecycleService.REGISTERED),
 				eq(PatientLifecycleService.IN_CONSULTATION), any(Instant.class))).thenReturn(Mono.just(1));
 		when(auditRepository.save(any(AuditEntryEntity.class)))
@@ -102,7 +102,7 @@ class PatientLifecycleServiceTest {
 	void rejectsTransitionFromDischargedPatient() {
 		UUID patientId = UUID.randomUUID();
 		when(patientRepository.findById(patientId)).thenReturn(Mono.just(patient(patientId,
-				PatientLifecycleService.DISCHARGED, false, Instant.now())));
+				PatientLifecycleService.DISCHARGED, false, Instant.now(), Instant.now())));
 
 		StepVerifier.create(service.changeStatus(patientId, PatientLifecycleService.IN_CONSULTATION))
 				.expectError(InvalidStateTransitionException.class)
@@ -121,9 +121,10 @@ class PatientLifecycleServiceTest {
 				.verify();
 	}
 
-	private static PatientEntity patient(UUID id, String status, boolean escalated, Instant changedAt) {
+	private static PatientEntity patient(UUID id, String status, boolean escalated, Instant changedAt,
+			Instant statusSince) {
 		return new PatientEntity(id, "Paciente de prueba", 40, 80, 120, 80, 98,
 				BigDecimal.valueOf(36.5), 2, 15, "Control", "NO_URGENTE", 60,
-				status, escalated, changedAt, changedAt);
+				status, escalated, changedAt, changedAt, statusSince);
 	}
 }

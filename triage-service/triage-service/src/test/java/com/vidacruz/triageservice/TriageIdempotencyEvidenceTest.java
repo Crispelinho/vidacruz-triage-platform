@@ -54,9 +54,10 @@ class TriageIdempotencyEvidenceTest {
 	@Test
 	void repositorySavePersistsPatient() {
 		UUID id = UUID.randomUUID();
+		Instant now = Instant.now();
 		PatientEntity saved = patientRepository.save(new PatientEntity(
 				id, "Ana", 40, 80, 120, 80, 98, new BigDecimal("36.5"), 2, 15, "prueba",
-				"VERDE", 30, "REGISTRADO", false, Instant.now(), Instant.now())).block();
+				"VERDE", 30, "REGISTRADO", false, now, now, now)).block();
 		assertThat(saved).isNotNull();
 		assertThat(patientRepository.findById(id).block()).isNotNull();
 		assertThat(count("SELECT COUNT(*) AS n FROM paciente WHERE id = :id", "id", id)).isEqualTo(1);

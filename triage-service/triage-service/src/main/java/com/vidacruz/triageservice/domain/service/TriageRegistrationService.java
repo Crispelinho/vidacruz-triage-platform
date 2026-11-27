@@ -173,6 +173,7 @@ public class TriageRegistrationService {
 				REGISTERED_STATUS,
 				false,
 				registeredAt,
+				registeredAt,
 				registeredAt);
 
 		Mono<?> write = patientRepository.save(entity)
