@@ -99,8 +99,8 @@ class TriageSLAEscalationIntegrationTest {
 	static final String BACKGROUND_INTERVAL_PROPERTY = "triage.sla.evaluation-interval=PT24H";
 
 	/** Bean that runs one evaluation pass. ADAPT HERE when the scheduler change lands. */
-	private static final String EVALUATOR_CLASS = "com.vidacruz.triage.domain.service.SlaEscalationService";
-	private static final String EVALUATOR_METHOD = "evaluate";
+	private static final String EVALUATOR_CLASS = "com.vidacruz.triageservice.domain.service.SlaEvaluator";
+	private static final String EVALUATOR_METHOD = "evaluateOnce";
 
 	private static final String COLLECTION = "/triage/pacientes";
 	private static final String TOPIC = "triaje.eventos";
@@ -145,7 +145,7 @@ class TriageSLAEscalationIntegrationTest {
 	@BeforeEach
 	void cleanStateAndResetClock() {
 		// Isolation: counts such as "exactly 5 events" must not see patients from other tests of this class.
-		execute("TRUNCATE TABLE auditoria_clinica, outbox_evento, patients CASCADE");
+		execute("TRUNCATE TABLE auditoria_clinica, outbox_evento, paciente CASCADE");
 		clock.set(Instant.now());
 	}
 
@@ -242,24 +242,24 @@ class TriageSLAEscalationIntegrationTest {
 	/** Request body whose vitals classify (RN-01) into the requested level. */
 	private static Map<String, Object> bodyFor(Level level) {
 		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("nombreCompleto", "Paciente SLA " + level);
+		body.put("nombre_completo", "Paciente SLA " + level);
 		body.put("edad", 40);
-		body.put("frecuenciaCardiaca", 72);
-		body.put("presionSistolica", 120);
-		body.put("presionDiastolica", 80);
+		body.put("frecuencia_cardiaca", 72);
+		body.put("presion_sistolica", 120);
+		body.put("presion_diastolica", 80);
 		body.put("spo2", 99);
 		body.put("temperatura", 36.5);
 		body.put("dolor", 2);
 		body.put("gcs", 15);
-		body.put("quejaPrincipal", "Herida por cortar");
+		body.put("queja_principal", "Herida por cortar");
 		switch (level) {
-			case CRITICO -> body.put("frecuenciaCardiaca", 130);
+			case CRITICO -> body.put("frecuencia_cardiaca", 130);
 			case URGENTE -> body.put("spo2", 92);
 			case URGENTE_2 -> body.put("dolor", 8);
 			case NO_URGENTE -> {
 				// the baseline vitals above
 			}
-			case NO_URGENTE_2 -> body.put("quejaPrincipal", "documentos");
+			case NO_URGENTE_2 -> body.put("queja_principal", "documentos");
 		}
 		return body;
 	}
@@ -295,16 +295,15 @@ class TriageSLAEscalationIntegrationTest {
 		databaseClient.sql(sql).then().block();
 	}
 
-	private record PatientRow(String state, boolean escalated, int lastSequence) {
+	private record PatientRow(String state, boolean escalated) {
 	}
 
 	private PatientRow patient(UUID id) {
-		return databaseClient.sql("SELECT state, escalated, last_sequence FROM patients WHERE id = :id")
+		return databaseClient.sql("SELECT estado, escalado FROM paciente WHERE id = :id")
 				.bind("id", id)
 				.map((row, metadata) -> new PatientRow(
-						row.get("state", String.class),
-						Boolean.TRUE.equals(row.get("escalated", Boolean.class)),
-						row.get("last_sequence", Integer.class)))
+						row.get("estado", String.class),
+						Boolean.TRUE.equals(row.get("escalado", Boolean.class))))
 				.one()
 				.block();
 	}
@@ -375,7 +374,7 @@ class TriageSLAEscalationIntegrationTest {
 		List<OutboxRow> evt02 = escalationEvents(id);
 		assertThat(evt02).as("exactly one EVT-02 outbox row").hasSize(1);
 		assertThat(evt02.get(0).sequence()).as("registration is sequence 1, escalation the next one").isEqualTo(2);
-		assertThat(row.lastSequence()).isEqualTo(2);
+		// sequence tracked in outbox_evento.paciente_sequence
 
 		JsonNode event = JSON.readTree(evt02.get(0).payload());
 		assertThat(payloadOf(event).path("nivel").asText()).isEqualTo(level.name());
@@ -509,7 +508,7 @@ class TriageSLAEscalationIntegrationTest {
 		runEvaluator();
 
 		assertThat(patient(id).escalated()).as("escalated is never toggled back").isTrue();
-		assertThat(snapshot(id)).as("flag, audit rows, outbox rows and last_sequence are unchanged")
+		assertThat(snapshot(id)).as("flag, audit rows, outbox rows are unchanged")
 				.isEqualTo(afterFirst);
 		assertThat(escalationEvents(id)).hasSize(1);
 		assertThat(escalationAudit(id)).hasSize(1);

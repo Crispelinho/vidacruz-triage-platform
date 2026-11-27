@@ -75,7 +75,8 @@ class TriageRegistrationServiceTest {
 	void setUp() {
 		service = new TriageRegistrationService(patientRepository, auditRepository, eventWriter,
 				idempotencyRepository, mapper, new TriageClassifier(), new SlaProperties(Map.of()),
-				transactionalOperator, metrics);
+				transactionalOperator, metrics,
+				java.time.Clock.fixed(java.time.Instant.parse("2026-03-10T10:00:00Z"), java.time.ZoneOffset.UTC));
 		lenient().when(patientRepository.save(any(PatientEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		lenient().when(auditRepository.save(any(AuditEntryEntity.class)))

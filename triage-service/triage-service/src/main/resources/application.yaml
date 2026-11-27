@@ -10,11 +10,23 @@ spring:
       max-size: 10
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      concurrency: 1
 management:
   endpoints:
     web:
@@ -55,8 +67,18 @@ alerts:
   stream:
     heartbeat: ${ALERTS_HEARTBEAT_INTERVAL:15s}
 triage:
+  alerts:
+    # RF-06 alert dispatcher. SMS and email are mocks (log only); in-app writes to in_app_notifications.
+    enabled: ${TRIAGE_ALERTS_ENABLED:true}
+    channels: ${TRIAGE_ALERTS_CHANNELS:sms,email,in-app}
+    email-recipient: ${ALERTS_EMAIL_RECIPIENT:notifications@hospital.local}
   # Local/demo default only. Override TRIAGE_API_KEY outside localhost (ADR-07).
   api-key: ${TRIAGE_API_KEY:test-triage-key}
+  urgency:
+    consumer-enabled: ${TRIAGE_URGENCY_CONSUMER_ENABLED:true}
+    consumer-group: ${TRIAGE_URGENCY_CONSUMER_GROUP:triage-urgency-projection}
+    topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
+    discharged-ttl: ${TRIAGE_URGENCY_DISCHARGED_TTL:PT24H}
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
     evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL_MS:${TRIAGE_SLA_EVALUATION_INTERVAL:60000}}
