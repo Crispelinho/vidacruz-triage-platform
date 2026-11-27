@@ -1,6 +1,6 @@
 # ADR-11: Azure target for deployment
 
-- **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires closing the verification gates below; ADR-10 is still Proposed but its R-02 support-risk decision is recorded in writing. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
+- **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires closing the verification gates below; ADR-10 is accepted for evaluation scope (2026-11-27) after its R-02 support-risk decision was recorded in writing, which is not a production OSS support claim. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
 - **Date:** 2026-11-25 (amended 2026-11-27; evidence/gates updated 2026-11-27)
 - **Delivered artifacts:** [ADR-12](ADR-12-aks-deployment.md) records AKS manifests/IaC. [Despliegue en Kubernetes y registro de pruebas](../operations/despliegue-azure-y-pruebas.md) is the in-repo R-06/T-24 execution record for the validated AKS run, including blockers and pending hardening.
 - **Deciders:** developer; AKS amendment and infrastructure parameters recorded 2026-11-27, ADR acceptance still pending verification gates
@@ -75,7 +75,7 @@ Repository evidence currently present:
 - [x] **T-23 manifests/IaC delivered:** Kubernetes manifests and Azure IaC exist in `infra/k8s/`, `infra/azure/`, and service `deployment/k8s/` directories; ADR-12 documents the topology.
 - [x] **R-06/T-24 execution record present:** `docs/operations/despliegue-azure-y-pruebas.md` records the AKS deployment, public HTTPS URL, validation, manual workarounds, and pending hardening. It is repository evidence, but not a clean unattended rerun.
 - [x] **T-22 local stack present:** `docker-compose.yml`, Dockerfiles, and service workflows exist; local/E2E verification remains the separate E2E track.
-- [x] **Manifest/schema validation automated:** `.github/workflows/k8s-manifests.yml` renders and validates `infra/k8s`, `infra/k8s/cluster`, `infra/k8s/edge`, `infra/k8s/routes`, `triage-service/deployment/k8s`, and `clinical-assistant-service/deployment/k8s` with `kustomize build` + `kubeconform -strict -ignore-missing-schemas`. Attach green run URL from PR/`develop` as evidence.
+- [x] **Manifest/schema validation automated:** `.github/workflows/k8s-manifests.yml` renders and validates `infra/k8s`, `infra/k8s/cluster`, `infra/k8s/edge`, `infra/k8s/routes`, `triage-service/deployment/k8s`, and `clinical-assistant-service/deployment/k8s` with `kustomize build` + `kubeconform -strict -ignore-missing-schemas`. Green `k8s-manifests` runs recorded in [46066172188](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46066172188) and [46066177746](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46066177746) (PR #119).
 
 Pending before formal acceptance:
 
@@ -83,5 +83,5 @@ Pending before formal acceptance:
 - [x] **IaC/SKU alignment:** `infra/azure/main.bicep` defaults to the recorded `Standard_B4as_v2` node; PostgreSQL `Standard_B1ms` and `northcentralus` remain consistent. Re-check these values before another Azure build.
 - [ ] **Budget alerts evidence:** show 50 % and 80 % Azure for Students budget alerts configured (screenshot/export/reference), not just recorded.
 - [ ] **Secret hygiene:** confirm no credential in repo/image/history; rotate credentials exposed during validation and record rotation without publishing values.
-- [ ] **ADR-10 gate:** satisfied by ADR-10 acceptance for evaluation scope (2026-11-27); keep the non-production OSS Boot 3.5.x constraint visible.
+- [x] **ADR-10 gate:** satisfied by ADR-10 acceptance for evaluation scope (2026-11-27); keep the non-production OSS Boot 3.5.x constraint visible.
 - [ ] **ADR-05 target evidence:** record that the chosen AKS target can host the reduced ADR-05 workload in region/budget; chat GPU capacity is not required after C17.
