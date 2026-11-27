@@ -2,6 +2,7 @@ package com.vidacruz.triageservice.domain.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -38,6 +39,7 @@ public class SlaEvaluator {
 	private final OutboxEventWriter eventWriter;
 	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
+	private final Clock clock;
 	private final TriageMetrics metrics;
 
 	public SlaEvaluator(PatientRepository patientRepository,
@@ -45,12 +47,14 @@ public class SlaEvaluator {
 			OutboxEventWriter eventWriter,
 			MedicalAlertRepository alertRepository,
 			TransactionalOperator transactionalOperator,
+			Clock clock,
 			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
+		this.clock = clock;
 		this.metrics = metrics;
 	}
 
@@ -62,7 +66,7 @@ public class SlaEvaluator {
 	}
 
 	private Mono<Integer> escalateIfOverdue(PatientEntity patient) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		Instant expiresAt = patient.registeredAt().plusSeconds(patient.slaMinutes() * 60L);
 		if (!now.isAfter(expiresAt)) {
 			return Mono.just(0);

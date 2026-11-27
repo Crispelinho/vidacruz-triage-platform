@@ -478,8 +478,8 @@ class OperationalReportsIntegrationTest {
 
 	// ------------------------------------------------------------------ SLA evaluator seam (adapt here if it moves)
 
-	private static final String EVALUATOR_CLASS = "com.vidacruz.triage.domain.service.SlaEscalationService";
-	private static final String EVALUATOR_METHOD = "evaluate";
+	private static final String EVALUATOR_CLASS = "com.vidacruz.triageservice.domain.service.SlaEvaluator";
+	private static final String EVALUATOR_METHOD = "evaluateOnce";
 
 	/** Runs ONE evaluation pass, as the scheduler would. Looked up reflectively so this class compiles on its own. */
 	private void runEvaluator() {

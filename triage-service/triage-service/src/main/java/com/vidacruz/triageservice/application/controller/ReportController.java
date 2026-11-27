@@ -1,8 +1,5 @@
 package com.vidacruz.triageservice.application.controller;
 
-import java.time.LocalDate;
-
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -28,18 +25,22 @@ public class ReportController {
 
 	@GetMapping("/operation-by-hour")
 	public Flux<OperationHourReport> operationByHour(
-			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+			@RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
 		return reportService.operationByHour(from, to);
 	}
 
 	@GetMapping("/latency-percentiles")
-	public Flux<LatencyPercentileReport> latencyPercentiles() {
-		return reportService.percentileLatencyByLevel();
+	public Flux<LatencyPercentileReport> latencyPercentiles(
+			@RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
+		return reportService.percentileLatencyByLevel(from, to);
 	}
 
 	@GetMapping("/sla-operational")
-	public Flux<SlaOperationalReport> slaOperational() {
-		return reportService.operationalSla();
+	public Flux<SlaOperationalReport> slaOperational(
+			@RequestParam(required = false) String from,
+			@RequestParam(required = false) String to) {
+		return reportService.operationalSla(from, to);
 	}
 }
