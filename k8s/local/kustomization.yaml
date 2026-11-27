@@ -1,0 +1,13 @@
+# Self-contained Minikube bundle. It is not referenced by docker-compose.yml, CI or any Azure script.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vidacruz-local
+resources:
+  - namespace.yaml
+  - triage-config.yaml
+  - assistant-config.yaml
+  - postgres.yaml
+  - kafka.yaml
+  - redis.yaml
+  - jaeger.yaml
+  - services.yaml

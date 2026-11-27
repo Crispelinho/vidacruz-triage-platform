@@ -1,0 +1,23 @@
+# Local-only values. The API key and DB password are the public defaults from docker-compose.yml and README.md;
+# never reuse them outside this namespace. Ollama is not deployed here, so /rag uses the documented 503 fallback
+# unless an external provider is configured by editing this ConfigMap in the local cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: assistant-local-config
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://assistant-db:5432/vidacruz_assistant"
+  SPRING_DATASOURCE_USERNAME: "assistant_app"
+  SPRING_DATASOURCE_PASSWORD: "assistant_local"
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_DATA_REDIS_PORT: "6379"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  PATIENT_EVENTS_TOPIC: "triaje.eventos"
+  URGENCY_CONSUMER_ENABLED: "true"
+  ASSISTANT_API_KEY: "test-assistant-key"
+  RAG_LLM_CHAIN: "ollama"
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  GEMINI_API_KEY: ""
+  OPENCODE_API_KEY: ""
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: "http://jaeger:4318/v1/traces"
+  TRACING_SAMPLING_PROBABILITY: "1"

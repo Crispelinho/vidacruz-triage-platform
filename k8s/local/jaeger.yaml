@@ -1,0 +1,47 @@
+# Local tracing backend. Both services export OTLP/HTTP to http://jaeger:4318/v1/traces via their ConfigMaps.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/jaeger:2.23.0
+          ports:
+            - name: otlp
+              containerPort: 4318
+            - name: ui
+              containerPort: 16686
+          readinessProbe:
+            tcpSocket:
+              port: ui
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 128m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - name: otlp
+      port: 4318
+      targetPort: otlp
+    - name: ui
+      port: 16686
+      targetPort: ui

@@ -1,0 +1,112 @@
+# Local databases. The assistant image includes pgvector because its Flyway migration creates the vector extension.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triage-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triage-db
+  template:
+    metadata:
+      labels:
+        app: triage-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: vidacruz_triage
+            - name: POSTGRES_USER
+              value: triage_app
+            - name: POSTGRES_PASSWORD
+              value: triage_local
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U triage_app -d vidacruz_triage"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 128m
+              memory: 256Mi
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triage-db
+spec:
+  selector:
+    app: triage-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistant-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: assistant-db
+  template:
+    metadata:
+      labels:
+        app: assistant-db
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          env:
+            - name: POSTGRES_DB
+              value: vidacruz_assistant
+            - name: POSTGRES_USER
+              value: assistant_app
+            - name: POSTGRES_PASSWORD
+              value: assistant_local
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U assistant_app -d vidacruz_assistant"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 128m
+              memory: 256Mi
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: assistant-db
+spec:
+  selector:
+    app: assistant-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

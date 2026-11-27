@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vidacruz-local
+  labels:
+    app.kubernetes.io/part-of: vidacruz
+    environment: local

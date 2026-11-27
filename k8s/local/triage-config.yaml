@@ -1,0 +1,27 @@
+# Local-only values. The API key and DB password are the public defaults from docker-compose.yml and README.md;
+# never reuse them outside this namespace. No Kubernetes Secret is created by this bundle.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-local-config
+data:
+  R2DBC_URL: "r2dbc:postgresql://triage-db:5432/vidacruz_triage"
+  TRIAGE_DB_USER: "triage_app"
+  TRIAGE_DB_PASSWORD: "triage_local"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  TRIAGE_EVENTS_TOPIC: "triaje.eventos"
+  TRIAGE_API_KEY: "test-triage-key"
+  OUTBOX_PUBLISHER_ENABLED: "true"
+  OUTBOX_PUBLISH_INTERVAL_MS: "1000"
+  TRIAGE_SLA_EVALUATION_ENABLED: "true"
+  TRIAGE_SLA_EVALUATION_INTERVAL_MS: "30000"
+  IDEMPOTENCY_CLEANUP_ENABLED: "false"
+  IDEMPOTENCY_CLEANUP_INTERVAL_MS: "3600000"
+  SLA_CRITICO_MINUTES: "1"
+  SLA_URGENTE_MINUTES: "1"
+  SLA_URGENTE_2_MINUTES: "2"
+  SLA_NO_URGENTE_MINUTES: "5"
+  SLA_NO_URGENTE_2_MINUTES: "5"
+  ALERTS_HEARTBEAT_INTERVAL: "15s"
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: "http://jaeger:4318/v1/traces"
+  TRACING_SAMPLING_PROBABILITY: "1"
