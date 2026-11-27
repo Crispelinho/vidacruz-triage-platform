@@ -12,6 +12,7 @@ import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
+import com.vidacruz.clinical.domain.ports.TaskAwareEmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
 import reactor.core.publisher.Mono;
@@ -79,7 +80,9 @@ public class RAGService {
 
 	public Mono<RAGResponse> answer(PromptRequest request) {
 		double threshold = request.relevanceThreshold() != null ? request.relevanceThreshold() : relevanceThreshold;
-		return embeddingProvider.embed(request.question())
+		Mono<float[]> queryEmbedding = embeddingProvider instanceof TaskAwareEmbeddingProvider aware
+				? aware.embedQuery(request.question()) : embeddingProvider.embed(request.question());
+		return queryEmbedding
 				.flatMap(embedding -> vectorStore.similaritySearchWithScores(embedding, request.topK()))
 				.flatMap(scored -> {
 					// RN-05.3-A: no results retrieved.

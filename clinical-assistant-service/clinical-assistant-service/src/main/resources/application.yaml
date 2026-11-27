@@ -39,6 +39,9 @@ clinical:
     # LexicalEmbeddingAdapter emits deterministic 768-dim stem-overlap vectors without an external API key;
     # V6 updates the V4 seed vectors to this adapter. FixtureEmbeddingAdapter remains test-only.
     dimensions: 768
+    # Lexical stays the default: V4/V6 seed vectors were built with it. Switching to gemini requires a full
+    # re-ingestion with gemini-embedding-2 and the TST-RAG calibration (ADR-05).
+    embedding-provider: ${EMBEDDING_PROVIDER:lexical}
     # Calibrated on the seeded corpus: PROTO-001 ~= 0.29, PROTO-002 ~= 0.31, unmatched query <= 0.14 (ADR-05).
     relevance-threshold: 0.20
     scheduler:
@@ -75,6 +78,13 @@ gemini:
   # Stable Gemini model, available in Google AI Studio Free Tier; chosen over the deprecated gemini-2.5-flash (ADR-05).
   model: gemini-3.5-flash-lite
   api-key: ${GEMINI_API_KEY:}
+  embedding:
+    # Current embeddings API: gemini-embedding-2 has no task_type parameter, so retrieval prefixes are sent in the text.
+    base-url: ${GEMINI_EMBEDDING_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
+    model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-2}
+    api-key: ${GEMINI_API_KEY:}
+    dimensions: ${clinical.vector-store.dimensions}
+    task-prefixes: true
 
 opencode:
   url: https://opencode.ai/inference/openai/v1/chat/completions

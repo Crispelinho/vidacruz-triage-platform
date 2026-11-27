@@ -29,6 +29,7 @@ import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.domain.services.RagRetrievalService;
 import com.vidacruz.clinical.domain.services.TextChunker;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
@@ -56,8 +57,8 @@ import reactor.core.scheduler.Schedulers;
  */
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
-@EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, OpenCodeProperties.class,
-		LLMRouterProperties.class, VectorStoreProperties.class })
+@EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
+		OpenCodeProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
 class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
@@ -134,9 +135,20 @@ class RAGConfiguration {
 		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry));
 	}
 
+	/**
+	 * Exactly one embedding bean is registered. The lexical adapter remains the default because the seeded vectors
+	 * were built with it; selecting {@code gemini} requires a full re-ingestion of the corpus with that model.
+	 */
 	@Bean
+	@ConditionalOnProperty(name = "clinical.vector-store.embedding-provider", havingValue = "lexical", matchIfMissing = true)
 	EmbeddingProvider lexicalEmbeddingAdapter(VectorStoreProperties properties) {
 		return new LexicalEmbeddingAdapter(properties.dimensions());
+	}
+
+	@Bean
+	@ConditionalOnProperty(name = "clinical.vector-store.embedding-provider", havingValue = "gemini")
+	EmbeddingProvider geminiEmbeddingAdapter(WebClient.Builder builder, GeminiEmbeddingProperties properties) {
+		return new GeminiEmbeddingAdapter(builder, properties);
 	}
 
 	@Bean
@@ -167,9 +179,9 @@ class RAGConfiguration {
 	}
 
 	@Bean
-	RAGService ragService(EmbeddingProvider lexicalEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
+	RAGService ragService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
 			CorpusIndex corpusIndex, VectorStoreProperties properties) {
-		return new RAGService(lexicalEmbeddingAdapter, vectorStore, llmRouter, corpusIndex,
+		return new RAGService(embeddingProvider, vectorStore, llmRouter, corpusIndex,
 				properties.relevanceThreshold());
 	}
 

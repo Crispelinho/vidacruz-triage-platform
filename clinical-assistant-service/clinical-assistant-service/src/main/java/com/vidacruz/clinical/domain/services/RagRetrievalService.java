@@ -11,6 +11,7 @@ import com.vidacruz.clinical.domain.models.RetrievedChunk;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.TaskAwareEmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
 import reactor.core.publisher.Mono;
@@ -50,7 +51,9 @@ public class RagRetrievalService {
 	public Mono<List<RetrievedChunk>> retrieve(String query, double threshold) {
 		return Mono.defer(() -> {
 			validate(query, threshold);
-			return embeddingProvider.embed(query)
+			Mono<float[]> queryEmbedding = embeddingProvider instanceof TaskAwareEmbeddingProvider aware
+					? aware.embedQuery(query) : embeddingProvider.embed(query);
+			return queryEmbedding
 					.flatMap(embedding -> vectorStore.similaritySearchWithScores(embedding, TOP_K))
 					.flatMap(scored -> {
 						// RN-05 gate: below-threshold chunks never leave this method.
