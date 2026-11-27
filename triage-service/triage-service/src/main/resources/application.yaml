@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   application:
     name: triage-service
   r2dbc:
@@ -44,6 +44,7 @@ alerts:
   stream:
     heartbeat: ${ALERTS_HEARTBEAT_INTERVAL:15s}
 triage:
+  api-key: ${TRIAGE_API_KEY:test-triage-key}
   outbox:
     publisher-enabled: ${OUTBOX_PUBLISHER_ENABLED:true}
     publish-interval: ${OUTBOX_PUBLISH_INTERVAL:5000}
@@ -53,3 +54,4 @@ triage:
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
     evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL:60000}
+
