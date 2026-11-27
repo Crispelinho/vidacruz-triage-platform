@@ -26,12 +26,13 @@ management:
         enabled: true
 app:
   sla:
+    # Overridable for the local demo so RF-03 escalation can be observed in minutes.
     defaults:
-      CRITICO: 5
-      URGENTE: 10
-      URGENTE_2: 30
-      NO_URGENTE: 60
-      NO_URGENTE_2: 120
+      CRITICO: ${SLA_CRITICO_MINUTES:5}
+      URGENTE: ${SLA_URGENTE_MINUTES:10}
+      URGENTE_2: ${SLA_URGENTE_2_MINUTES:30}
+      NO_URGENTE: ${SLA_NO_URGENTE_MINUTES:60}
+      NO_URGENTE_2: ${SLA_NO_URGENTE_2_MINUTES:120}
   outbox:
     publisher-enabled: ${OUTBOX_PUBLISHER_ENABLED:false}
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
