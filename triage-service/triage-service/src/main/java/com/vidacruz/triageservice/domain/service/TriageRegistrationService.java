@@ -6,7 +6,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -103,8 +102,10 @@ public class TriageRegistrationService {
 				now.plus(EXPIRY_HOURS, ChronoUnit.HOURS))
 				.flatMap(inserted -> {
 					if (inserted != 1) {
-						return idempotencyRepository.findById(key)
-								.flatMap(existing -> replay(existing, requestHash));
+						// The losing request waits for the winner's transaction, then replays its response.
+						return idempotencyRepository.findByIdForUpdate(key)
+								.flatMap(existing -> replay(existing, requestHash))
+								.switchIfEmpty(Mono.defer(() -> createWithKey(request, key, requestHash)));
 					}
 					Registration registration = prepare(request);
 					String responseBody;
@@ -117,10 +118,7 @@ public class TriageRegistrationService {
 							.then(idempotencyRepository.complete(key, registration.response().id(), 201,
 									responseBody))
 							.thenReturn(registration.response());
-				})
-				.onErrorResume(DuplicateKeyException.class,
-						error -> idempotencyRepository.findById(key)
-								.flatMap(existing -> replay(existing, requestHash)));
+				});
 	}
 
 	private Registration prepare(PatientRegistrationRequest request) {

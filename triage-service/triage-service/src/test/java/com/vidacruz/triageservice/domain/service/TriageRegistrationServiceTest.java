@@ -125,6 +125,25 @@ class TriageRegistrationServiceTest {
 	}
 
 	@Test
+	void replayWaitsForTheWinningReservation() {
+		PatientRegistrationResponse original = new PatientRegistrationResponse(UUID.randomUUID(), "CRITICO", 5,
+				TriageRegistrationService.REGISTERED_STATUS, Instant.now().minusSeconds(30));
+		IdempotencyKeyEntity stored = stored("key-locked", RequestFingerprint.of(request().toDomain()), original);
+		when(idempotencyRepository.findById("key-locked")).thenReturn(Mono.empty());
+		when(idempotencyRepository.insertPending(eq("key-locked"), anyString(), any(Instant.class),
+				any(Instant.class))).thenReturn(Mono.just(0));
+		when(idempotencyRepository.findByIdForUpdate("key-locked")).thenReturn(Mono.just(stored));
+
+		StepVerifier.create(service.register(request(), "key-locked"))
+				.assertNext(response -> assertThat(response.id()).isEqualTo(original.id()))
+				.verifyComplete();
+
+		verify(idempotencyRepository).findByIdForUpdate("key-locked");
+		verify(patientRepository, never()).save(any(PatientEntity.class));
+		verify(eventWriter, never()).write(any(UUID.class), anyString(), anyMap(), any(Instant.class));
+	}
+
+	@Test
 	void rejectsSameKeyWithDifferentBody() {
 		PatientRegistrationResponse original = new PatientRegistrationResponse(UUID.randomUUID(), "CRITICO", 5,
 				TriageRegistrationService.REGISTERED_STATUS, Instant.now());
