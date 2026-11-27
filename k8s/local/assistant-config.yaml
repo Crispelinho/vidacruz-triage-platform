@@ -9,9 +9,17 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://assistant-db:5432/vidacruz_assistant"
   SPRING_DATASOURCE_USERNAME: "assistant_app"
   SPRING_DATASOURCE_PASSWORD: "assistant_local"
+  # The packaged application.yaml has no spring.r2dbc.* keys, so Spring Boot cannot create a ConnectionFactory
+  # unless these relaxed-binding variables are supplied. JDBC is still needed by Flyway and pgvector.
+  SPRING_R2DBC_URL: "r2dbc:postgresql://assistant-db:5432/vidacruz_assistant"
+  SPRING_R2DBC_USERNAME: "assistant_app"
+  SPRING_R2DBC_PASSWORD: "assistant_local"
+  # RAGConfiguration defines its own VectorStore (PgvectorVectorStoreAdapter). Spring AI's auto-configured one
+  # would need an EmbeddingModel bean that this branch does not ship, so exclude it from auto-configuration.
+  SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
   SPRING_DATA_REDIS_HOST: "redis"
   SPRING_DATA_REDIS_PORT: "6379"
-  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   PATIENT_EVENTS_TOPIC: "triaje.eventos"
   URGENCY_CONSUMER_ENABLED: "true"
   ASSISTANT_API_KEY: "test-assistant-key"

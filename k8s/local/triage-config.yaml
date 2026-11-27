@@ -8,7 +8,11 @@ data:
   R2DBC_URL: "r2dbc:postgresql://triage-db:5432/vidacruz_triage"
   TRIAGE_DB_USER: "triage_app"
   TRIAGE_DB_PASSWORD: "triage_local"
-  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  # Flyway migrates over JDBC; R2DBC alone leaves the schema empty and every insert fails with 42P01.
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://triage-db:5432/vidacruz_triage"
+  SPRING_DATASOURCE_USERNAME: "triage_app"
+  SPRING_DATASOURCE_PASSWORD: "triage_local"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
   TRIAGE_EVENTS_TOPIC: "triaje.eventos"
   TRIAGE_API_KEY: "test-triage-key"
   OUTBOX_PUBLISHER_ENABLED: "true"
