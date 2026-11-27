@@ -1,9 +1,9 @@
 # VidaCruz — ADR Roadmap (D3)
 
-Status: **living roadmap.** ADR-04, ADR-05, ADR-08, ADR-09 and ADR-11 are on `develop`; ADR-01, ADR-02, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/17) and are not duplicated here; ADR-07, ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`. ADR-15 (RF-06 escalation alerts, LISTEN/NOTIFY + SSE + persisted alert row in the escalation transaction) is **Accepted/Implemented** and supersedes ADR-06. Every other decision remains `Proposed` until the developer approves it.
+Status: **living roadmap.** ADR-04, ADR-05, ADR-08, ADR-09 and ADR-11 are on `develop`; ADR-01, ADR-02, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/17) and are not duplicated here; ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`; ADR-07 is accepted/implemented on `develop`. ADR-15 (RF-06 escalation alerts, LISTEN/NOTIFY + SSE + persisted alert row in the escalation transaction) is **Accepted/Implemented** and supersedes ADR-06. Every other decision remains `Proposed` until the developer approves it.
 Sources: `docs/requirements.md` (D1, decision register DEC-01…DEC-15, risks R-01…R-10), `docs/analysis.md` (D0 §16, ADR candidates), `docs/capabilities-map.md` (D2, capabilities C-01…C-11), `deliverables-plan.md` §3 (D3 content plan).
 
-Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14); ADR-01, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 together with ADR-02 and Spec C-05, so this branch does not add competing copies of them; ADR-07, ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`; ADR-15 supersedes ADR-06 on `develop`.
+Branch context: the D3–D6 planning set was merged into `develop` through PR #3 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/3); the ADR roadmap audit corrections were merged through PR #11; ADR-04, ADR-08, ADR-09 and ADR-11 were drafted through PR #14 (https://github.com/Crispelinho/vidacruz-triage-platform/pull/14); ADR-01, ADR-03, ADR-10 and ADR-14 are proposed in PR #17 together with ADR-02 and Spec C-05, so this branch does not add competing copies of them; ADR-12 and ADR-13 are drafted on `docs/add-remaining-adrs`; ADR-07 is accepted/implemented on `develop`; ADR-15 supersedes ADR-06 on `develop`.
 
 ## 1. Purpose
 
@@ -43,7 +43,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 | ADR-04 | Vector store (pgvector) and JDBC isolation | C-06 | DER-06, TC-11, R-03 (no DEC covers pgvector; DEC-06 is Spring AI only) | Proposed | C-06 |
 | ADR-05 | LLM provider, framework and embeddings; canonical doc is `ADR-05-assistant-llm-provider.md` (Spring AI draft superseded) | C-06 | DEC-06, DEC-12, RF-04-A | Proposed | C-06 |
 | ADR-06 | RF-06 notification channel (webhook) | C-09 | RF-06, DEC-09, AMB-10 | Superseded by ADR-15 | C-09 (historical) |
-| ADR-07 | Authentication: API key versus JWT | C-10 | DEC-05, NFR security | Proposed | C-10, and any protected endpoint |
+| ADR-07 | Authentication: API key via `X-API-Key` filter | C-10 | DEC-05, NFR-09, NFR-10 | Accepted / Implemented | C-10, and any protected endpoint |
 | ADR-08 | Projection store for urgency state (Redis) | C-07 | RF-04-B, DEC-10 | Proposed | C-07 |
 | ADR-09 | Degraded mode and circuit breaker (relevance gate and citation validation stay in C-06) | C-06 | DEC-07, NFR-03, R-04, R-10 | Proposed | C-06 |
 | ADR-10 | Spring Boot 3.x line and end-of-support risk; Java 21 | C-01 | DEC-12, DEC-13, R-02, R-05 | Proposed (Boot 3.x chosen by the user) | C-01 |
@@ -56,7 +56,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 ### 3.1 Coherence with the capabilities map (D2)
 
 - **ADR-15 and C-09 (supersedes ADR-06).** ADR-15 is the accepted RF-06 channel: persist a `medical_alert` row in the same Reactor transaction as escalation/audit/outbox, expose active alerts and acknowledgement over HTTP, and stream live changes over SSE backed by PostgreSQL LISTEN/NOTIFY with catch-up replay. ADR-06 webhook remains historical/proposed context only; it must not be implemented. C-09 delivery semantics remain: at least one alert effect, at most one logical alert per escalation (`patient_id` unique / idempotent insert), no duplicate logical alert on retries/restarts.
-- **ADR-07 and C-10.** ADR-07 decides the authentication mechanism and the scope of protected endpoints (`/triage/**` and `/asistente/**`). Authorization rules and data protection stay in C-10. Functional validation of request data stays in C-02 (VAL rules). ADR-07 must not decide validation.
+- **ADR-07 and C-10.** ADR-07 is accepted/implemented: `X-API-Key` validated by a WebFlux filter protects `/triage/**` and `/asistente/**`; health/probes remain public. Authorization rules and data protection stay in C-10. Functional request validation stays in C-02 (VAL rules). ADR-07 must not decide validation.
 
 ### 3.2 Open decisions linked to ADRs
 
@@ -91,7 +91,7 @@ These are choices, not analysis. Each one is blocking acceptance of its ADR.
 
 - **ADR-05 LLM provider.** The Spring AI versus LangChain4j comparison cites official documentation. The C17 chain (`ollama,gemini,opencode`) and the 768-dimension schema are recorded by the Developer/User, and the hybrid WebClient amendment and OD-16 privacy policy are in the canonical ADR. TST-RXN passed per work unit and in Ubuntu CI (run [46032155156](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46032155156)); ADR-05 stays Proposed because the runtime spike, real-provider evidence for `gemini-3.5-flash-lite`, TST-RAG calibration and the ADR-11 repository artifact are still open. No equivalence of features is assumed.
 - **ADR-15 RF-06 channel (closed by ADR-15).** The accepted channel is persisted alerts + PostgreSQL LISTEN/NOTIFY + SSE. No external webhook receiver is required; webhook mock remains historical ADR-06 context only.
-- **ADR-07 authentication.** Closed: `X-API-Key` is definitive and JWT is rejected. ADR-07 is Accepted and implemented in both services.
+- **ADR-07 authentication (closed).** `X-API-Key` is definitive and JWT is rejected. ADR-07 is Accepted/Implemented in both services; roadmap table/status aligned.
 - **ADR-11 Azure target.** Amended 2026-11-27: AKS on Azure for Students in `northcentralus`, `Standard_B4as_v2` node and PostgreSQL Flexible `Standard_B1ms`, with a US$100/year budget and 50 %/80 % alerts to configure; the earlier Container Apps proposal is superseded/historical. Formal acceptance still blocked by the R-06 repository artifact and ADR-10 support-risk acceptance. Record the blocker if access is not available.
 - **ADR-10 support risk.** CLOSED by written developer acceptance on 2026-11-27 (D-ADR-10 / R-02). R-02 is verified: the official Spring announcement of 2026-06-25 (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/) states that Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and that continued OSS support requires 4.0.x or 4.1.x. The brief requires Boot 3.x, so the supported 4.x line is excluded. The acceptance is recorded in ADR-10; the ADR stays Proposed until its own verification gates pass.
 

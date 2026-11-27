@@ -87,13 +87,17 @@ The Developer/User accepts in writing the end of open-source support for Spring 
 
 ## Verification
 
-The following must pass before this ADR transitions from Proposed to Accepted:
+The following gates must pass before this ADR transitions from Proposed to Accepted:
 
-- [ ] Gradle 8.14.8 build succeeds with Java 21 on both `triage-service` and `clinical-assistant-service`
-- [ ] Spring Boot 3.5.x and Spring Cloud 2025.0.3 confirmed at build time (via `./gradlew dependencies`)
-- [ ] Spring AI 1.1.1 GA pgvector integration tested in Change 1 (platform-foundation)
-- [ ] CI/CD gate: Java 21 toolchain version enforced in builds (not Java 25)
-- [ ] README documents the scope restrictions (evaluation/development only) and post-delivery migration path (Boot 4.1.x required for production)
+- [x] Gradle 8.14.8 wrapper is configured in both services (`triage-service/triage-service/gradle/wrapper/gradle-wrapper.properties`, `clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties`) and Java 21 toolchain is enforced in both `build.gradle.kts` files.
+- [x] Spring Boot 3.5.16 is pinned in both services; Spring Cloud 2025.0.3 and Spring AI 1.1.1 are pinned in `clinical-assistant-service` where required. CI builds both services with Java 21 (`.github/workflows/ci.yml`, service workflows).
+- [x] pgvector/Spring AI integration is covered by tests in `clinical-assistant-service` (contract/integration/db tests under `src/test/java/com/vidacruz/clinical/...pgvector...`, `CorpusPgvectorTest`, `VectorRepositoryTest`, etc.).
+- [x] CI/CD gate enforces Java 21 (`actions/setup-java@v4`, `java-version: '21'`) in CI workflows.
+- [x] README documents Boot 3.5.16/Java 21 baseline and EOL/migration note (`README.md`).
+
+Pending before formal acceptance:
+- [ ] Attach/refresh a reproducible build evidence artifact (CI run URL or local log) showing both services build/test green on the accepted baseline.
+- [ ] Confirm no production deployment claims are made on OSS-only Boot 3.5.x; keep R-02 acceptance and post-delivery Boot 4.1+ migration path explicit in release docs.
 
 ---
 
