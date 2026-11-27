@@ -3,6 +3,7 @@ package com.vidacruz.clinical.domain.services;
 import java.util.List;
 import java.util.Objects;
 
+import com.vidacruz.clinical.domain.models.Citation;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
@@ -20,7 +21,8 @@ import reactor.core.publisher.Mono;
  *
  * <p>Pipeline: validate ({@link PromptRequest}) -> embed -> retrieve top-K -> relevance gate -> generate -> validate citations.
  * RN-05.3 gates before any LLM call: A) no retrieved fragments, B) all fragments below relevance threshold.
- * Citation markers in the answer are validated against retrieved evidence; invalid/invented citations are rejected (RN-05.3-C).
+ * The answer must contain at least one valid marker and only cited fragments become sources; ungrounded answers and
+ * invented citations are rejected (RN-05.3-C).
  */
 public class RAGService {
 
@@ -72,9 +74,12 @@ public class RAGService {
 					}
 					return llmRouter.generate(request.question(), relevant)
 							.map(completion -> {
-								// RN-05.3-C: reject answers citing evidence not retrieved in the allowed set.
-								CitationValidator.resolve(completion.answer(), relevant);
-								return new RAGResponse(completion.answer(), relevant, completion.usedModel());
+								// RN-05.3-C: reject ungrounded answers and citations outside the retrieved set.
+								List<Citation> citations = CitationValidator.resolve(completion.answer(), relevant);
+								List<EvidenceFragment> cited = citations.stream()
+										.map(citation -> relevant.get(citation.position() - 1))
+										.toList();
+								return new RAGResponse(completion.answer(), cited, completion.usedModel());
 							});
 				});
 	}

@@ -25,11 +25,11 @@ import com.vidacruz.clinical.domain.services.CorpusIngestionService;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.domain.services.RagRetrievalService;
 import com.vidacruz.clinical.domain.services.TextChunker;
-import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
@@ -132,14 +132,14 @@ class RAGConfiguration {
 	}
 
 	@Bean
-	EmbeddingProvider fixtureEmbeddingAdapter(VectorStoreProperties properties) {
-		return new FixtureEmbeddingAdapter(properties.dimensions());
+	EmbeddingProvider lexicalEmbeddingAdapter(VectorStoreProperties properties) {
+		return new LexicalEmbeddingAdapter(properties.dimensions());
 	}
 
 	@Bean
-	RAGService ragService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
+	RAGService ragService(EmbeddingProvider lexicalEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
 			VectorStoreProperties properties) {
-		return new RAGService(fixtureEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
+		return new RAGService(lexicalEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
 	}
 
 	@Bean

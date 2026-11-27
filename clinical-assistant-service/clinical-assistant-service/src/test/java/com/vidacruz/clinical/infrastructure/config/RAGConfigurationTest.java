@@ -15,7 +15,7 @@ import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.RAGService;
-import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
@@ -39,7 +39,7 @@ class RAGConfigurationTest {
 			assertThat(context.getBeansOfType(NamedLLMProvider.class)).hasSize(3);
 			assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
 			assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
-			assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(FixtureEmbeddingAdapter.class);
+			assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(LexicalEmbeddingAdapter.class);
 			assertThat(context.getBean(VectorStore.class)).isInstanceOf(PgvectorVectorStoreAdapter.class);
 			assertThat(context).hasSingleBean(RAGService.class);
 		});
@@ -61,18 +61,21 @@ class RAGConfigurationTest {
 			assertThat(vector.dimensions()).isEqualTo(768);
 			assertThat(vector.scheduler().threadCap()).isEqualTo(4);
 			assertThat(vector.scheduler().queuedTaskCap()).isEqualTo(100);
+			assertThat(vector.relevanceThreshold()).isEqualTo(VectorStoreProperties.CALIBRATED_RELEVANCE_THRESHOLD);
 		});
 	}
 
 	@Test
 	void bindsOverridesFromProperties() {
 		runner.withPropertyValues("ollama.url=http://gpu:11434", "ollama.timeout=5s", "ollama.fixture.latency=50ms",
-				"clinical.vector-store.dimensions=1024", "clinical.vector-store.scheduler.thread-cap=2")
+				"clinical.vector-store.dimensions=1024", "clinical.vector-store.scheduler.thread-cap=2",
+				"clinical.vector-store.relevance-threshold=0.4")
 				.run(context -> {
 					assertThat(context.getBean(OllamaProperties.class).url()).isEqualTo("http://gpu:11434");
 					assertThat(context.getBean(OllamaProperties.class).timeout()).isEqualTo(Duration.ofSeconds(5));
 					assertThat(context.getBean(VectorStoreProperties.class).dimensions()).isEqualTo(1024);
 					assertThat(context.getBean(VectorStoreProperties.class).scheduler().threadCap()).isEqualTo(2);
+					assertThat(context.getBean(VectorStoreProperties.class).relevanceThreshold()).isEqualTo(0.4d);
 				});
 	}
 

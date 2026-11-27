@@ -7,12 +7,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * Vector store settings.
  *
  * @param dimensions         embedding size; must match {@code vector(N)} in the Flyway migration.
- * @param relevanceThreshold minimum relevance [0,1] required before calling LLM (RN-05.3/G-02).
+ * @param relevanceThreshold minimum relevance [0,1] required before calling LLM (RN-05.3/G-02); calibrated with the
+ *                           seeded corpus and the lexical adapter (ADR-05)
  * @param scheduler          bounded scheduler isolating blocking JDBC calls from the event loop (ADR-04, NFR-01)
  */
 @ConfigurationProperties(prefix = "clinical.vector-store")
 public record VectorStoreProperties(@DefaultValue("768") int dimensions,
-		@DefaultValue("0.0") double relevanceThreshold, @DefaultValue Scheduler scheduler) {
+		@DefaultValue("0.20") double relevanceThreshold, @DefaultValue Scheduler scheduler) {
+
+	public static final double CALIBRATED_RELEVANCE_THRESHOLD = 0.20d;
 
 	public VectorStoreProperties {
 		if (dimensions < 1) {
