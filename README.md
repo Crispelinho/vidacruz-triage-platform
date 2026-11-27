@@ -50,7 +50,7 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - [ ] `POST /triage/alertas/{id}/reconocimiento` with `{"responsable":"..."}` moves it to `RECONOCIDA`; a second call returns `TRG-009`.
 - [ ] `GET /triage/alertas/stream` pushes the initial snapshot and live changes (use `curl -N` or streaming `fetch`).
 - [ ] `GET /triage/reportes/operacion?desde=...&hasta=...` with ISO 8601 offsets (`2026-01-01T00:00:00Z`).
-- [ ] RF-04: `POST /rag` returns an answer with the fixed notice, or `503` with `LLM_UNAVAILABLE` when no provider is configured.
+- [ ] RF-04: `POST /asistente/consulta` returns an answer with the fixed notice, or `503` with `LLM_UNAVAILABLE` when no provider is configured.
 - [ ] `GET /asistente/estado-urgencias` reflects patients published through `triaje.eventos` (outbox publisher is enabled in Compose).
 - [ ] NFR-07: `/actuator/prometheus` on both services needs `X-API-Key`, and Prometheus (`localhost:9090`) plus the provisioned Grafana dashboard (`localhost:3000`) show the counters after the requests above.
 - [ ] NFR-16: a registration with a W3C `traceparent` header produces one trace across `triage-service` and `clinical-assistant-service` in Jaeger (`localhost:16686`).
@@ -58,7 +58,7 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 ## Known limits
 
 - **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target and public URL are recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md) and `docs/operations/despliegue-azure-y-pruebas.md`. The live URL depends on the `azure` GitHub environment; no credentials are stored here. Local traces still go to the Jaeger container.
-- **RF-04 path drift.** API-04 documents `POST /asistente/consulta`, but the running scaffold exposes `POST /rag`. Use the implemented path until the endpoint is aligned.
+- **RF-04 compatibility alias.** `POST /rag` remains available as a compatibility alias for existing clients; new clients should use `POST /asistente/consulta`.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
 - **No idempotency header.** RF-01 does not yet implement `Idempotency-Key`; replaying a registration creates a new patient.

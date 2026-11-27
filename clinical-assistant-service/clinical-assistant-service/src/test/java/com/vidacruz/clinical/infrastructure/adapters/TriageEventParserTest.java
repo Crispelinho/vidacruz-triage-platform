@@ -31,6 +31,57 @@ class TriageEventParserTest {
     }
 
     @Test
+    void parsesRuntimeLowercaseRegistrationWithFlatEnvelope() {
+        var snapshot = TriageEventParser.parse("""
+                {"eventType":"paciente_registrado","eventId":"22222222-2222-4222-8222-222222222222",
+                 "schemaVersion":1,"pacienteId":"%s","pacienteSequence":4,
+                 "occurredAt":"2026-11-27T10:00:00Z","correlationId":"33333333-3333-4333-8333-333333333333",
+                 "nivel":"CRITICO","slaMinutos":5,"estado":"REGISTRADO"}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+
+        assertThat(snapshot.patientId()).isEqualTo(UUID.fromString(PATIENT));
+        assertThat(snapshot.level()).contains(TriageLevel.CRITICAL);
+        assertThat(snapshot.status()).isEqualTo(PatientStatus.REGISTRADO);
+        assertThat(snapshot.occurredAt()).isEqualTo(java.time.Instant.parse("2026-11-27T10:00:00Z"));
+        assertThat(snapshot.sequence()).isEqualTo(4);
+    }
+
+    @Test
+    void readsEnvelopeFieldsFromNestedPayload() {
+        var snapshot = TriageEventParser.parse("""
+                {"eventType":"paciente_registrado","payload":{"pacienteId":"%s","pacienteSequence":2,
+                 "occurredAt":"2026-11-27T10:05:00Z","nivel":"URGENTE","estado":"REGISTRADO"}}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+
+        assertThat(snapshot.patientId()).isEqualTo(UUID.fromString(PATIENT));
+        assertThat(snapshot.level()).contains(TriageLevel.URGENT);
+        assertThat(snapshot.status()).isEqualTo(PatientStatus.REGISTRADO);
+        assertThat(snapshot.sequence()).isEqualTo(2);
+    }
+
+    @Test
+    void mapsAllRuntimeLowercaseEventTypes() {
+        var escalado = TriageEventParser.parse("""
+                {"eventType":"paciente_escalado","pacienteId":"%s","pacienteSequence":2,
+                 "occurredAt":"2026-11-27T10:06:00Z","nivel":"URGENTE"}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+        assertThat(escalado.status()).isEqualTo(PatientStatus.REGISTRADO);
+        assertThat(escalado.level()).contains(TriageLevel.URGENT);
+
+        var consulta = TriageEventParser.parse("""
+                {"eventType":"paciente_en_consulta","pacienteId":"%s","pacienteSequence":3,
+                 "occurredAt":"2026-11-27T10:07:00Z"}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+        assertThat(consulta.status()).isEqualTo(PatientStatus.EN_CONSULTA);
+
+        var alta = TriageEventParser.parse("""
+                {"eventType":"paciente_alta","pacienteId":"%s","pacienteSequence":4,
+                 "occurredAt":"2026-11-27T10:08:00Z"}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+        assertThat(alta.status()).isEqualTo(PatientStatus.ALTA);
+    }
+
+    @Test
     void keepsStoredLevelForConsultationAndDischargeUsingTheRecordKey() {
         var consultation = TriageEventParser.parse("""
                 {"eventType":"EVT_03_PACIENTE_EN_CONSULTA","pacienteId":"%s","pacienteSequence":2,

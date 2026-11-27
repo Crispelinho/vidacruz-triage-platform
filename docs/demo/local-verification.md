@@ -87,17 +87,17 @@ An offset or `Z` is mandatory. Missing or malformed parameters return `400 TRG-0
 
 ## 5. RF-04 — assistant (provider-dependent)
 
-The implemented path is `POST /rag`; API-04 documents `/asistente/consulta` but the controller has not been aligned yet.
+The canonical path is `POST /asistente/consulta`; `POST /rag` is kept as a compatibility alias.
 
 ```bash
-curl -sS -X POST http://localhost:8082/rag \
+curl -sS -X POST http://localhost:8082/asistente/consulta \
   -H 'X-API-Key: test-assistant-key' -H 'Content-Type: application/json' \
   -H 'X-Correlation-Id: demo-001' \
   -d '{"pregunta":"¿Cuáles son las medidas iniciales ante una crisis hipertensiva?"}'
 curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-assistant-key'
 ```
 
-With no reachable provider, `/rag` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. To exercise a real answer, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
+With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. To exercise a real answer, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
 
 ## 6. Auth negatives
 

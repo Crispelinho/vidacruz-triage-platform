@@ -112,6 +112,15 @@ class TriageRegistrationServiceTest {
 	}
 
 	@Test
+	void registeredEventLiteralMatchesThePublishedEventType() {
+		assertThat(TriageRegistrationService.REGISTERED_EVENT).isEqualTo("paciente_registrado");
+
+		StepVerifier.create(service.register(request())).expectNextCount(1).verifyComplete();
+
+		verify(eventWriter).write(any(UUID.class), eq("paciente_registrado"), anyMap(), any(Instant.class));
+	}
+
+	@Test
 	void replaysOriginalResponseForSameKeyAndBody() {
 		PatientRegistrationResponse original = new PatientRegistrationResponse(UUID.randomUUID(), "CRITICO", 5,
 				TriageRegistrationService.REGISTERED_STATUS, Instant.now().minusSeconds(30));
