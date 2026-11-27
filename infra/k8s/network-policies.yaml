@@ -1,0 +1,190 @@
+# M-6 / A-3: default-deny for the namespace vidacruz, then one allow rule per real flow:
+#   gateway (namespace vidacruz-edge) -> triage-service:8081, clinical-assistant-service:8082
+#   triage-service, clinical-assistant-service, kafka-topic-init -> kafka:9092
+#   clinical-assistant-service -> redis:6379
+#   both services -> PostgreSQL:5432 (Azure Flexible Server, outside the cluster)
+#   clinical-assistant-service -> HTTPS:443 on public addresses only (Gemini, OpenCode)
+#   every pod -> cluster DNS
+# Kubelet health probes are not subject to NetworkPolicy. The policies need an enforcing dataplane: AKS runs
+# Azure CNI powered by Cilium (infra/azure/main.bicep); on a cluster without one they are accepted and ignored.
+# A new in-cluster flow (for example a Prometheus scraper) needs its own allow rule here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: triage-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: triage-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the Gateway pods; the edge namespace holds nothing else.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vidacruz-edge
+      ports:
+        - protocol: TCP
+          port: 8081
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    # PostgreSQL Flexible Server has a public endpoint (firewalled to the cluster egress IP); its address is not
+    # fixed, so the rule is by port.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clinical-assistant-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clinical-assistant-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vidacruz-edge
+      ports:
+        - protocol: TCP
+          port: 8082
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+    # External LLM and embedding providers over HTTPS. Private, link-local (instance metadata) and CGNAT ranges are
+    # excluded so this rule cannot reach anything inside the virtual network.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  # Egress stays denied (DNS aside): the single KRaft node talks to its controller on localhost.
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: triage-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clinical-assistant-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka-topic-init
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clinical-assistant-service
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-topic-init
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-topic-init
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
