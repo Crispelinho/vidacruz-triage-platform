@@ -21,6 +21,8 @@ docker compose ps
 | PostgreSQL + pgvector (assistant) | `localhost:5433` | `assistant_app` / `assistant_local` |
 | Kafka | `localhost:9092` | topic `triaje.eventos` |
 | Redis | `localhost:6379` | urgency projection |
+| Prometheus | `http://localhost:9090` | scraper sends the demo keys |
+| Grafana | `http://localhost:3000` | anonymous viewer; local admin password `admin-local` |
 
 Stop with `docker compose down`; keep data with `docker compose down` (volumes persist) or delete it with `docker compose down -v`.
 
@@ -49,6 +51,7 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - [ ] `GET /triage/reportes/operacion?desde=...&hasta=...` with ISO 8601 offsets (`2026-01-01T00:00:00Z`).
 - [ ] RF-04: `POST /rag` returns an answer with the fixed notice, or `503` with `LLM_UNAVAILABLE` when no provider is configured.
 - [ ] `GET /asistente/estado-urgencias` reflects patients published through `triaje.eventos` (outbox publisher is enabled in Compose).
+- [ ] NFR-07: `/actuator/prometheus` on both services needs `X-API-Key`, and Prometheus (`localhost:9090`) plus the provisioned Grafana dashboard (`localhost:3000`) show the counters after the requests above.
 
 ## Known limits
 
