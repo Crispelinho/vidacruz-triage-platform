@@ -44,7 +44,7 @@ Los XML de outbox que en la foto inicial tenían `failures="3"` y `failures="1"`
 | 7 | ADR-07 — Authentication via API key | `Accepted` | Cierre D-ADR-07 en `open-decisions-register-v2-20261126.md:39`; `X-API-Key` definitivo, JWT rechazado; implementado en ambos servicios | **ACTA EMITIDA** (ver § Acta emitida) |
 | 8 | ADR-12 — Idempotency key | `Proposed` | XML de `TriageIdempotencyEvidenceTest` en verde; limpieza a 24 h deshabilitada y dependencias G-08/G-07/ADR-03 pendientes | **Sin acta — bloqueado** |
 | 9 | ADR-04 — pgvector JDBC isolation | `Proposed` | Control negativo de BlockHound PASS; sin evidencia de recuperación pgvector real ni carga p95 < 200 ms | **Sin acta — bloqueado** |
-| 10 | ADR-05 — Assistant LLM provider | `Proposed` | OD-16 PASS y TST-RXN PASS; TST-RAG bloqueado; R-07, R-06 y spike de configuración sin verificar | **Sin acta — bloqueado** |
+| 10 | ADR-05 — Assistant LLM provider | `Proposed` | OD-16 PASS, TST-RXN PASS y TST-RAG PASS ([run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910)); R-07 (chat), R-06 y spike de configuración sin verificar | **Sin acta — bloqueado** |
 | 11 | ADR-09 — Circuit breaker / degraded mode | `Proposed` | Sin XML de TST-RES, frontera sin coincidencia ni métricas | **Sin acta — bloqueado** |
 | 12 | ADR-08 — Urgency projection store | `ACCEPTED — AMENDED` | Aceptación acotada a Redis+Lua; TST-PJ, edge cases y 503 por Redis indisponible sin ejecutar | **Sin acta de verificación — bloqueado** |
 | 13 | ADR-06 — Notification channel | `Superseded` | ADR-15 (`Accepted`) supersede ambos borradores y prohíbe implementar el webhook | **Sin acta — no elegible** |
@@ -72,7 +72,7 @@ Los ADR restantes permanecen en su estado actual. Los bloqueos se registran por 
 - **G-T27, G-T28, T-11/T-12 y TST-ESC** (ADR-13); el XML de SLA está en verde.
 - **Configuración de limpieza a 24 h y dependencias G-08/G-07/ADR-03** (ADR-12); el XML de idempotencia está en verde.
 - **Recuperación real pgvector y carga p95 < 200 ms** (ADR-04); el control negativo de TST-RXN ya pasó.
-- **TST-RAG con embedding real, calibración de 0.65/top-k=4, R-07, spike de configuración y artefacto ADR-11** (ADR-05). OD-16 y TST-RXN tienen PASS aislados y no cierran el ADR.
+- **R-07 (endpoint/id, latencia y coste del nodo de chat), spike de configuración y artefacto ADR-11** (ADR-05). OD-16, TST-RXN y TST-RAG tienen PASS aislados y no cierran el ADR. TST-RAG verificó `gemini-embedding-2` con 5/5 por sonda en [run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910); el coste no se midió y el nodo de chat no participó en esa ejecución.
 - **TST-RES, frontera sin coincidencia y métricas** (ADR-09).
 - **TST-PJ, edge cases, cutover, 503 por Redis y métricas NFR-19** (ADR-08).
 - **Conflicto ADR-15: no implementar webhook y no marcar ADR-06 como `Accepted`** (ADR-06).
@@ -83,5 +83,5 @@ Los ADR restantes permanecen en su estado actual. Los bloqueos se registran por 
 - No se ha cambiado el estado de ningún ADR.
 - ADR-06 sigue `Superseded` y no se implementa el receiver webhook.
 - ADR-15 no se modifica.
-- Los umbrales `0.65` y `top-k=4` siguen siendo objetivos decididos, no valores runtime confirmados; el umbral operacional permanece `0.20` hasta TST-RAG.
+- `top-k=4` y el objetivo `0.65` quedan confirmados para `gemini-embedding-2` por TST-RAG (mínimo positivo 0.7473, negativo 0.5842). El umbral operacional permanece `0.20` porque producción sigue usando el adaptador léxico y el corpus sembrado no fue reembedido; habilitar el modelo semántico exige reingesta completa.
 - Esta acta queda sujeta a la evidencia disponible en la fecha indicada; si se ejecutan las compuertas pendientes, debe reemitirse en el mismo orden §3.3.

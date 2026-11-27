@@ -1,9 +1,6 @@
 name: Gemini embedding verification
 
 on:
-  push:
-    branches:
-      - feat/gemini-embeddings-tst-rag
   workflow_dispatch:
 
 permissions:
