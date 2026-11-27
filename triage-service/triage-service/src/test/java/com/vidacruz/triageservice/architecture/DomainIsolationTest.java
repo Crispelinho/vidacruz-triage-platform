@@ -49,16 +49,12 @@ class DomainIsolationTest {
 
 	private static final String TRANSACTIONAL_OPERATOR =
 			"org.springframework.transaction.reactive.TransactionalOperator";
-	private static final String DATABASE_CLIENT = "org.springframework.r2dbc.core.DatabaseClient";
 
 	/** Documented exceptions from the intermediate cleanup step; remove entries as each adapter is extracted. */
 	private static final Map<String, Set<String>> ALLOWED_SPRING_DEPENDENCIES = Map.of(
 			"com.vidacruz.triageservice.domain.service.PatientLifecycleService", Set.of(TRANSACTIONAL_OPERATOR),
 			"com.vidacruz.triageservice.domain.service.SlaEvaluator", Set.of(TRANSACTIONAL_OPERATOR),
 			"com.vidacruz.triageservice.domain.service.TriageRegistrationService", Set.of(TRANSACTIONAL_OPERATOR),
-			"com.vidacruz.triageservice.domain.service.ReportService", Set.of(DATABASE_CLIENT,
-					"org.springframework.r2dbc.core.DatabaseClient$GenericExecuteSpec",
-					"org.springframework.r2dbc.core.RowsFetchSpec"),
 			"com.vidacruz.triageservice.event.domain.OutboxEvento", Set.of(
 					"org.springframework.data.annotation.Id",
 					"org.springframework.data.annotation.Transient",

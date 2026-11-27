@@ -4,7 +4,6 @@ import java.time.Clock;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,7 +15,6 @@ import com.vidacruz.triageservice.domain.service.AcknowledgeAlertUseCase;
 import com.vidacruz.triageservice.domain.service.GetOperationReportUseCase;
 import com.vidacruz.triageservice.domain.service.ListActiveAlertsUseCase;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
-import com.vidacruz.triageservice.domain.service.ReportService;
 import com.vidacruz.triageservice.domain.service.SlaEvaluator;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
@@ -96,10 +94,5 @@ public class DomainServiceConfiguration {
 			Clock clock) {
 		return new PatientLifecycleService(patientRepository, auditRepository, eventWriter, alertRepository,
 				transactionalOperator, clock);
-	}
-
-	@Bean
-	public ReportService reportService(DatabaseClient databaseClient) {
-		return new ReportService(databaseClient);
 	}
 }
