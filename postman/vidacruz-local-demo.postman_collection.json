@@ -1,0 +1,192 @@
+{
+  "info": {
+    "name": "VidaCruz local demo (RF-01..RF-06)",
+    "description": "Local-only demo against docker compose. Set the environment variables in postman/vidacruz-local.postman_environment.json. E1-E6 are the six specification examples. RF-04 uses the implemented /rag path; API-04 still documents /asistente/consulta.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "triageBase", "value": "http://localhost:8081" },
+    { "key": "assistantBase", "value": "http://localhost:8082" },
+    { "key": "triageKey", "value": "test-triage-key" },
+    { "key": "assistantKey", "value": "test-assistant-key" },
+    { "key": "patientId", "value": "" },
+    { "key": "alertId", "value": "" },
+    { "key": "desde", "value": "2026-01-01T00:00:00Z" },
+    { "key": "hasta", "value": "2027-01-01T00:00:00Z" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health (public)",
+      "item": [
+        {
+          "name": "Triage health",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{triageBase}}/actuator/health" } }
+        },
+        {
+          "name": "Assistant health",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{assistantBase}}/actuator/health" } }
+        }
+      ]
+    },
+    {
+      "name": "01 - RF-01 classification E1-E6",
+      "item": [
+        {
+          "name": "E1 - Dolor torácico (CRITICO)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('created', () => pm.response.to.have.status(201));",
+            "pm.test('CRITICO', () => pm.expect(pm.response.json().nivel).to.eql('CRITICO'));",
+            "pm.collectionVariables.set('patientId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{triageKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E1\",\n  \"edad\": 65,\n  \"frecuencia_cardiaca\": 130,\n  \"presion_sistolica\": 180,\n  \"presion_diastolica\": 110,\n  \"spo2\": 97,\n  \"temperatura\": 36.8,\n  \"dolor\": 8,\n  \"gcs\": 15,\n  \"queja_principal\": \"Dolor torácico\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{triageBase}}/triage/pacientes" }
+          }
+        },
+        {
+          "name": "E2 - Dificultad para respirar (URGENTE)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E2\",\n  \"edad\": 50,\n  \"frecuencia_cardiaca\": 95,\n  \"presion_sistolica\": 150,\n  \"presion_diastolica\": 95,\n  \"spo2\": 91,\n  \"temperatura\": 37.0,\n  \"dolor\": 4,\n  \"gcs\": 15,\n  \"queja_principal\": \"Dificultad para respirar\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('URGENTE', () => pm.expect(pm.response.json().nivel).to.eql('URGENTE'));"
+          ] } }]
+        },
+        {
+          "name": "E3 - Fiebre (URGENTE_2)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E3\",\n  \"edad\": 40,\n  \"frecuencia_cardiaca\": 88,\n  \"presion_sistolica\": 130,\n  \"presion_diastolica\": 85,\n  \"spo2\": 98,\n  \"temperatura\": 38.2,\n  \"dolor\": 6,\n  \"gcs\": 15,\n  \"queja_principal\": \"Fiebre\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('URGENTE_2', () => pm.expect(pm.response.json().nivel).to.eql('URGENTE_2'));"
+          ] } }]
+        },
+        {
+          "name": "E4 - Herida por cortar (NO_URGENTE)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E4\",\n  \"edad\": 30,\n  \"frecuencia_cardiaca\": 72,\n  \"presion_sistolica\": 120,\n  \"presion_diastolica\": 80,\n  \"spo2\": 99,\n  \"temperatura\": 36.5,\n  \"dolor\": 2,\n  \"gcs\": 15,\n  \"queja_principal\": \"Herida por cortar\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('NO_URGENTE', () => pm.expect(pm.response.json().nivel).to.eql('NO_URGENTE'));"
+          ] } }]
+        },
+        {
+          "name": "E5 - Renovación de recetario (NO_URGENTE_2)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E5\",\n  \"edad\": 35,\n  \"frecuencia_cardiaca\": 70,\n  \"presion_sistolica\": 115,\n  \"presion_diastolica\": 75,\n  \"spo2\": 99,\n  \"temperatura\": 36.4,\n  \"dolor\": 0,\n  \"gcs\": 15,\n  \"queja_principal\": \"Renovación de recetario\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('NO_URGENTE_2', () => pm.expect(pm.response.json().nivel).to.eql('NO_URGENTE_2'));"
+          ] } }]
+        },
+        {
+          "name": "E6 - Inconsciente (CRITICO)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"nombre_completo\": \"Paciente E6\",\n  \"edad\": 70,\n  \"frecuencia_cardiaca\": 35,\n  \"presion_sistolica\": 80,\n  \"presion_diastolica\": 50,\n  \"spo2\": 85,\n  \"temperatura\": 35.9,\n  \"dolor\": 0,\n  \"gcs\": 6,\n  \"queja_principal\": \"Inconsciente\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes" } },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('CRITICO', () => pm.expect(pm.response.json().nivel).to.eql('CRITICO'));"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - RF-02 lifecycle",
+      "item": [
+        {
+          "name": "Get patient",
+          "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{triageKey}}" }], "url": { "raw": "{{triageBase}}/triage/pacientes/{{patientId}}" } }
+        },
+        {
+          "name": "EN_CONSULTA",
+          "request": { "method": "PATCH", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"estado\": \"EN_CONSULTA\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes/{{patientId}}/estado" } }
+        },
+        {
+          "name": "ALTA",
+          "request": { "method": "PATCH", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"estado\": \"ALTA\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/pacientes/{{patientId}}/estado" } }
+        }
+      ]
+    },
+    {
+      "name": "03 - RF-03/RF-06 alerts",
+      "item": [
+        {
+          "name": "List alerts",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const alerts = pm.response.json();",
+            "if (alerts.length > 0) pm.collectionVariables.set('alertId', alerts[0].id);",
+            "pm.test('no patient identity', () => alerts.forEach(a => { pm.expect(a).to.not.have.property('nombre'); pm.expect(a).to.not.have.property('quejaPrincipal'); }));"
+          ] } }],
+          "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{triageKey}}" }], "url": { "raw": "{{triageBase}}/triage/alertas" } }
+        },
+        {
+          "name": "Acknowledge alert",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Content-Type", "value": "application/json" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"responsable\": \"dra-garcia\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{triageBase}}/triage/alertas/{{alertId}}/reconocimiento" } }
+        },
+        {
+          "name": "SSE stream (use curl -N for a continuous feed)",
+          "request": { "method": "GET", "header": [
+            { "key": "X-API-Key", "value": "{{triageKey}}" }, { "key": "Accept", "value": "text/event-stream" }
+          ], "url": { "raw": "{{triageBase}}/triage/alertas/stream" } }
+        }
+      ]
+    },
+    {
+      "name": "04 - RF-05 report",
+      "item": [
+        {
+          "name": "Operation report",
+          "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{triageKey}}" }], "url": { "raw": "{{triageBase}}/triage/reportes/operacion?desde={{desde}}&hasta={{hasta}}" } }
+        }
+      ]
+    },
+    {
+      "name": "05 - RF-04 assistant",
+      "item": [
+        {
+          "name": "Ask (implemented path /rag)",
+          "request": { "method": "POST", "header": [
+            { "key": "X-API-Key", "value": "{{assistantKey}}" }, { "key": "Content-Type", "value": "application/json" },
+            { "key": "X-Correlation-Id", "value": "demo-001" }
+          ], "body": { "mode": "raw", "raw": "{\n  \"pregunta\": \"¿Cuáles son las medidas iniciales ante una crisis hipertensiva?\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{assistantBase}}/rag" } }
+        },
+        {
+          "name": "Urgency state (API-05)",
+          "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{assistantKey}}" }], "url": { "raw": "{{assistantBase}}/asistente/estado-urgencias" } }
+        }
+      ]
+    },
+    {
+      "name": "06 - Auth negatives",
+      "item": [
+        {
+          "name": "Missing key returns 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));",
+            "pm.test('structured body', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));",
+            "pm.test('correlation header', () => pm.response.to.have.header('X-Correlation-Id'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{triageBase}}/triage/alertas" } }
+        },
+        {
+          "name": "Wrong key returns 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "wrong" }], "url": { "raw": "{{triageBase}}/triage/alertas" } }
+        }
+      ]
+    }
+  ]
+}
