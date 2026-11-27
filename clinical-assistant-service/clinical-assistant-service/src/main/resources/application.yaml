@@ -96,6 +96,14 @@ opencode:
   model: glm-5.3
   api-key: ${OPENCODE_API_KEY:}
 
+# Optional node: not part of the default rag.llm.chain. Enable explicitly with RAG_LLM_CHAIN=openrouter,gemini.
+# Privacy controls and the zero price ceiling are always sent; provider.zdr is deliberately absent on free endpoints.
+openrouter:
+  base-url: https://openrouter.ai/api/v1
+  model: nvidia/nemotron-3.5-lightning:free
+  api-key: ${OPENROUTER_API_KEY:}
+  data-collection: deny
+
 assistant:
   # Required (ADR-07): no default, so a missing ASSISTANT_API_KEY stops startup instead of accepting a public key.
   # Docker Compose and the local K8s overlay supply their own local-only values.
