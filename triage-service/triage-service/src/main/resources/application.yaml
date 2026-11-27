@@ -1,6 +1,9 @@
 spring:
   application:
     name: triage-service
+  # Observations and trace context must survive Reactor boundaries (NFR-16).
+  reactor:
+    context-propagation: auto
   r2dbc:
     url: ${R2DBC_URL:r2dbc:postgresql://localhost:5432/vidacruz_triage}
     username: ${TRIAGE_DB_USER:triage_app}
@@ -31,6 +34,11 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+  # W3C traceparent is the Spring Boot default. Span export is enabled only when
+  # MANAGEMENT_OTLP_TRACING_ENDPOINT is set (local Jaeger); logs always carry traceId/spanId.
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
 app:
   sla:
     # Overridable for the local demo so RF-03 escalation can be observed in minutes.

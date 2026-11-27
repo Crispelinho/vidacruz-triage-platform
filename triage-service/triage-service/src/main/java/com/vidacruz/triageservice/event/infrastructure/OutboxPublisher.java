@@ -1,11 +1,14 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +30,7 @@ import reactor.core.publisher.Mono;
 public class OutboxPublisher {
 
 	private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
+	private static final String TRACEPARENT = "traceparent";
 
 	private final OutboxEventoRepository repository;
 	private final KafkaTemplate<String, String> kafkaTemplate;
@@ -84,6 +88,15 @@ public class OutboxPublisher {
 				.reduce(0, Integer::sum);
 	}
 
+	/** The W3C trace context travels with the record, never in the payload (NFR-16). */
+	private ProducerRecord<String, String> recordOf(OutboxEvento event) {
+		RecordHeaders headers = new RecordHeaders();
+		if (event.getTraceParent() != null && !event.getTraceParent().isBlank()) {
+			headers.add(TRACEPARENT, event.getTraceParent().getBytes(StandardCharsets.UTF_8));
+		}
+		return new ProducerRecord<>(topic, null, event.getPacienteId().toString(), event.getPayload(), headers);
+	}
+
 	private Mono<Integer> publishOne(OutboxEvento event) {
 		OffsetDateTime leaseUntil = OffsetDateTime.ofInstant(
 				Instant.now().plusSeconds(leaseSeconds), ZoneOffset.UTC);
@@ -93,9 +106,7 @@ public class OutboxPublisher {
 						return Mono.just(0);
 					}
 					return Mono.defer(() -> Mono.fromFuture(
-									() -> kafkaTemplate.send(topic, event.getPacienteId().toString(),
-											event.getPayload()),
-									false))
+									() -> kafkaTemplate.send(recordOf(event)), false))
 							.timeout(Duration.ofSeconds(leaseSeconds))
 							.then(repository.markPublished(event.getEventId(),
 									OffsetDateTime.now(ZoneOffset.UTC)))

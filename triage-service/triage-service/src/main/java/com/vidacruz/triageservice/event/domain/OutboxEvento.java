@@ -35,6 +35,10 @@ public class OutboxEvento implements Persistable<UUID> {
     @Column("correlation_id")
     private UUID correlationId;
 
+    /** W3C traceparent carried to Kafka so consumers join the request trace; null outside a trace. */
+    @Column("traceparent")
+    private String traceParent;
+
     @Column("schema_version")
     private Integer schemaVersion = 1;
 
@@ -111,6 +115,9 @@ public class OutboxEvento implements Persistable<UUID> {
 
     public UUID getCorrelationId() { return correlationId; }
     public void setCorrelationId(UUID correlationId) { this.correlationId = correlationId; }
+
+    public String getTraceParent() { return traceParent; }
+    public void setTraceParent(String traceParent) { this.traceParent = traceParent; }
 
     public Integer getSchemaVersion() { return schemaVersion; }
     public void setSchemaVersion(Integer schemaVersion) { this.schemaVersion = schemaVersion; }

@@ -23,6 +23,7 @@ docker compose ps
 | Redis | `localhost:6379` | urgency projection |
 | Prometheus | `http://localhost:9090` | scraper sends the demo keys |
 | Grafana | `http://localhost:3000` | anonymous viewer; local admin password `admin-local` |
+| Jaeger | `http://localhost:16686` | local traces from both services |
 
 Stop with `docker compose down`; keep data with `docker compose down` (volumes persist) or delete it with `docker compose down -v`.
 
@@ -52,10 +53,11 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - [ ] RF-04: `POST /rag` returns an answer with the fixed notice, or `503` with `LLM_UNAVAILABLE` when no provider is configured.
 - [ ] `GET /asistente/estado-urgencias` reflects patients published through `triaje.eventos` (outbox publisher is enabled in Compose).
 - [ ] NFR-07: `/actuator/prometheus` on both services needs `X-API-Key`, and Prometheus (`localhost:9090`) plus the provisioned Grafana dashboard (`localhost:3000`) show the counters after the requests above.
+- [ ] NFR-16: a registration with a W3C `traceparent` header produces one trace across `triage-service` and `clinical-assistant-service` in Jaeger (`localhost:16686`).
 
 ## Known limits
 
-- **No cloud deployment.** ADR-11 is blocked by unverified subscription/quota (R-06). There is no k8s/Helm manifest and no public URL; this stack is localhost-only.
+- **No cloud deployment.** ADR-11 is blocked by unverified subscription/quota (R-06). There is no k8s/Helm manifest and no public URL; this stack is localhost-only. Traces are exported only to the local Jaeger container.
 - **RF-04 path drift.** API-04 documents `POST /asistente/consulta`, but the running scaffold exposes `POST /rag`. Use the implemented path until the endpoint is aligned.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).

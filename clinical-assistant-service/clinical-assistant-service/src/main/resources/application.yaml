@@ -1,6 +1,9 @@
 spring:
   application:
     name: clinical-assistant-service
+  # Observations and trace context must survive Reactor boundaries (NFR-16).
+  reactor:
+    context-propagation: auto
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -95,3 +98,8 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+  # W3C traceparent is the Spring Boot default. Span export is enabled only when
+  # MANAGEMENT_OTLP_TRACING_ENDPOINT is set (local Jaeger); logs always carry traceId/spanId.
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}

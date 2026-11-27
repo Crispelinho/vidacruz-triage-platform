@@ -3,6 +3,8 @@ package com.vidacruz.clinical.infrastructure.adapters;
 import com.vidacruz.clinical.domain.services.ProjectTriageEventUseCase;
 import com.vidacruz.clinical.infrastructure.config.TriageEventsProperties;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,6 +22,8 @@ import reactor.kafka.receiver.ReceiverOffset;
 import reactor.kafka.receiver.ReceiverOptions;
 import reactor.kafka.receiver.ReceiverPartition;
 import reactor.kafka.receiver.ReceiverRecord;
+import reactor.kafka.receiver.observation.KafkaReceiverObservation;
+import reactor.kafka.receiver.observation.KafkaRecordReceiverContext;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
@@ -42,18 +46,22 @@ public class TriageEventsConsumer implements SmartLifecycle {
     private static final Duration FIRST_RESTART_PAUSE = Duration.ofSeconds(1);
     private static final Duration MAX_RESTART_PAUSE = Duration.ofSeconds(30);
     private static final Duration COMMIT_INTERVAL = Duration.ofSeconds(1);
+    /** Receiver name used in the span of a projected event (NFR-16). */
+    private static final String RECEIVER_ID = "triage-events-projection";
 
     private final ProjectTriageEventUseCase projectTriageEvent;
     private final TriageEventsProperties properties;
     private final MeterRegistry meterRegistry;
+    private final ObservationRegistry observationRegistry;
     private final UrgencyEventsMetrics metrics;
     private final AtomicReference<Disposable> subscription = new AtomicReference<>();
 
     public TriageEventsConsumer(ProjectTriageEventUseCase projectTriageEvent, TriageEventsProperties properties,
-                                MeterRegistry meterRegistry) {
+                                MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.projectTriageEvent = projectTriageEvent;
         this.properties = properties;
         this.meterRegistry = meterRegistry;
+        this.observationRegistry = observationRegistry;
         this.metrics = new UrgencyEventsMetrics(meterRegistry);
     }
 
@@ -89,7 +97,21 @@ public class TriageEventsConsumer implements SmartLifecycle {
                 .publishOn(Schedulers.boundedElastic())
                 .flatMapMany(rebuild -> KafkaReceiver.create(options(rebuild)).receive())
                 .groupBy(received -> received.receiverOffset().topicPartition())
-                .flatMap(partition -> partition.concatMap(this::project));
+                .flatMap(partition -> partition.concatMap(this::handle));
+    }
+
+    /** Handles one event inside an observation that continues the trace started by the triage request (NFR-16). */
+    Mono<ReceiverOffset> handle(ReceiverRecord<String, String> received) {
+        return Mono.defer(() -> {
+            var observation = KafkaReceiverObservation.RECEIVER_OBSERVATION.start(null,
+                    KafkaReceiverObservation.DefaultKafkaReceiverObservationConvention.INSTANCE,
+                    () -> new KafkaRecordReceiverContext(received, RECEIVER_ID, properties.bootstrapServers()),
+                    observationRegistry);
+            return project(received)
+                    .doOnError(observation::error)
+                    .doFinally(signal -> observation.stop())
+                    .contextWrite(context -> context.put(ObservationThreadLocalAccessor.KEY, observation));
+        });
     }
 
     private Mono<ReceiverOffset> project(ReceiverRecord<String, String> received) {
