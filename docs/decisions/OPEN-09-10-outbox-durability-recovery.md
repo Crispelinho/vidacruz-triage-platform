@@ -25,7 +25,7 @@ Triage writes each event twice in the business transaction: an `OutboxEvento` ro
 - The draft of `spec.md` for C-05 said "24 hours minimum" for outbox cleanup and linked it to OD-3. That value was an earlier draft and is superseded by the 7-day decision; OD-3 concerns Kafka retention and the history, not the outbox cleanup.
 - The 30-day Kafka retention is recorded in documents only. No executable Kafka configuration is verified (ADR-02).
 
-Option A is what the current documents describe and is now accepted. G-T29 is closed at 7 days. OD-5 remains open because the clinical retention period and privacy review are not part of this decision. OPEN-09 is resolved here: the rebuild source is `EventoHistorico`; OPEN-10 is resolved by accepting that table as the Triage durable record.
+Option A is what the current documents describe and is now accepted. G-T29 is closed at 7 days. OD-5 was closed separately by the Developer/User on 2026-11-27 at 5 years; that value is not part of this 2026-11-25 decision. OPEN-09 is resolved here: the rebuild source is `EventoHistorico`; OPEN-10 is resolved by accepting that table as the Triage durable record.
 
 ## Options
 
@@ -52,17 +52,16 @@ Option A is what the current documents describe and is now accepted. G-T29 is cl
 
 ## What this record does not decide
 
-- The retention period of `EventoHistorico` (OD-5), which needs a clinical data retention and privacy review.
 - The assignment strategy of `pacienteSequence` (G-T06, closed 2026-11-25 as a per-patient counter in the same transaction); the rebuild order depends on it, and implementation is still pending.
 - The backend of consumer deduplication (ADR-08, Proposed).
 - The republication target topic and the cut point between replayed and live events.
-- The clinical retention and erasure policy for the accepted durable record. Acceptance of Option A fixes which table is durable, not how long clinical history is kept.
+- The implementation of the retention policy: no `EventoHistorico` table or purge job exists in the current code, so the 5-year value below is a recorded policy, not implemented evidence.
 
 ## Recorded decision
 
 - **Developer decision (2026-11-25): Option A.** `OutboxEvento` is the operational queue; `EventoHistorico` is the durable, append-only record and the source for full reconstruction.
 - **G-T29 closed (2026-11-25):** published outbox rows are eligible for cleanup after 7 days, configurable. Unpublished and flagged rows are never deleted. The cleanup job remains disabled until deployment configuration enables it.
-- **OD-5 stays open.** No time-based purge of `EventoHistorico` until the developer sets the clinical retention period.
+- **OD-5 closed (Developer/User, 2026-11-27): 5 years.** `EventoHistorico` is an immutable clinical audit record and is not purged before that period. This value is distinct from OD-16 (prompt privacy) and from the 7-day operational outbox retention.
 - `requirements.md`, `capabilities-map.md`, `triage-service.md`, `clinical-assistant-service.md`, the ADRs and Spec C-05 now cite the accepted record instead of conditional options. ADR-02, ADR-03, ADR-08 and ADR-14 remain Proposed until their own gates close.
 
 ## Verification required after implementation

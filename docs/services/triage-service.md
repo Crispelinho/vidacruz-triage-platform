@@ -105,7 +105,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 | 201 | Created, or replay of the same key with the same body (D1 §9: 201 on replay) | `{ id, nivel, slaMinutos, estado: "REGISTRADO", fechaRegistro }` |
 | 400 | Any validation failure | `{ code: "VALIDATION_ERROR", errors: [{ campo, mensaje }], correlationId }` |
 | 409 | Same key, different body | `{ code: "IDEMPOTENCY_KEY_REUSED", message, correlationId }` |
-| 401 | Missing or wrong API key | proposed `UNAUTHORIZED` (G-T02) |
+| 401 | Missing or wrong API key | Canonical `{ code: "UNAUTHORIZED", message: "Invalid or missing X-API-Key header", correlationId }` plus `X-Correlation-Id` (D-API-401-NFR20) |
 | 400 | Malformed JSON or malformed `Idempotency-Key` | proposed `MALFORMED_REQUEST` (G-T02) |
 
 **Side effects:** `Paciente`, `Clasificacion`, `AuditoriaClinica` (`REGISTRO`), `OutboxEvento` (EVT-01, once per successful creation), optional `IdempotencyKey`.
@@ -161,7 +161,7 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 | `TRG-008` | 404 | RF-06 | Implemented (unknown alert) |
 | `TRG-009` | 409 | RF-06 | Implemented (alert already acknowledged or resolved) |
 | `MALFORMED_REQUEST` | 400 | all with body | Not defined (G-T02) |
-| `UNAUTHORIZED` | 401 | all protected | Status defined (NFR-10), code not (G-T02) |
+| `UNAUTHORIZED` | 401 | all protected | Canonical body `{code, message, correlationId}` with `X-Correlation-Id` (D-API-401-NFR20); implemented and tested |
 | `INTERNAL_ERROR` | 500 | all | Status defined (D0 §3.1), code not; no details leaked (DER-08) |
 
 The Assistant codes (`LLM_UNAVAILABLE`) are out of scope.
