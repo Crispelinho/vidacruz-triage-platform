@@ -4,6 +4,8 @@
 **Fase:** Consolidación y auditoría de consistencia  
 **Modo:** Solo lectura, sin modificaciones  
 
+> **Nota de vigencia (2026-11-27):** Este informe es una fotografía del estado al 2026-11-26. El estado corriente de ADR-05 está en [ADR-05-assistant-llm-provider.md](../../adr/ADR-05-assistant-llm-provider.md): es el documento canónico, el borrador de Spring AI quedó `Superseded`, la cadena C17 reemplaza la opción Ollama única y ADR-05 sigue `Proposed`. En consecuencia, las afirmaciones históricas "Supersesión explícita: Ninguna", "DECIDED: Spring AI 1.1.1 + Ollama", "dentro del perímetro de Azure" y "números de breaker pendientes" se leen como hallazgos de esa fecha, no como decisiones vigentes. La consolidación no registra aceptación.
+
 ---
 
 ## 1. ADR-05: LLM provider and embedding model
@@ -49,6 +51,8 @@
 
 ### Supersesión explícita: Ninguna
 No hay declaración de que uno sustituye al otro. Son documentos complementarios en diferentes aspectos del mismo problema.
+
+> **Actualización 2026-11-27:** Ver la nota de vigencia al inicio. La consolidación no registra aceptación: ADR-05 sigue `Proposed` y las verificaciones continúan pendientes.
 
 ### Preguntas que requieren decisión humana:
 1. ¿Aceptar Option D (Ollama local) de ADR-05-assistant-llm-provider.md?

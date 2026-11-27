@@ -41,7 +41,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 | ADR-02 | Kafka messaging and event envelope | C-05 | EVT-01…EVT-04, DEC-03, R-08 | Proposed | C-05, C-07 |
 | ADR-03 | Transactional outbox (broker-outage posture closed: backoff only, 2026-11-25) | C-05, C-02, C-03 | DEC-14, R-07 | Proposed | C-05 |
 | ADR-04 | Vector store (pgvector) and JDBC isolation | C-06 | DER-06, TC-11, R-03 (no DEC covers pgvector; DEC-06 is Spring AI only) | Proposed | C-06 |
-| ADR-05 | LLM provider and Spring AI versus LangChain4j | C-06 | DEC-06, RF-04-A | Proposed | C-06 |
+| ADR-05 | LLM provider, framework and embeddings; canonical doc is `ADR-05-assistant-llm-provider.md` (Spring AI draft superseded) | C-06 | DEC-06, DEC-12, RF-04-A | Proposed | C-06 |
 | ADR-06 | RF-06 notification channel (webhook) | C-09 | RF-06, DEC-09, AMB-10 | Proposed | C-09 |
 | ADR-07 | Authentication: API key versus JWT | C-10 | DEC-05, NFR security | Proposed | C-10, and any protected endpoint |
 | ADR-08 | Projection store for urgency state (Redis) | C-07 | RF-04-B, DEC-10 | Proposed | C-07 |
