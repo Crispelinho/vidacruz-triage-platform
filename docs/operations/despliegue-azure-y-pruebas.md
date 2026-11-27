@@ -2,7 +2,7 @@
 
 Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué se verificó el **26 de noviembre de 2026 (hora local)** y qué queda pendiente. El resultado inmediato es una URL HTTPS pública con los dos servicios y el Gateway operativos; el despliegue exitoso se logró con el commit `45a189a6` y **workarounds manuales** que ya están resueltos en el commit `f704877`, pero aún no desplegados.
 
-> **Alcance:** el despliegue y las pruebas se realizaron en el repositorio `rgranados1995/vidacruz-triage-platform`. Los IDs de run y las referencias a hallazgos corresponden a ese repositorio; ambos commits citados (`45a189a6` y `f704877`) están presentes también en este repositorio.
+> **Alcance:** el despliegue y las pruebas se realizaron con los commits `45a189a6` y `f704877`, ambos presentes en este repositorio. Los IDs de run y las referencias a hallazgos corresponden a esa ejecución.
 
 | Dato | Valor |
 |---|---|
@@ -11,7 +11,7 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 | Resource group | `vidacruz-rg` |
 | Cluster AKS | `vidacruz-aks` (1 nodo `Standard_B4as_v2`) |
 | Imagen desplegada | `45a189a6a9d6047fef50b3845c8d4c9ec495c080` |
-| `main` actual en el repo de Rafa | `f704877c167dadb505753f545e491cec8c572862` (CI verde en `45936449205` y `45936449238`) |
+| Commit de corrección de hallazgos | `f704877c167dadb505753f545e491cec8c572862` (CI verde en `45936449205` y `45936449238`) |
 | Run de deploy | `45927651547` → `failure` por timeout en Kafka |
 | Estado de los pods | Kafka `1/1`, Redis `1/1`, triaje `2/2`, asistente `1/1` (bajado a mano) |
 
@@ -24,7 +24,7 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 3. Re-corre `infra/azure/provision.ps1` con `-Location northcentralus -NodeVmSize Standard_B4as_v2`: ahora calcula el subject OIDC exacto, activa Entra ID sin cuentas locales, instala cert-manager con SHA-256 verificado y publica las rutas.
 4. Lanzar `deploy.yml` con el tag `f704877`: aplica solo los workloads del namespace `vidacruz`, con los requests bajos y **sin scale manual**.
 5. Verificar: pods `2/2` en ambos servicios, Gateway `Programmed`, certificado `Ready`, `401 TRG-005` sin key y `200` en `/v3/api-docs`.
-6. Ejecutar la prueba E2E de RF-06 por SSE y cerrar los hallazgos de despliegue, OIDC y sizing en el repo de Rafa.
+6. Ejecutar la prueba E2E de RF-06 por SSE y cerrar los hallazgos de despliegue, OIDC y sizing.
 
 ---
 
@@ -32,9 +32,9 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 
 ### 1.1 Línea base
 
-- Auditoría read-only sobre `main@45a189a6` en el repo de Rafa: RF-01…RF-05 y RN-01…RN-05 en PASS; RF-06 implementado pero sin verificación E2E.
+- Auditoría read-only sobre `45a189a6`: RF-01…RF-05 y RN-01…RN-05 en PASS; RF-06 implementado pero sin verificación E2E.
 - CI en verde para ese SHA: `triage-service.yml` run `45916716225` y `clinical-assistant-service.yml` run `45916716209`.
-- Hallazgos registrados en el repo de Rafa: deploy/URL, seguridad, ArchUnit, RN-05 y subject OIDC.
+- Hallazgos registrados: deploy/URL, seguridad, ArchUnit, RN-05 y subject OIDC.
 
 ### 1.2 Aprovisionamiento de Azure
 
@@ -43,7 +43,7 @@ $env:POSTGRES_PASSWORD = '<16+ caracteres>'
 ./infra/azure/provision.ps1 `
   -ResourceGroup vidacruz-rg `
   -Location northcentralus `
-  -GithubRepository rgranados1995/vidacruz-triage-platform `
+  -GithubRepository <owner>/<repo> `
   -NodeVmSize Standard_B4as_v2
 ```
 
@@ -68,7 +68,7 @@ AZURE_RESOURCE_GROUP  = vidacruz-rg
 
 ### 1.4 Subject OIDC
 
-- El primer run de `deploy.yml` (`45927651547`) falló en `azure/login` con `AADSTS700213: No matching federated identity record found for presented assertion subject 'repo:rgranados1995@63021833/vidacruz-triage-platform@1472061967:environment:azure'`.
+- El primer run de `deploy.yml` (`45927651547`) falló en `azure/login` con `AADSTS700213: No matching federated identity record found for presented assertion subject`.
 - Se corrigió **a mano** en Azure con `az identity federated-credential update`, dejando el subject con el formato inmutable con IDs del dueño y del repositorio.
 - En `45a189a6` el Bicep todavía generaba el formato viejo (`main.bicep:251`, hallazgo de OIDC). `f704877` ya lo corrige: `githubSubject` calculado por `provision.ps1` desde la API de GitHub.
 
@@ -151,14 +151,14 @@ az account set --subscription 99d92ffc-2661-426a-8229-c3c5f7b58da5
 
 $env:POSTGRES_PASSWORD = '<16+ caracteres>'
 ./infra/azure/provision.ps1 -ResourceGroup vidacruz-rg -Location northcentralus `
-  -GithubRepository rgranados1995/vidacruz-triage-platform -NodeVmSize Standard_B4as_v2
+  -GithubRepository <owner>/<repo> -NodeVmSize Standard_B4as_v2
 ```
 
 Aviso importante: al activar Entra ID y `disableLocalAccounts: true`, el kubeconfig `--admin` usado hasta ahora deja de servir. Hay que entrar con `kubelogin` (lo hace `common.ps1` en `provision.ps1`/`deploy.ps1`). Después:
 
 ```powershell
-gh workflow run deploy.yml --repo rgranados1995/vidacruz-triage-platform
-gh run watch --repo rgranados1995/vidacruz-triage-platform
+gh workflow run deploy.yml
+gh run watch
 ```
 
 No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del asistente en el mismo nodo.
@@ -213,7 +213,7 @@ No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiK
 
 ### 2.4 Observabilidad y costos
 
-- Se verificó que **no hay Grafana ni Jaeger en Azure**: solo están en `docker-compose.yml:62-96` y se documentan en `README.md:58-60`. En AKS no hay manifiestos de esa stack; las trazas no se exportan (`triage-service/deployment/k8s/configmap.yaml:10-11`) y el ADR lo deja como evolución (`docs/adr/0004-despliegue-en-azure.md:65-68` en `45a189a6`).
+- Se verificó que **no hay Grafana ni Jaeger en Azure**: la stack local está en `docker-compose.yml` y se documenta en `README.md`. En AKS no hay manifiestos de esa stack; las trazas no se exportan (`triage-service/deployment/k8s/configmap.yaml`) y el ADR lo deja como evolución (`docs/adr/0004-despliegue-en-azure.md`).
 - Métricas crudas disponibles dentro del cluster en `/prometheus` de cada servicio (`application.yaml:104`).
 - Revisión de costos: portal **Cost Management + Billing → Cost analysis**, filtro `Resource group = vidacruz-rg`; estimación del ADR: 140–150 USD/mes, con AKS y PostgreSQL detenibles cuando no se usan (`docs/adr/0004-despliegue-en-azure.md:62`).
 
@@ -232,7 +232,7 @@ No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiK
 - [ ] Re-lanzar `deploy.yml` con el tag `f704877` y verificar que **no hace falta** el `kubectl scale`: asistente `2/2` y triaje `2/2`.
 - [ ] Confirmar que `/docs/triage/swagger-ui.html` y `/docs/asistente/swagger-ui.html` responden con la nueva regla `Exact`.
 - [ ] Revisar `swagger-initializer.js` para que `configUrl` incluya `/docs/triage` (el HTML ya daba 200, pero faltaba confirmar que la UI carga el spec).
-- [ ] Cerrar los hallazgos de deploy, OIDC y sizing en el repo de Rafa; revisar el de superficie pública y privilegios.
+- [ ] Cerrar los hallazgos de deploy, OIDC y sizing; revisar el de superficie pública y privilegios.
 
 ### Verificación funcional
 
@@ -253,4 +253,4 @@ No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiK
 
 ## Next step
 
-El siguiente paso concreto es la rotación de secrets y el re-despliegue con `f704877`. Después de eso, la única prueba funcional que aún falta de verdad es **RF-06 por SSE**; es la que cierra el entregable y permite dar por terminado el hallazgo de despliegue en el repo de Rafa.
+El siguiente paso concreto es la rotación de secrets y el re-despliegue con `f704877`. Después de eso, la única prueba funcional que aún falta de verdad es **RF-06 por SSE**; es la que cierra el entregable y permite dar por terminado el hallazgo de despliegue.

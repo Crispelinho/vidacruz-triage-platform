@@ -7,7 +7,7 @@
 
 ## Context
 
-RF-06 requires the medical team to be alerted when a patient is escalated; AMB-10 leaves the channel open and DER-03 requires at least one alert and at most one alert per escalation. The earlier ADR-06 proposal selected an outbox-driven webhook with a mock receiver. The developer chose Rafa's donor design instead: alerts are persisted in `medical_alert` inside the escalation transaction and streamed to the UI over Server-Sent Events. No external receiver, SMTP, pager, or URL is required, and no patient data outside the regular protected API is exposed.
+RF-06 requires the medical team to be alerted when a patient is escalated; AMB-10 leaves the channel open and DER-03 requires at least one alert and at most one alert per escalation. The earlier ADR-06 proposal selected an outbox-driven webhook with a mock receiver. The developer chose the persisted-alert design instead: alerts are persisted in `medical_alert` inside the escalation transaction and streamed to the UI over Server-Sent Events. No external receiver, SMTP, pager, or URL is required, and no patient data outside the regular protected API is exposed.
 
 ## Decision
 
