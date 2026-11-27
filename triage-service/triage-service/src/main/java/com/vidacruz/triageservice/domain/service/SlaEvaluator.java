@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
@@ -78,7 +79,9 @@ public class SlaEvaluator {
 	}
 
 	private Mono<Integer> escalateIfOverdue(PatientEntity patient) {
-		Instant now = clock.instant();
+		// PostgreSQL TIMESTAMPTZ has microsecond precision. Comparing a nanosecond clock against the stored instant
+		// would escalate up to one microsecond before the real SLA boundary (AMB-04).
+		Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
 		Instant expiresAt = patient.registeredAt().plusSeconds(patient.slaMinutes() * 60L);
 		if (!now.isAfter(expiresAt)) {
 			return Mono.just(0);

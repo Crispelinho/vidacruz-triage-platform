@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -147,7 +148,7 @@ class TriageSLAEscalationIntegrationTest {
 	void cleanStateAndResetClock() {
 		// Isolation: counts such as "exactly 5 events" must not see patients from other tests of this class.
 		execute("TRUNCATE TABLE auditoria_clinica, outbox_evento, paciente CASCADE");
-		clock.set(Instant.now());
+		clock.set(Instant.now().truncatedTo(ChronoUnit.MICROS));
 	}
 
 	// ------------------------------------------------------------------ controllable time (same approach as RF-02)
@@ -158,7 +159,7 @@ class TriageSLAEscalationIntegrationTest {
 		@Bean
 		@Primary
 		MutableClock clock() {
-			return new MutableClock(Instant.now());
+			return new MutableClock(Instant.now().truncatedTo(ChronoUnit.MICROS));
 		}
 	}
 
