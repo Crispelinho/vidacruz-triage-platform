@@ -139,6 +139,20 @@ curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-as
 
 Open `http://localhost:16686/trace/$TRACE_ID`. The trace must contain spans from `triage-service` and `clinical-assistant-service`; the Grafana **Jaeger** datasource (uid `jaeger`) can query the same id from Explore. Trace context is carried only in the `traceparent` Kafka header, never in the event payload. No patient name, complaint, prompt or answer text is attached to spans. Log lines carry `traceId`/`spanId` through Spring Boot's default correlation pattern.
 
+## 9. Verified local E2E run (2026-11-27)
+
+The full flow above was executed against the Compose stack with alternate host ports to avoid collisions with the local Kubernetes forwarding:
+
+```bash
+TRIAGE_PORT=18081 ASSISTANT_PORT=18082 TRIAGE_DB_PORT=15432 ASSISTANT_DB_PORT=15433 \
+KAFKA_PORT=19092 REDIS_PORT=16379 JAEGER_PORT=16687 PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 \
+docker compose -f docker-compose.yml -f docker-compose.demo.yml -p vidacruz-e2e up -d --build --wait
+```
+
+Result: **29/29 checks passed**. Verified in one run: both health endpoints; the six E1-E6 classifications; patient detail and the `EN_CONSULTA`/`ALTA` transitions plus the `409` invalid transition and unknown-patient `404`; SLA escalation to `PENDIENTE`, acknowledgement to `RECONOCIDA`, the `TRG-009` duplicate-ack conflict and the SSE `alerta` events; the operation report and its naive-date `400`; the assistant `/asistente/consulta` and `/rag` alias; the urgency projection rebuilt from `triaje.eventos`; `401` negatives with public health; both Prometheus registries; and one trace with spans from both services queried through Jaeger 2.x `/api/traces/{traceId}`.
+
+No provider key was configured for this run, so the assistant correctly returned `503 LLM_UNAVAILABLE`; the `200` answer with a valid provider key remains a separate verification step. No patient names, complaints, prompts or answers were written to logs, metrics or spans by this run.
+
 ## Scope boundary
 
 Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the public URL and the provisioning evidence. There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

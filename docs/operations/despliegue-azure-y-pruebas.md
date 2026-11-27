@@ -178,7 +178,7 @@ No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del a
 | `clinical-assistant-service.yml` @ versión desplegada | `success`, run `45916716209` |
 | Runs anteriores | `45913361321` y `45914065087`, ambos `success` |
 | CI @ versión corregida (fix de hallazgos) | `success`, runs `45936449205` y `45936449238` |
-| Comprobación de proveedor LLM | Una key de Gemini en `ANTHROPIC_API_KEY` no funciona: el SDK es `com.anthropic:anthropic-java:3.8.0` (`claude-llm/build.gradle:8`), `base-url` fijo a `api.anthropic.com` (`application.yaml:35`) y un 401 se mapea a `ASSISTANT_UNAVAILABLE` (`ClaudeAnswerGenerator.java:60-61`) |
+| Comprobación de proveedor LLM | En la ejecución original, una key de Gemini puesta en `ANTHROPIC_API_KEY` devolvió 401 (`ASSISTANT_UNAVAILABLE`). En esta rama el chain es `ollama,gemini,opencode` (`application.yaml:62`), las keys son `GEMINI_API_KEY` / `OPENCODE_API_KEY` (`deployment/k8s/secret.example.yaml:14-15`) y sin proveedor el endpoint responde `503 LLM_UNAVAILABLE` (`RAGExceptionHandler.java:43`). Objetivo pendiente: verificar `POST /asistente/consulta` con una key válida y confirmar `200`. |
 
 ### 2.2 Infraestructura y despliegue
 

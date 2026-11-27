@@ -39,6 +39,9 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     environment:
+      # cp-kafka's KRaft entrypoint requires a cluster ID; without it the broker exits before listening.
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093,PLAINTEXT_HOST://:9092
@@ -58,7 +61,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
-      timeout: 10s
+      # The CLI JVM can take longer than 10s to start on a loaded host; a short timeout marks a healthy broker down.
+      timeout: 30s
       retries: 12
 
   # Idempotent topic creation with the same client image as the broker. The services wait for this one-shot container.
@@ -75,8 +79,9 @@ services:
         until kafka-topics --bootstrap-server kafka:29092 \
           --create --if-not-exists --topic triaje.eventos --partitions 3 \
           --config retention.ms=2592000000 && \
-          kafka-topics --bootstrap-server kafka:29092 \
-          --alter --topic triaje.eventos --partitions 3 --config retention.ms=2592000000; do
+          kafka-configs --bootstrap-server kafka:29092 --alter \
+          --entity-type topics --entity-name triaje.eventos \
+          --add-config retention.ms=2592000000; do
           attempt=$$((attempt + 1))
           if [ "$$attempt" -ge 60 ]; then
             echo "Topic triaje.eventos was not ready" >&2
@@ -147,6 +152,10 @@ services:
       R2DBC_URL: r2dbc:postgresql://triage-db:5432/vidacruz_triage
       TRIAGE_DB_USER: triage_app
       TRIAGE_DB_PASSWORD: ${TRIAGE_DB_PASSWORD:-triage_local}
+      # Flyway needs JDBC; JdbcConfiguration only activates when spring.datasource.url is present.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://triage-db:5432/vidacruz_triage
+      SPRING_DATASOURCE_USERNAME: triage_app
+      SPRING_DATASOURCE_PASSWORD: ${TRIAGE_DB_PASSWORD:-triage_local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       TRIAGE_EVENTS_TOPIC: triaje.eventos
       TRIAGE_API_KEY: ${TRIAGE_API_KEY:-test-triage-key}
@@ -180,6 +189,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://assistant-db:5432/vidacruz_assistant
       SPRING_DATASOURCE_USERNAME: assistant_app
       SPRING_DATASOURCE_PASSWORD: ${ASSISTANT_DB_PASSWORD:-assistant_local}
+      # The R2DBC starter is still on the classpath for DatabaseClient-based tests; give it the same database.
+      SPRING_R2DBC_URL: r2dbc:postgresql://assistant-db:5432/vidacruz_assistant
+      SPRING_R2DBC_USERNAME: assistant_app
+      SPRING_R2DBC_PASSWORD: ${ASSISTANT_DB_PASSWORD:-assistant_local}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092

@@ -36,8 +36,9 @@ spec:
               until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-0.kafka:9092 \
                 --create --if-not-exists --topic triaje.eventos --partitions 3 \
                 --config retention.ms=2592000000 && \
-                /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-0.kafka:9092 \
-                --alter --topic triaje.eventos --partitions 3 --config retention.ms=2592000000; do
+                /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka-0.kafka:9092 \
+                --alter --entity-type topics --entity-name triaje.eventos \
+                --add-config retention.ms=2592000000; do
                 attempt=$((attempt + 1))
                 if [ "$attempt" -ge 60 ]; then
                   echo "Topic triaje.eventos was not ready after 5 minutes" >&2
