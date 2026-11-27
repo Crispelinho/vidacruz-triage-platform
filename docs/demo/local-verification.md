@@ -83,7 +83,7 @@ curl -sS -G http://localhost:8081/triage/reportes/operacion \
   --data-urlencode 'hasta=2027-01-01T00:00:00Z'
 ```
 
-An offset or `Z` is mandatory. Missing or malformed parameters return `400 TRG-004` with a `field` hint.
+An offset or `Z` is mandatory. Missing or malformed parameters return `400 VALIDATION_ERROR` with a `field` hint. `TRG-004` is reserved for a repeated alert acknowledgement.
 
 ## 5. RF-04 — assistant (provider-dependent)
 
@@ -152,6 +152,15 @@ docker compose -f docker-compose.yml -f docker-compose.demo.yml -p vidacruz-e2e 
 Result: **29/29 checks passed**. Verified in one run: both health endpoints; the six E1-E6 classifications; patient detail and the `EN_CONSULTA`/`ALTA` transitions plus the `409` invalid transition and unknown-patient `404`; SLA escalation to `PENDIENTE`, acknowledgement to `RECONOCIDA`, the `TRG-009` duplicate-ack conflict and the SSE `alerta` events; the operation report and its naive-date `400`; the assistant `/asistente/consulta` and `/rag` alias; the urgency projection rebuilt from `triaje.eventos`; `401` negatives with public health; both Prometheus registries; and one trace with spans from both services queried through Jaeger 2.x `/api/traces/{traceId}`.
 
 No provider key was configured for this run, so the assistant correctly returned `503 LLM_UNAVAILABLE`. A later run with `RAG_LLM_CHAIN=gemini` and a valid key injected only as an environment variable returned `200` with `respuesta`, `fuentes`, `citas` and `modelo_usado`, including at least one `[n]` citation. A separate OpenCode trial key returned `503 LLM_UNAVAILABLE` and is not treated as a verified answer. No patient names, complaints, prompts, answers or keys were written to logs, metrics or spans in either run.
+
+## 10. Verified local Kubernetes E2E run (2026-11-27)
+
+The same checklist was executed against the `k8s/local` overlay on Docker Desktop Kubernetes with
+`kubectl --context docker-desktop` and `127.0.0.1` forwards: **33/33 checks passed**. The steps to reproduce,
+the per-area results and the reusable harness (`scripts/verify-local-k8s.ps1`) are documented in
+`docs/demo/local-kubernetes-e2e.md`. This run covers the real one-minute SLA escalation, acknowledgement and
+SSE, outbox → Kafka `traceparent`, the urgency projection, auth negatives, both metric registries and a shared
+Jaeger trace across both services. It is local evidence only and does not close the Azure gates in ADR-11.
 
 ## Scope boundary
 
