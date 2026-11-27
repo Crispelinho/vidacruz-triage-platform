@@ -50,3 +50,18 @@ jobs:
 
       - name: Build the image
         run: docker build --file clinical-assistant-service/deployment/Dockerfile --tag clinical-assistant-service:${{ github.sha }} clinical-assistant-service/clinical-assistant-service
+
+      # M-4: SCA gate on the image that is deployed. Trivy scans the OS packages and the Java libraries inside the
+      # Spring Boot jar and fails on HIGH or CRITICAL (CVSS >= 7). ignore-unfixed keeps the gate actionable: a
+      # finding with no fixed version cannot be resolved by an upgrade. Dependabot (.github/dependabot.yml) proposes
+      # the upgrades.
+      - name: Scan the image for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: clinical-assistant-service:${{ github.sha }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          version: v0.76.2
