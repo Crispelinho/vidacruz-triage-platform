@@ -9,6 +9,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
@@ -32,6 +34,8 @@ import reactor.core.publisher.Mono;
  */
 @Service
 public class SlaEvaluator {
+
+	private static final Logger log = LoggerFactory.getLogger(SlaEvaluator.class);
 
 	public static final String ESCALATED_EVENT = "paciente_escalado";
 	public static final String ESCALATION_AUDIT = "ESCALAMIENTO";
@@ -116,6 +120,8 @@ public class SlaEvaluator {
 				.doOnNext(count -> {
 					if (count == 1) {
 						metrics.patientEscalated(level);
+						log.info("Patient {} escalated: level {} exceeded its {}-minute SLA", patient.id(), level,
+								patient.slaMinutes());
 					}
 				});
 	}

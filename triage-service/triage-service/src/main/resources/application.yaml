@@ -18,6 +18,12 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+logging:
+  # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
+  # LOG_FORMAT accepts the Spring Boot formats ecs, logstash or gelf.
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
 management:
   endpoints:
     web:
@@ -63,8 +69,9 @@ alerts:
   stream:
     heartbeat: ${ALERTS_HEARTBEAT_INTERVAL:15s}
 triage:
-  # Local/demo default only. Override TRIAGE_API_KEY outside localhost (ADR-07).
-  api-key: ${TRIAGE_API_KEY:test-triage-key}
+  # Required (ADR-07): no default, so a missing TRIAGE_API_KEY stops startup instead of accepting a public key.
+  # Docker Compose and the local K8s overlay supply their own local-only values.
+  api-key: ${TRIAGE_API_KEY:}
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}
     evaluation-interval: ${TRIAGE_SLA_EVALUATION_INTERVAL_MS:60000}

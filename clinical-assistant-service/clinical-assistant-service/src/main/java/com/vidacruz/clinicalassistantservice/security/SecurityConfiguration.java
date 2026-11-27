@@ -17,8 +17,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @EnableWebFluxSecurity
 public class SecurityConfiguration {
 
+	/** Runs right after CorrelationIdWebFilter, so a 401 carries the request's correlation id. */
 	@Bean
-	@Order(Ordered.HIGHEST_PRECEDENCE)
+	@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 	WebFilter apiKeyAuthenticationFilter(@Value("${assistant.api-key}") String apiKey, ObjectMapper objectMapper) {
 		return new ApiKeyAuthenticationFilter(apiKey, objectMapper);
 	}

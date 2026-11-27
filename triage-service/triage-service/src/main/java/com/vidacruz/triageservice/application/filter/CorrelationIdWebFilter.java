@@ -9,7 +9,11 @@ import org.springframework.web.server.WebFilterChain;
 
 import reactor.core.publisher.Mono;
 
-/** Propagates X-Correlation-Id into the Reactor context and echoes it on the response. */
+/**
+ * Resolves X-Correlation-Id once per request, before authentication. The value is written back on the request so
+ * the API-key filter reads the same id, echoed on the response and stored in the Reactor context for the outbox
+ * envelope and the logging MDC.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdWebFilter implements WebFilter {
@@ -17,8 +21,11 @@ public class CorrelationIdWebFilter implements WebFilter {
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
 		String correlationId = CorrelationId.fromHeader(exchange.getRequest().getHeaders().getFirst(CorrelationId.HEADER));
-		exchange.getResponse().getHeaders().set(CorrelationId.HEADER, correlationId);
-		return chain.filter(exchange)
+		ServerWebExchange tagged = exchange.mutate()
+				.request(request -> request.headers(headers -> headers.set(CorrelationId.HEADER, correlationId)))
+				.build();
+		tagged.getResponse().getHeaders().set(CorrelationId.HEADER, correlationId);
+		return chain.filter(tagged)
 				.contextWrite(context -> context.put(CorrelationId.CONTEXT_KEY, correlationId));
 	}
 }

@@ -52,7 +52,7 @@ Scenarios are the acceptance cases in `docs/requirements.md` §13 (TST-CLS, TST-
 
 ## 13. Security and privacy
 
-`docs/security/threat-model.md`: STRIDE analysis, clinical data handling, four gaps to decide (GAP-01 to GAP-04). Authentication: `docs/adr/ADR-07-authentication.md`.
+`docs/security/threat-model.md`: STRIDE analysis, clinical data handling, four gaps to decide (GAP-01 to GAP-04). Authentication: `docs/adr/ADR-07-authentication-api-key.md`.
 
 ## 14. Resilience and fault tolerance
 

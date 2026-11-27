@@ -2,6 +2,8 @@ package com.vidacruz.clinical.application.controller;
 
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +20,8 @@ import com.vidacruz.clinical.domain.ports.ConsultationMetrics;
 /** Maps RAG failures to the API-04 error bodies. Messages never include question or answer text (CA-G-16). */
 @RestControllerAdvice(assignableTypes = RAGController.class)
 public class RAGExceptionHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(RAGExceptionHandler.class);
 
 	static final String CORRELATION_HEADER = "X-Correlation-Id";
 
@@ -40,6 +44,8 @@ public class RAGExceptionHandler {
 	@ExceptionHandler(LLMUnavailableException.class)
 	ResponseEntity<ErrorResponseDTO> llmUnavailable(LLMUnavailableException ex, ServerWebExchange exchange) {
 		metrics.unavailable();
+		log.warn("Degraded mode: LLM unavailable, answering 503 (correlationId={}): {}", correlationId(exchange),
+				ex.getMessage());
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
 				.body(new ErrorResponseDTO("LLM_UNAVAILABLE", LLM_UNAVAILABLE_MESSAGE, correlationId(exchange)));
 	}
@@ -52,6 +58,8 @@ public class RAGExceptionHandler {
 	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidCitation(InvalidCitationException ex,
 			ServerWebExchange exchange) {
 		metrics.invalidCitation();
+		log.warn("RN-05: rejected an answer with an invalid citation, returning the fixed notice (correlationId={}): {}",
+				correlationId(exchange), ex.getMessage());
 		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
 				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));
 	}
@@ -61,6 +69,8 @@ public class RAGExceptionHandler {
 	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidLlmResponse(
 			InvalidLLMResponseException ex, ServerWebExchange exchange) {
 		metrics.invalidCitation();
+		log.warn("G-04: rejected an unparseable LLM answer, returning the fixed notice (correlationId={}): {}",
+				correlationId(exchange), ex.getMessage());
 		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
 				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));
 	}
