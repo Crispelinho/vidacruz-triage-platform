@@ -88,7 +88,7 @@ import reactor.core.publisher.Mono;
  *       EVT-02 row takes {@code paciente_sequence = 2} right after registration (triage-service.md 7.6).</li>
  * </ul>
  */
-@Import(TriageTestContainers.class)
+@Import({TriageTestContainers.class, TriageSLAEscalationIntegrationTest.ClockConfig.class})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = TriageSLAEscalationIntegrationTest.BACKGROUND_INTERVAL_PROPERTY)
 @AutoConfigureWebTestClient
@@ -154,9 +154,9 @@ class TriageSLAEscalationIntegrationTest {
 	@TestConfiguration
 	static class ClockConfig {
 
-		@Bean
+		@Bean("clock")
 		@Primary
-		MutableClock mutableClock() {
+		Clock clock() {
 			return new MutableClock(Instant.now());
 		}
 	}
