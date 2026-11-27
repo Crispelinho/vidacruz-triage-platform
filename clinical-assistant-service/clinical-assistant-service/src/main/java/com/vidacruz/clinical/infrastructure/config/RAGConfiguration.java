@@ -16,14 +16,20 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.domain.services.CorpusIngestionService;
 import com.vidacruz.clinical.domain.services.RAGService;
+import com.vidacruz.clinical.domain.services.RagRetrievalService;
+import com.vidacruz.clinical.domain.services.TextChunker;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
@@ -40,9 +46,10 @@ import reactor.core.scheduler.Schedulers;
  * Wires the RAG use case. The domain stays free of Spring annotations; this class is the only place that binds
  * ports to adapters. Bean names are deliberately distinct from Spring AI's auto-configured {@code vectorStore}.
  *
- * <p>{@code clinical.vector-store.mode} picks the {@code VectorStore}: {@code pgvector} (default, real JDBC adapter) or
- * {@code fixture} (in-memory, no database, for pipeline tests only). {@code rag.llm.chain} picks and orders the LLM
- * nodes; every node has its own circuit breaker from {@link Resilience4jConfiguration}.
+ * <p>{@code clinical.vector-store.mode} picks the {@code VectorStore} and the document repository: {@code pgvector}
+ * (default, real JDBC adapters) or {@code fixture} (in-memory, no database, for pipeline tests only).
+ * {@code rag.llm.chain} picks and orders the LLM nodes; every node has its own circuit breaker from
+ * {@link Resilience4jConfiguration}.
  */
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
@@ -59,64 +66,97 @@ class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
 	@Bean
-	VectorRepository vectorRepository(DataSource dataSource) {
-		return new VectorRepository(JdbcClient.create(dataSource));
+	VectorRepository evidenceVectorRepository(DataSource dataSource, VectorStoreProperties properties) {
+		return new VectorRepository(JdbcClient.create(dataSource), properties.dimensions());
 	}
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
 	@Bean
-	VectorStore pgvectorStore(VectorRepository repository, Scheduler pgvectorJdbcScheduler) {
-		return new PgvectorVectorStoreAdapter(repository, pgvectorJdbcScheduler);
+	VectorStore pgvectorVectorStoreAdapter(VectorRepository evidenceVectorRepository, Scheduler pgvectorJdbcScheduler) {
+		return new PgvectorVectorStoreAdapter(evidenceVectorRepository, pgvectorJdbcScheduler);
 	}
 
-	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "fixture")
+	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
 	@Bean
-	VectorStore fixtureStore() {
+	ClinicalDocumentRepository jdbcClinicalDocumentAdapter(DataSource dataSource, Scheduler pgvectorJdbcScheduler) {
+		return new JdbcClinicalDocumentAdapter(JdbcClient.create(dataSource), pgvectorJdbcScheduler);
+	}
+
+	@Bean
+	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "fixture")
+	VectorStore fixtureVectorStoreAdapter() {
 		return new FixtureVectorStoreAdapter();
 	}
 
 	@Bean
-	EmbeddingProvider embeddingProvider() {
-		return new FixtureEmbeddingAdapter();
+	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "fixture")
+	ClinicalDocumentRepository inMemoryClinicalDocumentAdapter() {
+		return new InMemoryClinicalDocumentAdapter();
 	}
 
 	@Bean
-	NamedLLMProvider ollamaProvider(WebClient.Builder builder, OllamaProperties properties) {
-		return new OllamaHttpLLMAdapter(builder, properties.baseUrl(), properties.chatModel(), properties.embeddingModel(),
-				properties.timeoutSeconds());
+	@ConditionalOnMissingBean(WebClient.Builder.class)
+	WebClient.Builder webClientBuilder() {
+		return WebClient.builder();
 	}
 
 	@Bean
-	NamedLLMProvider geminiProvider(WebClient.Builder builder, GeminiProperties properties) {
-		return new GeminiHttpLLMAdapter(builder, properties.baseUrl(), properties.apiKey(), properties.chatModel(),
-				properties.embeddingModel(), properties.timeoutSeconds());
+	NamedLLMProvider ollamaNode(WebClient.Builder builder, OllamaProperties properties) {
+		return new OllamaHttpLLMAdapter(builder, properties);
 	}
 
 	@Bean
-	NamedLLMProvider opencodeProvider(WebClient.Builder builder, OpenCodeProperties properties) {
-		return new OpenCodeHttpLLMAdapter(builder, properties.baseUrl(), properties.apiKey(), properties.chatModel(),
-				properties.embeddingModel(), properties.timeoutSeconds());
+	NamedLLMProvider geminiNode(WebClient.Builder builder, GeminiProperties properties) {
+		return new GeminiHttpLLMAdapter(builder, properties);
 	}
 
 	@Bean
-	@ConditionalOnMissingBean(LLMRouter.class)
-	LLMRouter llmRouter(LLMRouterProperties properties, List<NamedLLMProvider> providers,
-			CircuitBreakerRegistry circuitBreakerRegistry, MeterRegistry meterRegistry) {
-		Map<String, NamedLLMProvider> byName = providers.stream()
-				.collect(Collectors.toMap(NamedLLMProvider::name, provider -> provider));
+	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
+		return new OpenCodeHttpLLMAdapter(builder, properties);
+	}
+
+	@Bean
+	LLMRouter llmRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry,
+			LLMRouterProperties properties, MeterRegistry meterRegistry) {
+		Map<String, NamedLLMProvider> byKey = providers.stream()
+				.collect(Collectors.toMap(NamedLLMProvider::key, provider -> provider));
 		List<NamedLLMProvider> ordered = new ArrayList<>();
-		for (String name : properties.chain()) {
-			NamedLLMProvider provider = byName.get(name);
-			if (provider != null) {
-				ordered.add(provider);
+		for (String key : properties.providerKeys()) {
+			NamedLLMProvider provider = byKey.get(key);
+			if (provider == null) {
+				throw new IllegalArgumentException("rag.llm.chain names unknown provider: " + key);
 			}
+			ordered.add(provider);
 		}
-		return new ResilientLLMRouter(ordered, circuitBreakerRegistry, new LlmCallMetrics(meterRegistry),
-				"clinical-assistant");
+		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry));
 	}
 
 	@Bean
-	RAGService ragService(VectorStore vectorStore, EmbeddingProvider embeddingProvider, LLMRouter llmRouter) {
-		return new RAGService(vectorStore, embeddingProvider, llmRouter);
+	EmbeddingProvider fixtureEmbeddingAdapter(VectorStoreProperties properties) {
+		return new FixtureEmbeddingAdapter(properties.dimensions());
 	}
+
+	@Bean
+	RAGService ragService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
+			VectorStoreProperties properties) {
+		return new RAGService(fixtureEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
+	}
+
+	@Bean
+	TextChunker textChunker() {
+		return new TextChunker();
+	}
+
+	@Bean
+	CorpusIngestionService corpusIngestionService(TextChunker textChunker, EmbeddingProvider embeddingProvider,
+			VectorStore vectorStore, ClinicalDocumentRepository clinicalDocumentRepository) {
+		return new CorpusIngestionService(textChunker, embeddingProvider, vectorStore, clinicalDocumentRepository);
+	}
+
+	@Bean
+	RagRetrievalService ragRetrievalService(EmbeddingProvider embeddingProvider, VectorStore vectorStore,
+			ClinicalDocumentRepository clinicalDocumentRepository) {
+		return new RagRetrievalService(embeddingProvider, vectorStore, clinicalDocumentRepository);
+	}
+
 }
