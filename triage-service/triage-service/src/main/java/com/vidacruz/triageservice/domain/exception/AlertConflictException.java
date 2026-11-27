@@ -8,4 +8,8 @@ public class AlertConflictException extends RuntimeException {
 	public AlertConflictException(UUID alertId) {
 		super("La alerta " + alertId + " ya fue reconocida o resuelta");
 	}
+
+	public AlertConflictException(String detail) {
+		super(detail);
+	}
 }
