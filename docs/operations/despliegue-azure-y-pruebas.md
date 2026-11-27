@@ -6,9 +6,11 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 >
 > **Adaptación de esta rama:** los manifiestos y la IaC entregados conservan la topología validada, pero usan el layout de módulos actual (`*/deployment/Dockerfile` apunta a `*/<servicio>/`), las sondas `/actuator/health/...` y las keys `GEMINI_API_KEY` / `OPENCODE_API_KEY`. El registro histórico siguiente describe la ejecución original, que usaba `/health/...` y una key de Anthropic.
 
+> **Estado actual del entorno (verificado el 2026-11-27):** el entorno de Azure **ya no está activo**. El resource group `vidacruz-rg` no existe en la suscripción (`az group list` solo devuelve `NetworkWatcherRG`) y el host público no resuelve por DNS (`curl: (6) Could not resolve host`). No hay URL viva que probar. Este documento conserva la evidencia de la ejecución validada el 26 de noviembre (secciones 2.2 y 2.3). La sección 1.7 explica cómo reproducir el despliegue con `infra/azure/provision.ps1` y `deploy.yml`; al reprovisionar, Azure asigna un sufijo DNS nuevo, así que la URL cambia.
+
 | Dato | Valor |
 |---|---|
-| Host público | `https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com` |
+| Host público (retirado) | `https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com`: no resuelve desde el 2026-11-27 |
 | Suscripción / región | Azure for Students / `northcentralus` |
 | Resource group | `vidacruz-rg` |
 | Cluster AKS | `vidacruz-aks` (1 nodo `Standard_B4as_v2`) |
@@ -247,7 +249,7 @@ No requiere API key: `/actuator/health/**` y `/health/**` están en las rutas p�
 
 - [ ] Crear alertas de presupuesto en **Cost Management → Budgets** (80 % y 100 %).
 - [ ] Mientras dure la evaluación: `az aks stop` + `az postgres flexible-server stop` cuando no se use; `start` en orden inverso (PostgreSQL primero).
-- [ ] Al entregar: `az group delete -g vidacruz-rg --yes --no-wait` para llevar el costo a cero, después de guardar la evidencia de las pruebas.
+- [x] Al entregar: `az group delete -g vidacruz-rg --yes --no-wait` para llevar el costo a cero, después de guardar la evidencia de las pruebas. El 2026-11-27 se comprobó que el resource group ya no existe.
 - [ ] Opcional y no recomendado: publicar `/health` agregando una ruta al repo. Hoy es interno por decisión de diseño.
 - [ ] Opcional: Grafana/Jaeger en Azure. No está implementado; el ADR lo describe como evolución con Azure Monitor y Azure Managed Grafana.
 

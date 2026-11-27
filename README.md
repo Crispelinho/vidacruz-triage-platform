@@ -57,7 +57,14 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 
 ## Known limits
 
-- **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target and public URL are recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md) and `docs/operations/despliegue-azure-y-pruebas.md`. The live URL depends on the `azure` GitHub environment; no credentials are stored here. Local traces still go to the Jaeger container.
+- **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target is recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md). No credentials are stored here, and local traces still go to the Jaeger container.
+- **Azure deployment status.** There is **no live public URL**. The AKS deployment was validated on 2026-11-26 at `https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com`:
+  - `401 TRG-005` without a key, so the API-key filter is enforced end to end.
+  - `200` on the OpenAPI document and the Swagger UI.
+  - Gateway `Programmed` and TLS certificate `Ready`.
+  - Triage `2/2` pods.
+
+  The resource group no longer exists: deleting it once the evidence was recorded was the planned step to bring the cost of the Azure for Students subscription to zero. On 2026-11-27 the host no longer resolves. The evidence is in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 2.2 and 2.3). To reproduce the deployment, run `infra/azure/provision.ps1` and then the `deploy.yml` workflow. A new deployment gets a new DNS suffix, so the URL changes.
 - **RF-04 compatibility alias.** `POST /rag` remains available as a compatibility alias for existing clients; new clients should use `POST /asistente/consulta`.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
