@@ -140,7 +140,15 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 - **Implemented:** `GET /triage/reportes/operacion` returns `{ desde, hasta, horas, resumen }`. Every UTC hour of the range is included; `promedioEsperaMinutos` and `p95EsperaMinutos` are `null` when no patient in that group entered consultation. PostgreSQL computes all figures in one grouped query (`ROW_NUMBER`, `FILTER`, `PERCENTILE_CONT`); `app.report.max-range` defaults to `P90D` (90 inclusive natural dates).
 - No side effects. Read-only query; no caching assumed.
 
-### 3.6 Error codes summary (Triage)
+### 3.6 RF-06 — escalation alerts (implemented)
+
+- `GET /triage/alertas`: active alerts (`PENDIENTE`, `RECONOCIDA`), most severe first and then oldest first.
+- `GET /triage/alertas/stream` (`text/event-stream`): initial active snapshot plus each committed alert change, with `event: alerta`, `:latido` heartbeats, reconnect/backoff, and a 256-event per-client buffer. Clients deduplicate by `actualizadaEn`.
+- `POST /triage/alertas/{id}/reconocimiento` with `{"responsable":"..."}`: takes a pending alert. Errors: 400 `TRG-004`, 404 `TRG-008`, 409 `TRG-009`.
+- Alert rows are created inside the escalation transaction and resolved with `EN_CONSULTA`/`ALTA`; `pg_notify` publishes only committed changes.
+- Payloads contain `pacienteId`, level, SLA, timestamps, status and responsible. They never contain the patient name or chief complaint. Channel decision: [ADR-15](../adr/ADR-15-persisted-sse-alerts.md).
+
+### 3.7 Error codes summary (Triage)
 
 | Code | HTTP | Endpoint(s) | Status in D1 |
 |---|---|---|---|
@@ -148,7 +156,10 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 | `INVALID_TRANSITION` | 409 | API-02 | Defined (D1 §9) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | API-01 | Defined (DEC-15) |
 | `NOT_FOUND` | 404 | API-02, API-03 | Status defined, code not (G-T02) |
-| `INVALID_RANGE` | 400 | API-06 | Status defined; code open (G-T02) |
+| `INVALID_REPORT_RANGE` | 400 | API-06 | Implemented (RF-05) |
+| `TRG-004` | 400 | RF-06 | Implemented (invalid alert id/responsible) |
+| `TRG-008` | 404 | RF-06 | Implemented (unknown alert) |
+| `TRG-009` | 409 | RF-06 | Implemented (alert already acknowledged or resolved) |
 | `MALFORMED_REQUEST` | 400 | all with body | Not defined (G-T02) |
 | `UNAUTHORIZED` | 401 | all protected | Status defined (NFR-10), code not (G-T02) |
 | `INTERNAL_ERROR` | 500 | all | Status defined (D0 §3.1), code not; no details leaked (DER-08) |

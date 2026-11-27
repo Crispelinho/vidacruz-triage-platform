@@ -26,6 +26,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -48,6 +49,9 @@ class PatientLifecycleServiceTest {
 	private OutboxEventWriter eventWriter;
 
 	@Mock
+	private MedicalAlertRepository alertRepository;
+
+	@Mock
 	private TransactionalOperator transactionalOperator;
 
 	private PatientLifecycleService service;
@@ -56,7 +60,9 @@ class PatientLifecycleServiceTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		service = new PatientLifecycleService(patientRepository, auditRepository, eventWriter,
-				transactionalOperator);
+				alertRepository, transactionalOperator);
+		lenient().when(alertRepository.resolveForPatient(any(UUID.class), any(Instant.class)))
+				.thenReturn(Mono.just(true));
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 	}
@@ -88,6 +94,7 @@ class PatientLifecycleServiceTest {
 						&& PatientLifecycleService.REGISTERED.equals(entry.previousStatus())));
 		verify(eventWriter).write(eq(patientId), eq(PatientLifecycleService.CONSULTATION_EVENT),
 				anyMap(), any(Instant.class));
+		verify(alertRepository).resolveForPatient(eq(patientId), any(Instant.class));
 	}
 
 	@Test

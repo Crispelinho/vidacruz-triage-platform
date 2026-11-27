@@ -1,6 +1,8 @@
 # ADR-06: RF-06 Escalation Notification Channel — Outbox-Driven Webhook
 
-**Status:** Proposed  
+> **Superseded by [ADR-15](ADR-15-persisted-sse-alerts.md).** RF-06 now uses persisted alerts and SSE; this webhook proposal was not accepted and must not be implemented.
+
+**Status:** Superseded  
 **Date:** 2026-11-25  
 **Decision:** Deliver escalation alerts via HTTP webhook (HTTP POST) with outbox-driven retry, mock receiver in docker-compose for testing.
 

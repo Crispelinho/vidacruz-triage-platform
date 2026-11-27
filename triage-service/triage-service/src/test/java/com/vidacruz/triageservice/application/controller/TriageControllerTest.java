@@ -24,6 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
+import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
@@ -50,6 +51,9 @@ class TriageControllerTest {
 
 	@MockitoBean
 	private OutboxEventWriter eventWriter;
+
+	@MockitoBean
+	private MedicalAlertRepository alertRepository;
 
 	@MockitoBean
 	private TransactionalOperator transactionalOperator;

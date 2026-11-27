@@ -3,7 +3,7 @@ package com.vidacruz.triageservice.application.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-/** NFR-20 error body. {@code field} is omitted unless the failure belongs to a query parameter. */
+/** NFR-20 error body. {@code field} is omitted unless the failure belongs to a request parameter or body property. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiError(
 		@JsonProperty("code") String code,
