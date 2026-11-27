@@ -62,7 +62,7 @@ import com.vidacruz.triageservice.event.infrastructure.OutboxPublisher;
 		"app.outbox.publisher-enabled=true",
 		"app.outbox.batch-size=50",
 		"app.outbox.lease-seconds=30",
-		"app.outbox.publish-interval-ms=PT24H"
+		"app.outbox.publish-interval-ms=86400000"
 })
 @DisplayName("UC-T08: outbox publisher (outbox_evento -> triaje.eventos)")
 class OutboxPublisherIntegrationTest {
