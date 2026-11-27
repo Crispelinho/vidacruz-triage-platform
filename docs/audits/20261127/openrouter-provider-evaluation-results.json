@@ -1,0 +1,94 @@
+{
+  "evaluation": "OpenRouter as a free external-client chat provider",
+  "recordedAt": "2026-11-27T20:43:55Z",
+  "decision": "Documented alternative only. No adapter, configuration or test changed. Gemini remains the verified primary chat node; ADR-05 remains Proposed.",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "credentialHandling": "Trial key injected only as an environment variable; no value stored in files, commits, docs or memory",
+  "probes": [
+    {
+      "model": "openrouter/free",
+      "status": 200,
+      "routedModel": "recursive/flint-v1.0:free",
+      "elapsedMs": 4327,
+      "promptTokens": 77,
+      "completionTokens": 107,
+      "cost": 0,
+      "citationMarker": true
+    },
+    {
+      "model": "openrouter/free",
+      "privacyControls": {
+        "dataCollection": "deny",
+        "maxPromptPrice": 0,
+        "maxCompletionPrice": 0
+      },
+      "status": 200,
+      "routedModel": "recursive/flint-v1.0:free",
+      "elapsedMs": 4327,
+      "promptTokens": 77,
+      "completionTokens": 107,
+      "cost": 0,
+      "citationMarker": true
+    },
+    {
+      "model": "openrouter/free",
+      "case": "unsupported question",
+      "privacyControls": {
+        "dataCollection": "deny",
+        "maxPromptPrice": 0,
+        "maxCompletionPrice": 0
+      },
+      "status": 200,
+      "routedModel": "recursive/flint-v1.0:free",
+      "elapsedMs": 3101,
+      "promptTokens": 72,
+      "completionTokens": 122,
+      "cost": 0,
+      "exactNoEvidenceNotice": true,
+      "citationMarker": false
+    },
+    {
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "status": 200,
+      "elapsedMs": 2808,
+      "promptTokens": 98,
+      "completionTokens": 530,
+      "cost": 0,
+      "citationMarker": true
+    },
+    {
+      "model": "google/gemma-4-26b-a4b-it:free",
+      "status": 429,
+      "reason": "temporarily rate-limited upstream"
+    },
+    {
+      "model": "particle-ai/particle-1:free",
+      "status": 429,
+      "reason": "rate-limited on a later probe; an earlier probe returned 200 with cost 0"
+    },
+    {
+      "model": "openrouter/free",
+      "privacyControls": {
+        "zdr": true
+      },
+      "status": 404,
+      "reason": "No endpoints found matching the zero-data-retention data policy"
+    }
+  ],
+  "privacy": {
+    "zdrCompatibleWithFreeTier": false,
+    "dataCollectionDenyCompatibleWithFreeTier": true,
+    "costCapPreventsPaidFallback": true,
+    "promptTextStored": false,
+    "answerTextStored": false,
+    "credentialStored": false,
+    "accountIdentifierStored": false
+  },
+  "costBasis": "API usage metadata only; no billing API or invoice was queried",
+  "openItems": [
+    "Rotate the trial key after it was pasted in plaintext in chat",
+    "Five-run chat gate not executed against OpenRouter",
+    "Cost not confirmed against billing",
+    "No adapter, configuration or test added"
+  ]
+}
