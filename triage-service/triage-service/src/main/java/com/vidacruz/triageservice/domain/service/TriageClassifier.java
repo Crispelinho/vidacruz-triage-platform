@@ -4,13 +4,10 @@ import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Set;
 
-import org.springframework.stereotype.Component;
-
 import com.vidacruz.triageservice.domain.model.PatientRegistration;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 
 /** Deterministic RN-01 classifier: the first matching level in severity order wins. */
-@Component
 public class TriageClassifier {
 
 	private static final Set<String> ADMINISTRATIVE_COMPLAINTS = Set.of(
