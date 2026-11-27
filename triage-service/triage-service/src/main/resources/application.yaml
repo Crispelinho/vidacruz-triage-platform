@@ -53,10 +53,10 @@ app:
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
     batch-size: ${OUTBOX_BATCH_SIZE:100}
     lease-seconds: ${OUTBOX_LEASE_SECONDS:30}
-    publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS}
+    publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS:5000}
   idempotency:
     cleanup-enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:false}
-    cleanup-interval-ms: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS}
+    cleanup-interval-ms: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:3600000}
   report:
     max-range: ${REPORT_MAX_RANGE:P90D}
 alerts:
