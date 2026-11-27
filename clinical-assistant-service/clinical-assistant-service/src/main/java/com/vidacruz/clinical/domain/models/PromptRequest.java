@@ -10,8 +10,8 @@ import com.vidacruz.clinical.domain.exceptions.InvalidPromptException;
  * @param patientContext     optional free-text context, stripped; blank becomes {@code null}. Validated and carried,
  *                           but NOT forwarded to retrieval or the LLM: whether patient data may reach a model is an
  *                           ADR decision (CA-G-16)
- * @param relevanceThreshold optional minimum relevance in [0, 1]. Validated and carried, but NOT enforced: score
- *                           semantics depend on the embedding model (ADR-05), and the retrieval ports return no scores
+ * @param relevanceThreshold optional minimum relevance in [0, 1]. Validated and applied by {@code RAGService} as the
+ *                           per-request relevance gate over the scores returned by the vector store (CA-G-02, ADR-05).
  */
 public record PromptRequest(String question, int topK, String patientContext, Double relevanceThreshold) {
 
