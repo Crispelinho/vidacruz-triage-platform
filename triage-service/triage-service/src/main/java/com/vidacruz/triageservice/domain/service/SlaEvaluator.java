@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -42,6 +43,17 @@ public class SlaEvaluator {
 	private final Clock clock;
 	private final TriageMetrics metrics;
 
+	public SlaEvaluator(PatientRepository patientRepository,
+			AuditEntryRepository auditRepository,
+			OutboxEventWriter eventWriter,
+			MedicalAlertRepository alertRepository,
+			TransactionalOperator transactionalOperator,
+			TriageMetrics metrics) {
+		this(patientRepository, auditRepository, eventWriter, alertRepository, transactionalOperator,
+				Clock.systemUTC(), metrics);
+	}
+
+	@Autowired
 	public SlaEvaluator(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,

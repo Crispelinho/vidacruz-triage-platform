@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -62,6 +63,7 @@ public class TriageRegistrationService {
 				slaProperties, transactionalOperator, Clock.systemUTC(), metrics);
 	}
 
+	@Autowired
 	public TriageRegistrationService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,
