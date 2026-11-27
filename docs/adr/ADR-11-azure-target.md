@@ -2,6 +2,7 @@
 
 - **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires the R-06 artifact in the repository and the ADR-10 support-risk acceptance. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
 - **Date:** 2026-11-25 (amended 2026-11-27)
+- **Delivered artifacts:** [ADR-12](ADR-12-aks-deployment.md) records the AKS manifests and IaC delivered for deliverable 4.
 - **Deciders:** developer; AKS amendment and infrastructure parameters recorded 2026-11-27, ADR acceptance still pending the R-06 repository artifact
 - **Scope:** C-01 Azure manifests only. This ADR chooses the Azure compute target. Dockerfiles, docker-compose and CI do not wait for it, as recorded in `adr-roadmap.md` §3.3.
 - **Related:** NFR-13, NFR-14, AMB-11, R-06, G-20, CA-G-18, DEC-12, DEC-13, §14 of [analysis.md](../analysis.md), [ADR-05](ADR-05-assistant-llm-provider.md), T-22, T-23, T-24 in [implementation-roadmap.md](../implementation-roadmap.md)
