@@ -81,7 +81,7 @@ Both endpoints require the API key header (`X-API-Key`, ADR-07, DEC-05, NFR-10).
 | 200 | No relevant chunk passes the gate (LLM not called) | `{ "respuesta": "no existe protocolo disponible", "fuentes": [] }` | RN-05.3, AMB-08, DEC-07 |
 | 200 | LLM answer rejected by citation validation (unknown citation, or no citation) | Same fixed notice and `fuentes: []` | RN-05.2, edge table |
 | 400 | Empty or whitespace-only `pregunta` | Error body (see below) | RN-05 edge table, NFR-11 |
-| 401 | Missing or wrong `X-API-Key` | Error body | DEC-05, NFR-10 |
+| 401 | Missing or wrong `X-API-Key` | `{ "code": "UNAUTHORIZED", "message": "Invalid or missing X-API-Key header", "correlationId": "..." }` with `X-Correlation-Id` | DEC-05, NFR-10, NFR-20, D-API-401-NFR20 |
 | 503 | LLM circuit open, call timed out, or provider error | `{ "code": "LLM_UNAVAILABLE", "message": "El asistente no está disponible temporalmente", "correlationId": "..." }` | NFR-03, RN-05 edge table |
 | 500 | Unexpected error | Generic body, no stack trace or SQL (DER-08) | DER-08 |
 
@@ -93,7 +93,7 @@ Both endpoints require the API key header (`X-API-Key`, ADR-07, DEC-05, NFR-10).
 |---|---|---|---|
 | `LLM_UNAVAILABLE` | 503 | Defined | Only code the RAG path returns |
 | `VALIDATION_ERROR` | 400 | Used by API-01 example; not defined for API-04 | PROPOSED: `field: "pregunta"`, `mensaje` text (G-06) |
-| `UNAUTHORIZED` | 401 | Not defined | PROPOSED (G-06) |
+| `UNAUTHORIZED` | 401 | Canonical body `{code, message, correlationId}` with `X-Correlation-Id` | D-API-401-NFR20; implemented and tested |
 | `INTERNAL_ERROR` | 500 | Not defined | PROPOSED, no internal details (DER-08) |
 
 **Rules that must hold for every 200 response:**
@@ -122,7 +122,7 @@ Both endpoints require the API key header (`X-API-Key`, ADR-07, DEC-05, NFR-10).
 | Status | Condition | Body | Source |
 |---|---|---|---|
 | 200 | Projection readable | Shape above | D1 §9 |
-| 401 | Missing or wrong API key | Error body | DEC-05 |
+| 401 | Missing or wrong `X-API-Key` | `{ "code": "UNAUTHORIZED", "message": "Invalid or missing X-API-Key header", "correlationId": "..." }` with `X-Correlation-Id` | DEC-05, D-API-401-NFR20 |
 | 503 | Projection unavailable (Redis timeout or error) | Error body. The D1 status is defined, the code is not. PROPOSED code: `PROYECCION_NO_DISPONIBLE` | API-05, G-07 |
 | 500 | Unexpected | Generic body | DER-08 |
 
@@ -185,11 +185,11 @@ Pipeline steps follow D0 §9. Each step lists its responsibility, the owning com
 | 1 | Ingestion | Read corpus files at startup (or on demand). Extract text. Split by section; keep `protocolo`, `seccion`, `fuente` as metadata. Upsert one `DocumentoClinico` per `(protocolo, seccion)` | Corpus ingestion adapter | D0 §9.1, D1 §11 unique key. Corpus format and location not defined (G-23) |
 | 2 | Embedding | Create one embedding per chunk with the configured embedding model | Spring AI `EmbeddingModel` behind an interface | DEC-06, AMB-15. Model not chosen; vector dimension unknown (G-01) |
 | 3 | Storage | Store chunk text, embedding and metadata (`protocolo`, `seccion`) in `FragmentoDocumental` (pgvector) | pgvector adapter (isolated, section 10) | TC-07, DER-06, D1 §11 |
-| 4 | Retrieval | Top-k similarity search with metadata visible. Keep chunks whose similarity passes the threshold | Retrieval port and adapter | DEC-07, AMB-16. k and threshold not set (G-02) |
+| 4 | Retrieval | Cosine top-k similarity search (`k=4`) with metadata visible. Keep chunks whose similarity passes the threshold | Retrieval port and adapter | DEC-07, AMB-16, D-RN05-01 (cosine, `k=4`) |
 | 5 | **Relevance gate** | If no chunk passes the threshold (including an empty corpus), return the fixed notice. **The LLM is not called.** | Domain (pure function, no I/O) | RN-05.3, RN-05.4, DEC-07 |
-| 6 | Context build | Include only retrieved chunks in the prompt. Label each chunk with `protocolo` and `seccion`. Require a structured answer with cited sources | Prompt builder (domain) | D0 §9.6; structured output not defined (G-04) |
+| 6 | Context build | Include only retrieved chunks in the prompt. Label each chunk with `protocolo` and `seccion`. Require the G-04 JSON answer | Prompt builder (domain) | D0 §9.6, D-RN05-03 (`respuesta` + `fuentes`) |
 | 7 | Generation | Call the chat model with timeout, wrapped by the circuit breaker. Failures map to 503 | LLM adapter + Resilience4j | NFR-03, DEC-07, section 7 |
-| 8 | **Citation validation** | Parse the answer. Every cited `(protocolo, seccion)` must exist in the corpus (and, per D0 §9.8, in the retrieved set). Any invalid citation, or no citation, rejects the whole answer. Log the rejection; do not return the text | Domain (citation validator) | RN-05.1, RN-05.2, edge rows for PROTO-999 and no-citation. Scope of the check open (G-03) |
+| 8 | **Citation validation** | Parse the G-04 JSON. Every cited `(protocolo, seccion)` must exist in the in-memory corpus index **and** in the retrieved set. Any invalid citation, or no citation, rejects the whole answer. A JSON parse error is rejected directly, without regeneration. Log the rejection; do not return the text | Domain (citation validator) | RN-05.1, RN-05.2, D-RN05-02, D-RN05-03 |
 | 9 | Response | Return `respuesta` and `fuentes` built from the validated citations' corpus metadata | Response mapper | D1 §9 API-04 |
 
 ### 6.1 Relevance gate (step 5) in detail
@@ -197,12 +197,13 @@ Pipeline steps follow D0 §9. Each step lists its responsibility, the owning com
 - The gate is a pure decision on the retrieval result: "does at least one chunk have similarity ≥ threshold?"
 - If the gate fails, the service returns the fixed notice with HTTP 200 and `fuentes: []`. The LLM port must not be invoked. Tests verify this with a mock that records zero calls (TST-RAG).
 - The gate is not a circuit-breaker event. A gate rejection does not count as an LLM failure.
-- The threshold is calibrated against the three acceptance questions (AMB-16). The calibration method and the final value are not yet documented (G-02).
+- The similarity metric is cosine and `top-k=4` is definitive (D-RN05-01 / G-02). The base threshold target is **0.65**, pending TST-RAG calibration with a real embedding model. The operational value stays at 0.20 because that is the only calibrated value (lexical adapter); applying 0.65 to it would reject every clinical query. This decision does not make ADR-05 `Accepted`.
 
 ### 6.2 Citation validation (step 8) in detail
 
 - The validator receives the LLM's structured answer, the set of retrieved chunks, and the corpus index (set of `(protocolo, seccion)` pairs).
-- A citation is valid when `(protocolo, seccion)` is in the corpus index. Whether it must also be in the retrieved set is open (G-03).
+- A citation is valid only when `(protocolo, seccion)` is in the in-memory corpus index **and** in the retrieved set above the threshold (D-RN05-02 / G-03). The index is refreshed on ingestion; `DocumentoClinico` is not read per request.
+- The LLM must return `{"respuesta":"...","fuentes":[{"protocolo":"...","seccion":"..."}]}` (D-RN05-03 / G-04). A parse error rejects the answer directly, with no regeneration.
 - Any invalid citation rejects the entire response (RN-05.2: "the response is invalid. The service must not return it"). The service does not filter the invalid citations and return the rest.
 - Metric and log: a rejection increments an anti-hallucination failure counter (PROPOSED metric name: `vidacruz.assistant.citation.rejected`). Do not put the LLM's cited protocol ID as a metric tag unless it is first checked against the corpus whitelist, because LLM output is free text and would create unbounded cardinality (NFR-19).
 - Logs must not contain the question text or the LLM answer text, because both can contain clinical data (G-16).
@@ -324,7 +325,7 @@ When Redis times out or errors on a read for API-05, return 503 (API-05). The co
 
 | Entity | Store | Access stack | Purpose | Key constraints (D1 §11) | Notes for this analysis |
 |---|---|---|---|---|---|
-| DocumentoClinico | PostgreSQL | R2DBC | Protocol metadata: `protocolo`, `seccion`, `fuente` | Unique `(protocolo, seccion)` | Read in the request path for citation validation (non-blocking). Whether validation reads the table per request or uses an in-memory index loaded at startup is open (G-03) |
+| DocumentoClinico | PostgreSQL | R2DBC | Protocol metadata: `protocolo`, `seccion`, `fuente` | Unique `(protocolo, seccion)` | D-RN05-02 / G-03: citation validation uses an in-memory index loaded at startup and refreshed on ingestion; the table is not read per request |
 | FragmentoDocumental | PostgreSQL + pgvector | JDBC (Spring AI `PgVectorStore` or equivalent) | Chunks, embeddings and metadata | Index on embedding; metadata filter by `protocolo` | Spring AI's default table name and column layout differ from this entity; mapping is needed (Section 10). Vector dimension depends on the embedding model (G-01) |
 | EstadoUrgenciaProyeccion | Redis | Reactive Redis | Counts per level; per-patient state | See 8.2 | Eventually consistent; rebuildable |
 | ProcessedEvent | Redis | Reactive Redis | Consumer dedupe | TTL ≥ Kafka retention (DER-03) | See 8.4 |
@@ -393,7 +394,7 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 
 | Requirement | Part | Section(s) of this analysis | Status | Gap IDs |
 |---|---|---|---|---|
-| RF-04 A: retrieval over the corpus with citations | A | 6 (steps 3, 4, 9), 4.1 | **Gap** (threshold and k unset) | G-02, G-03 |
+| RF-04 A: retrieval over the corpus with citations | A | 6 (steps 3, 4, 9), 4.1 | **Decided, evidence pending** (cosine, `k=4`; 0.65 target under TST-RAG) | G-02 |
 | RF-04 A: fixed notice when no relevant protocol exists (no clinical content generated) | A | 6 (step 5), 6.4 | **Covered** | — |
 | RF-04 A: 503 when the LLM is unavailable (NFR-03) | A | 4.1, 7 | **Gap** (timeout and breaker values, failure definition) | G-05 |
 | RF-04 B: count of patients not in `ALTA`, grouped by level | B | 4.2, 8 | **Covered by protocol** (level from EVT-01 applied in sequence; §8.3; G-08 resolved) | G-09, G-11 |
@@ -405,15 +406,15 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 
 | Rule or case | Section(s) | Status | Gap IDs |
 |---|---|---|---|
-| RN-05.1: every clinical answer cites at least one corpus source | 6 (step 8), 6.2 | **Gap** (scope protocol vs section; retrieved set or corpus) | G-03 |
+| RN-05.1: every clinical answer cites at least one corpus source | 6 (step 8), 6.2 | **Decided, evidence pending** (`(protocolo, seccion)` in corpus index and retrieved set) | G-03 |
 | RN-05.2: a citation outside the corpus makes the response invalid; the service must not return it | 6 (step 8), 6.2 | **Covered** | — |
 | RN-05.3: no relevant match → exact notice "no existe protocolo disponible", no clinical content | 6 (step 5), 4.1 | **Covered** (text and status fixed) | — |
-| RN-05.4: relevance gate before any LLM call (DEC-07) | 6 (step 5), 6.1 | **Gap** (threshold value; calibration) | G-02 |
-| Edge: query matches PROTO-001 → answer, `fuentes` contains PROTO-001 | 6.3 (Q1) | **Gap** (depends on calibration and structured output) | G-02, G-04 |
-| Edge: query matches PROTO-002 → answer, `fuentes` contains PROTO-002 | 6.3 (Q2) | **Gap** (same) | G-02, G-04 |
+| RN-05.4: relevance gate before any LLM call (DEC-07) | 6 (step 5), 6.1 | **Decided, evidence pending** (cosine, `k=4`, 0.65 target; 0.20 operational) | G-02 |
+| Edge: query matches PROTO-001 → answer, `fuentes` contains PROTO-001 | 6.3 (Q1) | **Decided, evidence pending** (G-04 JSON contract; TST-RAG) | G-02, G-04 |
+| Edge: query matches PROTO-002 → answer, `fuentes` contains PROTO-002 | 6.3 (Q2) | **Decided, evidence pending** (same) | G-02, G-04 |
 | Edge: diabetes type 2, no protocol → notice, `fuentes: []`, LLM not called | 6.3 (Q3), 6.1 | **Covered** | — |
 | Edge: LLM cites PROTO-999 → rejected, notice returned, anti-hallucination event logged | 6 (step 8), 6.2 | **Covered** (logging content policy in G-16) | G-16 |
-| Edge: LLM text without citation → rejected, notice returned | 6 (step 8) | **Gap** (requires structured output to detect "no citation") | G-04 |
+| Edge: JSON without `fuentes`, or malformed JSON → rejected directly, notice returned | 6 (step 8) | **Decided, evidence pending** (D-RN05-03: no regeneration) | G-04 |
 | Edge: LLM circuit open or timeout → 503 `LLM_UNAVAILABLE` | 4.1, 7 | **Gap** (timeout and breaker values) | G-05 |
 | Edge: empty or whitespace-only question → 400 | 4.1 | **Gap** (error body and max length) | G-06 |
 
@@ -455,7 +456,7 @@ Test IDs follow D1 §13. Layers follow D0 §15.
 | Test | Covers | Cases |
 |---|---|---|
 | Relevance gate | RN-05.4 | Empty result → notice; one chunk below threshold → notice; one chunk at threshold → passes (boundary) |
-| Citation validator | RN-05.1–2 | Valid citation; PROTO-999; citation to a section not in the corpus; no citation; text without structure; citation not in retrieved set (once G-03 is decided) |
+| Citation validator | RN-05.1–2 | Valid citation; PROTO-999; citation to a section not in the corpus; no `fuentes`; malformed JSON; citation in index but not in retrieved set; parse error is not retried |
 | Notice and response mapper | RN-05.3, API-04 | Exact text "no existe protocolo disponible"; `fuentes: []` on notice; `fuentes` built from corpus metadata, never from LLM text |
 | Projection rule function | Section 8.3 | Contiguous worked examples; `DUPLICATE`/`STALE`/`GAP`/`INVALID` returns; ALTA terminal; EVT-04 before EVT-01 dead-lettered; EVT-02 changes no count |
 | Envelope validation | Section 5.2 | Unsupported `schemaVersion`; missing `eventId`; non-positive `pacienteSequence` |
@@ -516,11 +517,11 @@ Each gap has an impact on implementation, a reference to the AMB or DEC it depen
 | ID | Gap | Refs | Impact | Decision needed (PROPOSED where noted) |
 |---|---|---|---|---|
 | G-01 | LLM provider and embedding model not chosen. No provider starter in the skeleton. Embedding dimension unknown, so the vector column size is unknown | AMB-15, DEC-06, TC-07 | Blocks steps 2, 3, 7 and the vector schema | Choose one chat and one embedding provider; record dimension; ADR-05 |
-| G-02 | Relevance threshold, top-k and similarity metric not set. Calibration method and data not documented (only three questions) | AMB-16, DEC-07, RN-05.4 | Gate determinism; Q1 and Q2 outcomes | Set metric (cosine), k, threshold; document calibration with the three questions plus negative queries |
-| G-03 | Citation check scope: protocol or (protocol, section); corpus index or retrieved set; whether DocumentoClinico is read per request | DEC-07, RN-05.1–2, D0 §9.8 | Step 8 result for edge cases | PROPOSED: (protocolo, seccion) must be in the corpus index and in the retrieved set; in-memory index loaded at startup and refreshed on ingestion |
-| G-04 | Structured LLM output format not defined. Detecting "no citation" depends on it | RN-05 edge, DEC-07 | Step 6 and 8 | PROPOSED: JSON with `respuesta` and `fuentes` array of `{protocolo, seccion}`; any parse error is a rejection |
+| G-02 | **Closed by decision D-RN05-01 (2026-11-27):** cosine metric, `top-k=4` definitive, 0.65 base threshold target. Evidence remains open: TST-RAG with a real embedding model must record the calibrated value; 0.20 stays operational for the lexical adapter | AMB-16, DEC-07, RN-05.4 | Gate determinism; Q1 and Q2 outcomes | Run TST-RAG; record measured threshold. Do not apply 0.65 to `LexicalEmbeddingAdapter` |
+| G-03 | **Closed by decision D-RN05-02 (2026-11-27):** `(protocolo, seccion)` must be in the in-memory corpus index and in the retrieved set; index refreshed on ingestion; no `DocumentoClinico` read per request | DEC-07, RN-05.1–2, D0 §9.8 | Step 8 result for edge cases | Implemented; verification tracked by TST-RAG. No longer an open design question |
+| G-04 | **Closed by decision D-RN05-03 (2026-11-27):** JSON `{"respuesta","fuentes":[{"protocolo","seccion"}]}`; parse error is rejected directly, without regeneration | RN-05 edge, DEC-07 | Step 6 and 8 | Implemented; verification tracked by TST-RAG. No longer an open design question |
 | G-05 | Timeout values; circuit breaker parameters (window, failure rate, open wait); failure definition; retry policy; retrieval error response (no code) | DEC-07, NFR-03, NFR-08, R-04 | Section 7 mapping and tests | PROPOSED: no retries; timeout configurable; failure = timeout, 5xx, connection, 429. Define 503 code for retrieval failure |
-| G-06 | Error body for 400 (API-04) and 401 not defined; `pregunta` max length not defined; 503 example lacks `correlationId` (NFR-20) | NFR-11, NFR-20, DER-08 | Consistent error contract | PROPOSED: `VALIDATION_ERROR` with `field: "pregunta"`; `UNAUTHORIZED`; max length (for example 1000 characters); add `correlationId` to all errors |
+| G-06 | 401 body is now canonical (`{code,message,correlationId}` + `X-Correlation-Id`, D-API-401-NFR20); still open: 400 body for API-04, `pregunta` max length, and the D1 503 example without `correlationId` | NFR-11, NFR-20, DER-08 | Consistent error contract | PROPOSED: `VALIDATION_ERROR` with `field: "pregunta"`; max length (for example 1000 characters); add `correlationId` to all errors |
 | G-07 | API-05 503 has no error code and no detection rule. `actualizadoEn` meaning not defined | API-05, RF-04 B | Client contract | PROPOSED: code `PROYECCION_NO_DISPONIBLE`; `actualizadoEn` = server time of last applied event (UTC) |
 | G-08 | EVT-04 payload has no `nivel`. Count decrement depends on the level stored from EVT-01 | DEC-03 (additive changes allowed), EVT-04 | Correct counts on discharge | **Resolved by protocol:** EVT-01 is applied first and its `nivel` is stored; no payload change required. Additive `nivel` remains optional only if the order protocol is relaxed |
 | G-09 | DLT name, retry count and numeric gap timeout/map size are not set; unknown `schemaVersion`/`eventType` handling needs the `INVALID` code | AMB-14, DEC-03, DER-03, R-08 | Consumer behavior; poison messages | Adopt §5.3 and §8.3; DLT name is `triaje.eventos.dlq`; numeric limits pending under ADR-02/ADR-08 |
@@ -535,7 +536,7 @@ Each gap has an impact on implementation, a reference to the AMB or DEC it depen
 | G-18 | Version and documentation consistency: Boot 3.5 open-source support ended (AMB-12, R-02); version compatibility of Spring Cloud 2025.0.x, Spring AI 1.1.1 and Boot 3.5.16 must be verified on spring.io; D1 §14 says skeletons use Java 25 while this branch uses 21 (DEC-13) | AMB-12, AMB-13, DEC-12, DEC-13, R-02, R-05 | Build and documentation | Verify compatibility before first build; update D1 AMB-13 and DEC-13 status to match the skeleton |
 | G-19 | Test infrastructure: no Testcontainers, no BlockHound, and no decision on the embedding strategy for tests | NFR-15, NFR-17, TST-RXN, TST-RAG, AMB-15 | Section 13 cannot run as written | Add test dependencies; choose fake or local embeddings (see 13.5) |
 | G-20 | Deployment artifacts for this service (container image, Kubernetes manifests, Azure target) are not specified in this analysis | NFR-12, NFR-13, NFR-14, AMB-11, R-06, ADR-11 | Delivery | Follow the platform plan; no decision here |
-| G-21 | API key design: key source, rotation, per-service key, filter position, public endpoints, 401 body | DEC-05, AMB-09, NFR-10, NFR-09 | Security tests; shared key handling | PROPOSED: API key from environment variable, one key per service, constant-time comparison in a WebFlux filter |
+| G-21 | API key mechanism and 401 body are decided (`X-API-Key`, D-API-401-NFR20); still open: key rotation and per-service provisioning | DEC-05, AMB-09, NFR-10, NFR-09 | Security tests; shared key handling | Implemented: API key from environment variable, one key per service, constant-time comparison in a WebFlux filter |
 | G-22 | Readiness with empty corpus and with Redis or pgvector down is undefined | NFR-05, D0 §13 | Probes and rollout | PROPOSED: readiness requires PostgreSQL and Redis; empty corpus is ready but logs a warning; LLM not in readiness |
 | G-23 | Protocol corpus format, location, versioning and re-ingestion rule not defined. D1 says the corpus "may be extended" | D1 §12, D0 §9 step 1 | Ingestion design; acceptance regression | Define a corpus file format (for example Markdown with front matter) and a re-ingestion rule (replace by `protocolo`) |
 | G-24 | Projection rebuild completeness depends on Kafka retention; no rule for patients older than retention | DER-03, TST-PRJ, D0 §7 | Correctness after Redis loss | Define retention ≥ longest open patient episode, or accept and document incomplete rebuild |
@@ -567,18 +568,18 @@ These are candidate names for OpenSpec capabilities. They have not been created.
 
 | Requirement | Status |
 |---|---|
-| RF-04 Part A (RAG query with citations) | Gap (G-02, G-03, G-05) |
+| RF-04 Part A (RAG query with citations) | Decided, evidence pending (G-02 calibration, G-05) |
 | RF-04 Part A, fixed notice when no protocol | Covered |
 | RF-04 Part A, 503 when LLM unavailable | Gap (G-05) |
 | RF-04 Part B (count by level from events) | Gap (G-08, G-09, G-11) |
 | RF-04 Part B, no Triage API calls | Covered |
 | RF-04 Part B, projection persistence | Gap (G-11) |
 | RF-04 Part B, 503 projection unavailable | Gap (G-07) |
-| RN-05.1 citation required | Gap (G-03) |
+| RN-05.1 citation required | Decided, evidence pending (G-03) |
 | RN-05.2 invalid citation rejected | Covered |
 | RN-05.3 exact notice, no clinical content | Covered |
-| RN-05.4 relevance gate before LLM | Gap (G-02) |
-| Acceptance questions Q1, Q2 | Gap (G-02, G-04) |
+| RN-05.4 relevance gate before LLM | Decided, evidence pending (G-02) |
+| Acceptance questions Q1, Q2 | Decided, evidence pending (G-02, G-04) |
 | Acceptance question Q3 and empty-protocol case | Covered (empty corpus readiness: G-22) |
 | Edge: 400 for empty question | Gap (G-06) |
 | Edge: 503 for LLM circuit or timeout | Gap (G-05) |
@@ -589,7 +590,7 @@ Requirements owned by Triage (RF-01, RF-02, RF-03, RF-05, RF-06, RN-01 to RN-04)
 
 ## 17. Next steps
 
-1. Decide the gaps that block the first implementation slice: G-01, G-02, G-03, G-04, G-11, G-12 and G-14. G-08 and G-10 are resolved by the fixed order protocol; G-09 needs only numeric limits.
+1. G-02, G-03 and G-04 are closed by decisions D-RN05-01/02/03; their verification remains in TST-RAG. Still open for the first implementation slice: G-01, G-11, G-12 and G-14. G-08 and G-10 are resolved by the fixed order protocol; G-09 needs only numeric limits.
 2. Run the startup spike for R2DBC and pgvector JDBC coexistence (G-14) before any feature work.
 3. Verify version compatibility (G-18) before the first build.
 4. Confirm the numeric gap timeout, pending-map size, DLT retry count and Redis TTL margin under ADR-02/ADR-08. No EVT-04 payload change is required.

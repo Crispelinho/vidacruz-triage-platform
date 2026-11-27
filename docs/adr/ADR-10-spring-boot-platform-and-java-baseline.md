@@ -81,6 +81,10 @@ Rationale:
 
 ---
 
+## Support-risk acceptance (D-ADR-10 / R-02, 2026-11-27)
+
+The Developer/User accepts in writing the end of open-source support for Spring Boot 3.5.16. The official Spring announcement of 2026-06-25 (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/) records 3.5.16 as the last OSS release of the 3.5.x line; continued OSS support requires 4.0.x or 4.1.x. The brief requires Boot 3.x, so the supported 4.x line is excluded for this evaluation. This closes the R-02 decision only; it does not mark the ADR Accepted, because the verification gates below remain open.
+
 ## Verification
 
 The following must pass before this ADR transitions from Proposed to Accepted:
