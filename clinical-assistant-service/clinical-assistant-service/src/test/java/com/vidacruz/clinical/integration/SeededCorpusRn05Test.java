@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.flywaydb.core.Flyway;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
@@ -52,6 +55,8 @@ class SeededCorpusRn05Test {
 
 	private static VectorStore store;
 
+	private static CorpusIndex corpusIndex;
+
 	private final LexicalEmbeddingAdapter embeddings = new LexicalEmbeddingAdapter(DIMENSIONS);
 
 	@BeforeAll
@@ -60,8 +65,11 @@ class SeededCorpusRn05Test {
 				POSTGRES.getUsername(), POSTGRES.getPassword());
 		Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
 		scheduler = Schedulers.newBoundedElastic(2, 10, "rn05-acceptance-test");
-		store = new PgvectorVectorStoreAdapter(new VectorRepository(JdbcClient.create(dataSource), DIMENSIONS),
-				scheduler);
+		PgvectorVectorStoreAdapter pgvector = new PgvectorVectorStoreAdapter(
+				new VectorRepository(JdbcClient.create(dataSource), DIMENSIONS), scheduler);
+		store = pgvector;
+		corpusIndex = new CorpusIndex();
+		corpusIndex.refresh(pgvector.protocolSections().block());
 	}
 
 	@AfterAll
@@ -78,8 +86,8 @@ class SeededCorpusRn05Test {
 		assertThat(scored.get(0).score()).as("Q1 top score").isGreaterThanOrEqualTo(THRESHOLD);
 
 		RAGResponse response = service((q, evidence) -> Mono
-				.just(new LLMCompletion("stub", "stub", "respuesta valida [1]"))).answer(new PromptRequest(question,
-						PromptRequest.DEFAULT_TOP_K))
+				.just(new LLMCompletion("stub", "stub", jsonAnswer(scored.get(0).fragment()))))
+				.answer(new PromptRequest(question, PromptRequest.DEFAULT_TOP_K))
 				.block();
 
 		assertThat(response.sources()).extracting(EvidenceFragment::protocol).containsExactly("PROTO-001");
@@ -96,8 +104,8 @@ class SeededCorpusRn05Test {
 		assertThat(scored.get(0).score()).as("Q2 top score").isGreaterThanOrEqualTo(THRESHOLD);
 
 		RAGResponse response = service((q, evidence) -> Mono
-				.just(new LLMCompletion("stub", "stub", "respuesta valida [1]"))).answer(new PromptRequest(question,
-						PromptRequest.DEFAULT_TOP_K))
+				.just(new LLMCompletion("stub", "stub", jsonAnswer(scored.get(0).fragment()))))
+				.answer(new PromptRequest(question, PromptRequest.DEFAULT_TOP_K))
 				.block();
 
 		assertThat(response.sources()).extracting(EvidenceFragment::protocol).containsExactly("PROTO-002");
@@ -133,8 +141,17 @@ class SeededCorpusRn05Test {
 				.block();
 	}
 
+	private static String jsonAnswer(EvidenceFragment fragment) {
+		ObjectMapper mapper = new ObjectMapper();
+		var root = mapper.createObjectNode();
+		root.put("respuesta", "respuesta valida [1]");
+		var sources = root.putArray("fuentes");
+		sources.addObject().put("protocolo", fragment.protocol()).put("seccion", fragment.section());
+		return root.toString();
+	}
+
 	private RAGService service(LLMRouter router) {
-		return new RAGService(embeddings, store, router, THRESHOLD);
+		return new RAGService(embeddings, store, router, corpusIndex, THRESHOLD);
 	}
 
 }

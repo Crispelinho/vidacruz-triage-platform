@@ -10,6 +10,7 @@ import org.springframework.web.server.ServerWebExchange;
 
 import com.vidacruz.clinical.application.dto.ErrorResponseDTO;
 import com.vidacruz.clinical.domain.exceptions.InvalidCitationException;
+import com.vidacruz.clinical.domain.exceptions.InvalidLLMResponseException;
 import com.vidacruz.clinical.domain.exceptions.InvalidPromptException;
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 import com.vidacruz.clinical.domain.ports.ConsultationMetrics;
@@ -50,6 +51,15 @@ public class RAGExceptionHandler {
 	@ExceptionHandler(InvalidCitationException.class)
 	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidCitation(InvalidCitationException ex,
 			ServerWebExchange exchange) {
+		metrics.invalidCitation();
+		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
+				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));
+	}
+
+	/** G-04: a JSON parse error is rejected directly with the fixed notice; no regeneration is attempted. */
+	@ExceptionHandler(InvalidLLMResponseException.class)
+	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidLlmResponse(
+			InvalidLLMResponseException ex, ServerWebExchange exchange) {
 		metrics.invalidCitation();
 		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
 				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));

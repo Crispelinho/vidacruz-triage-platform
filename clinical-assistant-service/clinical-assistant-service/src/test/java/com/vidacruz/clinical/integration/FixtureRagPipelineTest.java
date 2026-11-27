@@ -16,6 +16,7 @@ import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
+import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
@@ -42,12 +43,16 @@ class FixtureRagPipelineTest {
 
 	private RAGService service;
 
+	private CorpusIndex corpusIndex;
+
 	@BeforeEach
 	void setUp() {
 		store = new FixtureVectorStoreAdapter();
+		corpusIndex = new CorpusIndex();
 		LLMProvider llm = new OllamaLLMAdapter(new OllamaProperties("http://unused:11434", "fixture-model",
 				Duration.ofSeconds(5), new OllamaProperties.Fixture(Duration.ZERO)));
-		service = new RAGService(embeddings, store, llm);
+		// Fixture embeddings are non-semantic; the operational 0.65 gate would reject every unrelated fragment.
+		service = new RAGService(embeddings, store, llm, corpusIndex, 0.0d);
 	}
 
 	/** Ingests a synthetic fragment whose embedding is derived from {@code topic}. */
@@ -55,7 +60,9 @@ class FixtureRagPipelineTest {
 		float[] embedding = embeddings.embed(topic).block();
 		EvidenceFragment fragment = EvidenceFragment.create(UUID.randomUUID(), 0, protocol, section,
 				"[FIXTURE] contenido sintetico sobre " + topic, embedding);
-		return store.save(fragment).block();
+		EvidenceFragment saved = store.save(fragment).block();
+		corpusIndex.add(com.vidacruz.clinical.domain.models.ProtocolSection.from(saved));
+		return saved;
 	}
 
 	@Test
@@ -111,8 +118,9 @@ class FixtureRagPipelineTest {
 	@Test
 	void anAnswerCitingEvidenceThatWasNotRetrievedIsRejected() {
 		ingest("tema-alfa", "FIXTURE-A", "Seccion A");
-		LLMProvider hallucinating = (question, evidence) -> Mono.just("segun el protocolo [7]");
-		RAGService strict = new RAGService(embeddings, store, hallucinating);
+		LLMProvider hallucinating = (question, evidence) -> Mono.just(
+				"{\"respuesta\":\"segun [1]\",\"fuentes\":[{\"protocolo\":\"FIXTURE-INVENTADO\",\"seccion\":\"Seccion inventada\"}]}");
+		RAGService strict = new RAGService(embeddings, store, hallucinating, corpusIndex, 0.0d);
 
 		StepVerifier.create(strict.answer(PromptRequest.of("tema-alfa")))
 				.expectError(InvalidCitationException.class)

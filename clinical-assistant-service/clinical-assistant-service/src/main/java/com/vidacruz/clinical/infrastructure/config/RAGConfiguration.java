@@ -17,10 +17,13 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
+import com.vidacruz.clinical.domain.ports.CorpusIndexSource;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.domain.services.CorpusIndex;
+import com.vidacruz.clinical.domain.services.CorpusIndexRefresher;
 import com.vidacruz.clinical.domain.services.CorpusIngestionService;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.domain.services.RagRetrievalService;
@@ -137,9 +140,37 @@ class RAGConfiguration {
 	}
 
 	@Bean
+	CorpusIndex corpusIndex() {
+		return new CorpusIndex();
+	}
+
+	/** Explicit projection: both store adapters implement this port, but their bean methods return VectorStore. */
+	@Bean
+	CorpusIndexSource corpusIndexSource(VectorStore vectorStore) {
+		if (!(vectorStore instanceof CorpusIndexSource source)) {
+			throw new IllegalStateException("Configured VectorStore cannot supply the citation corpus index");
+		}
+		// Return a projection, not the adapter instance: both adapters also implement VectorStore, so exposing
+		// the same object here would register a second VectorStore candidate and break single-bean injection.
+		return source::protocolSections;
+	}
+
+	@Bean
+	CorpusIndexRefresher corpusIndexRefresher(CorpusIndexSource corpusIndexSource, CorpusIndex corpusIndex) {
+		return new CorpusIndexRefresher(corpusIndexSource, corpusIndex);
+	}
+
+	/** Fail fast if the citation index cannot be loaded: answers would otherwise be rejected or ungrounded. */
+	@Bean
+	org.springframework.boot.ApplicationRunner corpusIndexRunner(CorpusIndexRefresher refresher) {
+		return args -> refresher.refresh().block();
+	}
+
+	@Bean
 	RAGService ragService(EmbeddingProvider lexicalEmbeddingAdapter, VectorStore vectorStore, LLMRouter llmRouter,
-			VectorStoreProperties properties) {
-		return new RAGService(lexicalEmbeddingAdapter, vectorStore, llmRouter, properties.relevanceThreshold());
+			CorpusIndex corpusIndex, VectorStoreProperties properties) {
+		return new RAGService(lexicalEmbeddingAdapter, vectorStore, llmRouter, corpusIndex,
+				properties.relevanceThreshold());
 	}
 
 	@Bean
@@ -149,8 +180,9 @@ class RAGConfiguration {
 
 	@Bean
 	CorpusIngestionService corpusIngestionService(TextChunker textChunker, EmbeddingProvider embeddingProvider,
-			VectorStore vectorStore, ClinicalDocumentRepository clinicalDocumentRepository) {
-		return new CorpusIngestionService(textChunker, embeddingProvider, vectorStore, clinicalDocumentRepository);
+			VectorStore vectorStore, ClinicalDocumentRepository clinicalDocumentRepository, CorpusIndex corpusIndex) {
+		return new CorpusIngestionService(textChunker, embeddingProvider, vectorStore, clinicalDocumentRepository,
+				corpusIndex);
 	}
 
 	@Bean

@@ -10,8 +10,11 @@ import org.junit.jupiter.api.Test;
 
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.GroundedAnswer;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.services.CitationValidator;
+import com.vidacruz.clinical.domain.services.CorpusIndex;
+import com.vidacruz.clinical.domain.services.GroundedAnswerParser;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaLLMAdapter;
 import com.vidacruz.clinical.infrastructure.config.OllamaProperties;
 
@@ -38,7 +41,10 @@ class LLMProviderContractTest {
 		String answer = provider(Duration.ZERO, Duration.ofSeconds(5)).generate("pregunta", EVIDENCE).block();
 
 		assertThat(answer).isNotBlank();
-		assertThat(CitationValidator.resolve(answer, EVIDENCE)).hasSize(EVIDENCE.size());
+		GroundedAnswer parsed = GroundedAnswerParser.parse(answer);
+		CorpusIndex index = new CorpusIndex();
+		index.refresh(parsed.fuentes());
+		assertThat(CitationValidator.resolve(parsed, EVIDENCE, index)).hasSize(EVIDENCE.size());
 	}
 
 	@Test

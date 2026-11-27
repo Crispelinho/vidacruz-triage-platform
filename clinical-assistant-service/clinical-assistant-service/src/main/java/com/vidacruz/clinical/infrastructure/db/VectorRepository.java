@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 
 /**
@@ -93,6 +94,14 @@ public class VectorRepository {
 				.param("query", toVectorLiteral(query))
 				.param("limit", topK)
 				.query(VectorRepository::mapScoredRow)
+				.list();
+	}
+
+	/** Distinct citation keys present in the corpus; used to initialise the in-memory index (G-03). */
+	public List<ProtocolSection> protocolSections() {
+		return jdbc.sql("SELECT DISTINCT protocol, section FROM evidence_fragments "
+				+ "WHERE protocol IS NOT NULL AND section IS NOT NULL ORDER BY protocol, section")
+				.query((rs, rowNum) -> ProtocolSection.of(rs.getString("protocol"), rs.getString("section")))
 				.list();
 	}
 

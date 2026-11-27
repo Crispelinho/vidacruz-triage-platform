@@ -20,12 +20,14 @@ import com.sun.net.httpserver.HttpServer;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
+import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.config.GeminiProperties;
 import com.vidacruz.clinical.infrastructure.config.OpenCodeProperties;
@@ -49,6 +51,10 @@ class CloudPromptPrivacyTest {
 
 	private static final String ANSWER = "respuesta [1]";
 
+	/** G-04 JSON answer the stubbed provider returns; the test asserts only the wire payload, not generation. */
+	private static final String GROUNDED_JSON = "{\"respuesta\":\"" + ANSWER
+			+ "\",\"fuentes\":[{\"protocolo\":\"PROTO-001\",\"seccion\":\"Medidas\"}]}";
+
 	private HttpServer server;
 
 	private final AtomicReference<String> capturedBody = new AtomicReference<>();
@@ -60,9 +66,10 @@ class CloudPromptPrivacyTest {
 		server.createContext("/", exchange -> {
 			capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
 			String path = exchange.getRequestURI().getPath();
+			String escapedJson = GROUNDED_JSON.replace("\\", "\\\\").replace("\"", "\\\"");
 			String responseJson = path.endsWith(":generateContent")
-					? "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"" + ANSWER + "\"}]}}]}"
-					: "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"" + ANSWER + "\"}}]}";
+					? "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"" + escapedJson + "\"}]}}]}"
+					: "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"" + escapedJson + "\"}}]}";
 			byte[] response = responseJson.getBytes(StandardCharsets.UTF_8);
 			exchange.getResponseHeaders().add("Content-Type", "application/json");
 			exchange.sendResponseHeaders(200, response.length);
@@ -125,7 +132,10 @@ class CloudPromptPrivacyTest {
 
 		LLMRouter router = (question, evidence) -> node.generate(question, evidence)
 				.map(answer -> new LLMCompletion(node.key(), node.model(), answer));
-		RAGService service = new RAGService(embeddings, vectorStore, router);
+		CorpusIndex corpusIndex = new CorpusIndex();
+		corpusIndex.add(new ProtocolSection("PROTO-001", "Medidas"));
+		RAGService service = new RAGService(embeddings, vectorStore, router, corpusIndex,
+				RAGService.DEFAULT_RELEVANCE_THRESHOLD);
 		PromptRequest request = new PromptRequest(QUESTION, 1, PATIENT_CONTEXT, null);
 
 		return service.answer(request).block();
