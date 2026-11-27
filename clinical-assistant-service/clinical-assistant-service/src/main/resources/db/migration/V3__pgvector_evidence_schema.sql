@@ -3,8 +3,9 @@
 -- Flyway owns this schema (ADR-04); Spring AI table auto-creation is disabled.
 -- Numbered V3 for Change 3. This service has no V1/V2 yet; Flyway does not require contiguous versions.
 --
--- PROVISIONAL: vector(768) assumes a 768-dimension embedding model (e.g. nomic-embed-text). The model is not chosen
--- yet (ADR-05, G-01). Changing the dimension later needs a new migration and a full re-ingestion. Keep it in sync with
+-- The schema dimension is definitively vector(768) per ADR-05 (2026-11-27). The real embedding model is still pending
+-- (nomic-embed-text or text-embedding-004, G-01/TST-RAG); FixtureEmbeddingAdapter remains active until then. Changing
+-- the dimension later needs a new migration and a full re-ingestion. Keep it in sync with
 -- clinical.vector-store.dimensions in application.yaml.
 
 CREATE EXTENSION IF NOT EXISTS vector;
