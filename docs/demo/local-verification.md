@@ -97,7 +97,7 @@ curl -sS -X POST http://localhost:8082/asistente/consulta \
 curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-assistant-key'
 ```
 
-With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. A real answer was verified with `RAG_LLM_CHAIN=gemini` and a valid key supplied only through `GEMINI_API_KEY`. Alternatively, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
+With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. A real answer was verified with `RAG_LLM_CHAIN=gemini` and a valid key supplied only through `GEMINI_API_KEY`; the runtime model id, latency and privacy checks are recorded in [the R-07 artifact](../audits/20261127/gemini-chat-r07-verification.md). Alternatively, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
 
 ## 6. Auth negatives
 
