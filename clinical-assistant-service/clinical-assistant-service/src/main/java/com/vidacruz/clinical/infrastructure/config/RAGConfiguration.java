@@ -16,14 +16,20 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.domain.services.CorpusIngestionService;
 import com.vidacruz.clinical.domain.services.RAGService;
+import com.vidacruz.clinical.domain.services.RagRetrievalService;
+import com.vidacruz.clinical.domain.services.TextChunker;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
@@ -65,6 +71,18 @@ class RAGConfiguration {
 	@Bean
 	VectorStore pgvectorVectorStoreAdapter(VectorRepository evidenceVectorRepository, Scheduler pgvectorJdbcScheduler) {
 		return new PgvectorVectorStoreAdapter(evidenceVectorRepository, pgvectorJdbcScheduler);
+	}
+
+	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
+	@Bean
+	ClinicalDocumentRepository jdbcClinicalDocumentAdapter(DataSource dataSource, Scheduler pgvectorJdbcScheduler) {
+		return new JdbcClinicalDocumentAdapter(JdbcClient.create(dataSource), pgvectorJdbcScheduler);
+	}
+
+	@Bean
+	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "fixture")
+	ClinicalDocumentRepository inMemoryClinicalDocumentAdapter() {
+		return new InMemoryClinicalDocumentAdapter();
 	}
 
 	@Bean
@@ -113,6 +131,18 @@ class RAGConfiguration {
 	@Bean
 	EmbeddingProvider fixtureEmbeddingAdapter(VectorStoreProperties properties) {
 		return new FixtureEmbeddingAdapter(properties.dimensions());
+	}
+
+	@Bean
+	CorpusIngestionService corpusIngestionService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore,
+			ClinicalDocumentRepository documents) {
+		return new CorpusIngestionService(new TextChunker(), fixtureEmbeddingAdapter, vectorStore, documents);
+	}
+
+	@Bean
+	RagRetrievalService ragRetrievalService(EmbeddingProvider fixtureEmbeddingAdapter, VectorStore vectorStore,
+			ClinicalDocumentRepository documents) {
+		return new RagRetrievalService(fixtureEmbeddingAdapter, vectorStore, documents);
 	}
 
 	@Bean
