@@ -47,6 +47,9 @@ dependencies {
 	testImplementation("org.testcontainers:kafka")
 	testImplementation("org.testcontainers:postgresql")
 	testImplementation("org.testcontainers:r2dbc")
+	// TST-RXN: BlockHound detects blocking calls on reactor threads (ADR-04/ADR-05).
+	testImplementation("io.projectreactor.tools:blockhound:1.0.10.RELEASE")
+	testImplementation("io.projectreactor.tools:blockhound-junit-platform:1.0.10.RELEASE")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -59,4 +62,10 @@ dependencyManagement {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// BlockHound instruments JDK classes by adding methods (JDK 13+).
+	jvmArgs("-XX:+AllowRedefinitionToAddDeleteMethods")
+	// Keep CI's Linux entropy source non-blocking (/dev/urandom); Windows uses its native provider.
+	if (!System.getProperty("os.name").lowercase().contains("win")) {
+		systemProperty("java.security.egd", "file:/dev/./urandom")
+	}
 }
