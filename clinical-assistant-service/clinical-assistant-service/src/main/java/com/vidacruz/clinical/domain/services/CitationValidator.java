@@ -13,7 +13,8 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
  * Checks that every citation marker in an answer points to a retrieved fragment.
  *
  * <p>Marker syntax: {@code [n]} with {@code n} the 1-based position in the evidence list (see {@link EvidenceContext}).
- * An answer without markers is valid; this class never adds citations, it only rejects invented ones.
+ * An answer must contain at least one valid marker; this class never adds citations, it rejects ungrounded answers
+ * and invented markers.
  */
 public final class CitationValidator {
 
@@ -24,7 +25,8 @@ public final class CitationValidator {
 
 	/**
 	 * @return the citations actually used by the answer, ordered by position, without duplicates
-	 * @throws InvalidCitationException when a marker is {@code [0]} or exceeds the evidence size
+	 * @throws InvalidCitationException when the answer has no valid marker, cites {@code [0]}, or exceeds the
+	 *         evidence size
 	 */
 	public static List<Citation> resolve(String answer, List<EvidenceFragment> evidence) {
 		TreeSet<Integer> positions = new TreeSet<>();
@@ -36,6 +38,9 @@ public final class CitationValidator {
 						"answer cites position " + position + " but only " + evidence.size() + " fragment(s) exist");
 			}
 			positions.add(position);
+		}
+		if (positions.isEmpty()) {
+			throw new InvalidCitationException("answer has no valid citation marker");
 		}
 		return positions.stream().map(position -> Citation.of(position, evidence.get(position - 1))).toList();
 	}

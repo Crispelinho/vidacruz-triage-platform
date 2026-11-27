@@ -68,10 +68,11 @@ class RAGServiceTest {
 		when(embeddingProvider.embed("medidas ante crisis hipertensiva")).thenReturn(Mono.just(QUERY_EMBEDDING));
 		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, 2))
 				.thenReturn(Mono.just(evidence.stream().map(f -> scored(f, 0.9d)).toList()));
-		when(llmProvider.generate("medidas ante crisis hipertensiva", evidence)).thenReturn(Mono.just("respuesta [1]"));
+		when(llmProvider.generate("medidas ante crisis hipertensiva", evidence))
+				.thenReturn(Mono.just("respuesta [1] y [2]"));
 
 		StepVerifier.create(service.answer(request)).assertNext(response -> {
-			assertThat(response.answer()).isEqualTo("respuesta [1]");
+			assertThat(response.answer()).isEqualTo("respuesta [1] y [2]");
 			assertThat(response.sources()).isEqualTo(evidence);
 			assertThat(response.hasEvidence()).isTrue();
 		}).verifyComplete();
@@ -132,6 +133,19 @@ class RAGServiceTest {
 
 		StepVerifier.create(service.answer(PromptRequest.of("q")))
 				.expectError(com.vidacruz.clinical.domain.exceptions.InvalidCitationException.class).verify();
+	}
+
+	@Test
+	void llmAnswerWithoutCitationMarkersIsRejected() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
+		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just("respuesta sin marcadores"));
+
+		StepVerifier.create(service.answer(PromptRequest.of("q")))
+				.expectError(com.vidacruz.clinical.domain.exceptions.InvalidCitationException.class)
+				.verify();
 	}
 
 	@Test

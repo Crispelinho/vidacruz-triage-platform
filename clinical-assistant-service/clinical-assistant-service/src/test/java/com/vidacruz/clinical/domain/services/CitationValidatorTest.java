@@ -21,8 +21,10 @@ class CitationValidatorTest {
 			EvidenceFragment.create(UUID.randomUUID(), 1, "PROTO-002", "B", "dos", new float[] { 1f }));
 
 	@Test
-	void answerWithoutMarkersIsValidAndCitesNothing() {
-		assertThat(CitationValidator.resolve("respuesta sin marcadores", EVIDENCE)).isEmpty();
+	void answerWithoutMarkersIsRejected() {
+		assertThatThrownBy(() -> CitationValidator.resolve("respuesta sin marcadores", EVIDENCE))
+				.isInstanceOf(InvalidCitationException.class)
+				.hasMessage("answer has no valid citation marker");
 	}
 
 	@Test
@@ -49,8 +51,9 @@ class CitationValidatorTest {
 	}
 
 	@Test
-	void ignoresBracketsThatAreNotPositiveIntegers() {
-		assertThat(CitationValidator.resolve("nota [a] [] [1.5]", EVIDENCE)).isEmpty();
+	void bracketsThatAreNotPositiveIntegersAreNotValidMarkers() {
+		assertThatThrownBy(() -> CitationValidator.resolve("nota [a] [] [1.5]", EVIDENCE))
+				.isInstanceOf(InvalidCitationException.class);
 	}
 
 }
