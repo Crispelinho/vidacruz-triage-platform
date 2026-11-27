@@ -319,20 +319,23 @@ Status code 201 for creation and 404 for unknown IDs are DEC-08 / AMB-06 choices
 
 Topic: `triaje.eventos` (TC-04). Key: `pacienteId` (ordering per patient). At-least-once delivery; consumers must be idempotent (DER-03).
 
-**Envelope (PROPOSED, DEC-03):**
+**Envelope (DEC-03, as published by the outbox writer):**
 ```json
 {
-  "eventId": "uuid",
   "eventType": "paciente_registrado",
+  "eventId": "uuid",
   "schemaVersion": 1,
   "pacienteId": "uuid",
   "pacienteSequence": 1,
   "occurredAt": "2026-11-24T21:00:00Z",
   "correlationId": "string",
-  "payload": {}
+  "nivel": "CRITICO",
+  "slaMinutos": 5,
+  "estado": "REGISTRADO",
+  "fechaRegistro": "2026-11-24T21:00:00Z"
 }
 ```
-`pacienteSequence` increases by one per patient for each event. The Assistant uses it to ignore out-of-order or duplicate messages (DER-03).
+The envelope fields and the event-specific payload fields are flat at the root of the message; there is no nested `payload` object in newly published events. Consumers also read envelopes nested under `payload` for compatibility with earlier documented messages. `pacienteSequence` increases by one per patient for each event. The Assistant uses it to ignore out-of-order or duplicate messages (DER-03).
 
 | ID | eventType | Producer | Consumers | Published when | Payload |
 |---|---|---|---|---|---|

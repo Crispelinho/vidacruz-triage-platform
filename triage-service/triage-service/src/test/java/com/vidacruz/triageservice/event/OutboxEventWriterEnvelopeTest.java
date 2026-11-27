@@ -1,6 +1,7 @@
 package com.vidacruz.triageservice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventoRepository;
@@ -29,12 +30,13 @@ class OutboxEventWriterEnvelopeTest {
         var writer = new OutboxEventWriter(repository, new ObjectMapper(),
                 io.micrometer.tracing.Tracer.NOOP, io.micrometer.tracing.propagation.Propagator.NOOP);
         var patientId = UUID.randomUUID();
-        var event = writer.write(patientId, "EVT_01_PACIENTE_REGISTRADO",
+        assertThat(TriageRegistrationService.REGISTERED_EVENT).isEqualTo("paciente_registrado");
+        var event = writer.write(patientId, TriageRegistrationService.REGISTERED_EVENT,
                 Map.of("nivel", "CRITICO", "estado", "REGISTRADO"), Instant.parse("2026-11-26T10:00:00Z"))
                 .block();
 
         var json = new ObjectMapper().readTree(event.getPayload());
-        assertThat(json.path("eventType").asText()).isEqualTo("EVT_01_PACIENTE_REGISTRADO");
+        assertThat(json.path("eventType").asText()).isEqualTo("paciente_registrado");
         assertThat(json.path("pacienteId").asText()).isEqualTo(patientId.toString());
         assertThat(json.path("pacienteSequence").asLong()).isEqualTo(1);
         assertThat(json.path("occurredAt").asText()).isEqualTo("2026-11-26T10:00:00Z");
