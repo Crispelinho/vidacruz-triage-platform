@@ -11,8 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
-import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
@@ -25,8 +26,8 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -60,7 +61,8 @@ class PatientLifecycleServiceTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		service = new PatientLifecycleService(patientRepository, auditRepository, eventWriter,
-				alertRepository, transactionalOperator);
+				alertRepository, transactionalOperator,
+				Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC));
 		lenient().when(alertRepository.resolveForPatient(any(UUID.class), any(Instant.class)))
 				.thenReturn(Mono.just(true));
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
@@ -78,8 +80,7 @@ class PatientLifecycleServiceTest {
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_en_consulta", "{}",
-						patientId, 2, OffsetDateTime.now(), UUID.randomUUID())));
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), patientId, "paciente_en_consulta", "{}", Instant.now())));
 
 		StepVerifier.create(service.changeStatus(patientId, PatientLifecycleService.IN_CONSULTATION))
 				.assertNext(response -> {

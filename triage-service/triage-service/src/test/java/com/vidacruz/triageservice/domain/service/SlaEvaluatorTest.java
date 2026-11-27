@@ -2,9 +2,9 @@ package com.vidacruz.triageservice.domain.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -12,9 +12,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,11 +24,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -63,7 +63,7 @@ class SlaEvaluatorTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator);
+				transactionalOperator, Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC));
 		lenient().when(alertRepository.create(any(MedicalAlert.class))).thenReturn(Mono.empty());
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
@@ -72,20 +72,19 @@ class SlaEvaluatorTest {
 	@Test
 	void escalatesOverduePatientOnce() {
 		UUID patientId = UUID.randomUUID();
-		Instant registeredAt = Instant.now().minus(6, ChronoUnit.MINUTES);
+		Instant registeredAt = Instant.parse("2026-03-10T09:54:00Z");
 		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
 		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(1));
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_escalado", "{}",
-						patientId, 2, OffsetDateTime.now(), UUID.randomUUID())));
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), patientId, "paciente_escalado", "{}", Instant.now())));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isEqualTo(1))
 				.verifyComplete();
 
-		verify(auditRepository).save(org.mockito.ArgumentMatchers.argThat(entry ->
+		verify(auditRepository).save(argThat(entry ->
 				SlaEvaluator.ESCALATION_AUDIT.equals(entry.eventType())
 						&& PatientLifecycleService.REGISTERED.equals(entry.previousStatus())
 						&& PatientLifecycleService.REGISTERED.equals(entry.nextStatus())));
@@ -102,7 +101,7 @@ class SlaEvaluatorTest {
 	void doesNotEscalateBeforeTheSlaBoundary() {
 		UUID patientId = UUID.randomUUID();
 		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId,
-				Instant.now().minus(4, ChronoUnit.MINUTES))));
+				Instant.parse("2026-03-10T09:56:00Z"))));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isZero())
@@ -115,7 +114,7 @@ class SlaEvaluatorTest {
 	void secondEvaluationDoesNothingWhenConditionalUpdateWinsNoRow() {
 		UUID patientId = UUID.randomUUID();
 		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId,
-				Instant.now().minus(6, ChronoUnit.MINUTES))));
+				Instant.parse("2026-03-10T09:54:00Z"))));
 		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(0));
 
 		StepVerifier.create(evaluator.evaluateOnce())

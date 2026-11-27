@@ -1,6 +1,7 @@
 package com.vidacruz.triageservice.domain.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -35,19 +36,22 @@ public class TriageRegistrationService {
 	private final TriageClassifier classifier;
 	private final SlaProperties slaProperties;
 	private final TransactionalOperator transactionalOperator;
+	private final Clock clock;
 
 	public TriageRegistrationService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,
 			TriageClassifier classifier,
 			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator) {
+			TransactionalOperator transactionalOperator,
+			Clock clock) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.classifier = classifier;
 		this.slaProperties = slaProperties;
 		this.transactionalOperator = transactionalOperator;
+		this.clock = clock;
 	}
 
 	public Mono<PatientRegistrationResponse> register(PatientRegistrationRequest request) {
@@ -55,7 +59,7 @@ public class TriageRegistrationService {
 		TriageLevel level = classifier.classify(patient);
 		int slaMinutes = slaProperties.minutesFor(level);
 		UUID patientId = UUID.randomUUID();
-		Instant registeredAt = Instant.now();
+		Instant registeredAt = clock.instant();
 
 		PatientEntity entity = new PatientEntity(
 				patientId,

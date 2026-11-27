@@ -53,7 +53,8 @@ class TriageRegistrationServiceTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		service = new TriageRegistrationService(patientRepository, auditRepository, eventWriter,
-				new TriageClassifier(), new SlaProperties(Map.of()), transactionalOperator);
+				new TriageClassifier(), new SlaProperties(Map.of()), transactionalOperator,
+				java.time.Clock.fixed(java.time.Instant.parse("2026-03-10T10:00:00Z"), java.time.ZoneOffset.UTC));
 		when(patientRepository.save(any(PatientEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(auditRepository.save(any(AuditEntryEntity.class)))
