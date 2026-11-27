@@ -14,12 +14,11 @@ import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.jdbc.JdbcConnectionDetails;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.Ordered;
 import org.springframework.core.ParameterizedTypeReference;
@@ -31,46 +30,42 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.services.TextChunker;
+import com.vidacruz.clinicalassistantservice.ClinicalAssistantServiceApplication;
 
 import reactor.core.publisher.Mono;
 
 /**
  * RF-04A: corpus ingestion and RN-05 gated retrieval, end to end against a real pgvector.
  *
- * <p>These tests are written ahead of the implementation and are expected to fail until the RF-04A endpoints exist.
- * The contract they assume is collected here so the implementation can be aligned with it (or this class adjusted):
+ * <p>The endpoint and persistence contract exercised here is collected in this class:
  * <ul>
  * <li>{@code POST /clinical/corpus/ingest} with {@code {"title", "content"}} answers 200
  * {@code {"documentId", "chunksCount"}}. Re-ingesting the same title and content returns the same documentId.</li>
- * <li>{@code GET /clinical/corpus/search?query=..&threshold=..} answers 200 with a JSON array (never null) of
- * {@code {"documentId", "documentTitle", "content", "similarity"}}, keeping only chunks whose cosine similarity is
- * {@code >= threshold} (RN-05).</li>
- * <li>Chunks live in table {@code clinical_chunks(document_id uuid, chunk_index int, content text,
+ * <li>{@code GET /clinical/corpus/retrieve?query=..&threshold=..} answers 200 with a JSON array (never null) of
+ * {@code {"text", "similarity", "source"}}, where {@code source} is the document title, keeping only chunks whose
+ * cosine similarity is {@code >= threshold} (RN-05).</li>
+ * <li>Chunks live in table {@code evidence_fragments(document_id uuid, chunk_index int, content text,
  * embedding vector(768))}.</li>
  * </ul>
  *
  * <p>Embeddings are hardcoded (see {@link MockEmbeddingProvider}), so similarities are exact by construction and no
  * real model is exercised. Every test uses its own tag in titles and content, so documents never collide.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+@SpringBootTest(classes = ClinicalAssistantServiceApplication.class,
+		webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "adapters.kafka.patient-events.enabled=false")
+@Import(CorpusIngestionIntegrationTest.Config.class)
 @AutoConfigureWebTestClient
 class CorpusIngestionIntegrationTest {
 
 	private static final String INGEST_URI = "/clinical/corpus/ingest";
 
-	private static final String SEARCH_URI = "/clinical/corpus/search";
+	private static final String SEARCH_URI = "/clinical/corpus/retrieve";
 
 	private static final int EMBEDDING_DIMENSIONS = 768;
-
-	/** Heuristic: one token is about four characters. Real tokenization depends on the model chosen in ADR-05. */
-	private static final int APPROX_CHARS_PER_TOKEN = 4;
-
-	private static final int MAX_CHUNK_TOKENS = 512;
 
 	private static final double HEART_FAILURE_SIMILARITY = MockEmbeddingProvider.HEART_FAILURE_COSINE;
 
@@ -92,7 +87,7 @@ class CorpusIngestionIntegrationTest {
 
 	@BeforeEach
 	void cleanChunks() {
-		db.sql("TRUNCATE TABLE clinical_chunks").fetch().rowsUpdated().block();
+		db.sql("TRUNCATE TABLE evidence_fragments").fetch().rowsUpdated().block();
 	}
 
 	// 1. Happy path ------------------------------------------------------------------------------------------------
@@ -120,7 +115,8 @@ class CorpusIngestionIntegrationTest {
 	@Test
 	void retrievalKeepsOnlyChunksAtOrAboveTheThreshold() {
 		String tag = newTag();
-		String cardiologyId = documentIdOf(ingest("Cardiology " + tag, body(Topic.CARDIO, tag, 300)));
+		String cardiologyTitle = "Cardiology " + tag;
+		ingest(cardiologyTitle, body(Topic.CARDIO, tag, 300));
 		ingest("Neurology " + tag, body(Topic.NEURO, tag, 300));
 		ingest("Orthopedics " + tag, body(Topic.ORTHO, tag, 300));
 
@@ -130,7 +126,7 @@ class CorpusIngestionIntegrationTest {
 		assertThat(atDefaultGate).as("chunks at threshold 0.75").isNotEmpty();
 		assertThat(atDefaultGate).allSatisfy(chunk -> {
 			assertThat(similarityOf(chunk)).isGreaterThanOrEqualTo(0.75);
-			assertThat(chunk.get("documentId")).isEqualTo(cardiologyId);
+			assertThat(sourceOf(chunk)).isEqualTo(cardiologyTitle);
 		});
 		assertThat(atDefaultGate).extracting(CorpusIngestionIntegrationTest::similarityOf)
 				.allSatisfy(similarity -> assertThat(similarity).isCloseTo(HEART_FAILURE_SIMILARITY,
@@ -150,7 +146,7 @@ class CorpusIngestionIntegrationTest {
 		ingest("Neurology " + tag, body(Topic.NEURO, tag, 300));
 		ingest("Orthopedics " + tag, body(Topic.ORTHO, tag, 300));
 
-		webTestClient.get()
+		authenticated().get()
 				.uri(uri -> uri.path(SEARCH_URI).queryParam("query", "quantum physics").queryParam("threshold", 0.75)
 						.build())
 				.exchange()
@@ -197,8 +193,9 @@ class CorpusIngestionIntegrationTest {
 		assertThat(chunkIndexes(documentId)).as("chunk positions are contiguous")
 				.containsExactlyElementsOf(java.util.stream.IntStream.range(0, chunks.size()).boxed().toList());
 
-		// Each chunk fits the embedding input budget.
-		assertThat(chunks).allSatisfy(chunk -> assertThat(approxTokens(chunk)).isLessThanOrEqualTo(MAX_CHUNK_TOKENS));
+		// TextChunker counts whitespace-delimited words as tokens; each chunk fits the configured budget.
+		assertThat(chunks).allSatisfy(chunk -> assertThat(words(chunk).length)
+				.isLessThanOrEqualTo(TextChunker.DEFAULT_CHUNK_TOKENS));
 
 		// Coverage: every word of the source is in at least one chunk, including each section's first and last marker.
 		Set<String> covered = new HashSet<>();
@@ -220,13 +217,13 @@ class CorpusIngestionIntegrationTest {
 	// 6. Multiple documents ----------------------------------------------------------------------------------------
 
 	@Test
-	void retrievalSpansSeveralSourceDocumentsAndReportsTheirOrigin() {
+	void retrievalReportsSourceTitlesAndOnlyReturnsCardiologySources() {
 		String tag = newTag();
-		Map<String, String> cardiologyTitlesById = new java.util.HashMap<>();
+		Set<String> cardiologyTitles = new HashSet<>();
 		for (String title : List.of("Heart failure guideline", "Cardiac rehabilitation", "Ventricular arrhythmia")) {
 			String fullTitle = title + " " + tag;
-			cardiologyTitlesById.put(documentIdOf(ingest(fullTitle, body(Topic.CARDIO, tag + title.length(), 300))),
-					fullTitle);
+			cardiologyTitles.add(fullTitle);
+			ingest(fullTitle, body(Topic.CARDIO, tag + title.length(), 300));
 		}
 		ingest("Neurology " + tag, body(Topic.NEURO, tag, 300));
 		ingest("Orthopedics " + tag, body(Topic.ORTHO, tag, 300));
@@ -234,12 +231,9 @@ class CorpusIngestionIntegrationTest {
 		List<Map<String, Object>> results = search("heart", 0.75);
 
 		assertThat(results).isNotEmpty();
-		assertThat(results.stream().map(chunk -> chunk.get("documentId")).distinct()).hasSizeGreaterThan(1);
 		assertThat(results).allSatisfy(chunk -> {
-			String documentId = (String) chunk.get("documentId");
-			assertThat(cardiologyTitlesById).as("only cardiology sources").containsKey(documentId);
-			assertThat(chunk.get("documentTitle")).isEqualTo(cardiologyTitlesById.get(documentId));
-			assertThat((String) chunk.get("content")).isNotBlank();
+			assertThat(sourceOf(chunk)).as("only cardiology sources").isIn(cardiologyTitles);
+			assertThat((String) chunk.get("text")).isNotBlank();
 		});
 	}
 
@@ -254,7 +248,7 @@ class CorpusIngestionIntegrationTest {
 		SoftAssertions softly = new SoftAssertions();
 
 		// Empty document: either rejected, or accepted with nothing to index.
-		EntityExchangeResult<Map<String, Object>> empty = webTestClient.post().uri(INGEST_URI)
+		EntityExchangeResult<Map<String, Object>> empty = authenticated().post().uri(INGEST_URI)
 				.bodyValue(Map.of("title", "Empty " + tag, "content", ""))
 				.exchange()
 				.expectBody(MAP).returnResult();
@@ -284,35 +278,6 @@ class CorpusIngestionIntegrationTest {
 
 	@TestConfiguration(proxyBeanMethods = false)
 	static class Config {
-
-		@Bean
-		@ServiceConnection
-		PostgreSQLContainer<?> postgresContainer() {
-			// pgvector image: the schema needs the vector extension (Flyway runs the migrations at startup).
-			return new PostgreSQLContainer<>(
-					DockerImageName.parse("pgvector/pgvector:pg17").asCompatibleSubstituteFor("postgres"));
-		}
-
-		// @ServiceConnection exposes R2DBC details; the explicit JDBC DataSource (JdbcConfiguration) needs JDBC details.
-		@Bean
-		JdbcConnectionDetails jdbcConnectionDetails(PostgreSQLContainer<?> postgresContainer) {
-			return new JdbcConnectionDetails() {
-				@Override
-				public String getJdbcUrl() {
-					return postgresContainer.getJdbcUrl();
-				}
-
-				@Override
-				public String getUsername() {
-					return postgresContainer.getUsername();
-				}
-
-				@Override
-				public String getPassword() {
-					return postgresContainer.getPassword();
-				}
-			};
-		}
 
 		/** Takes precedence over the fixture hash embedding wired by RAGConfiguration. */
 		@Bean
@@ -458,8 +423,13 @@ class CorpusIngestionIntegrationTest {
 
 	// HTTP helpers -------------------------------------------------------------------------------------------------
 
+	/** The API-key WebFilter runs before the permit-all chain installed by Config. */
+	private WebTestClient authenticated() {
+		return webTestClient.mutate().defaultHeader("X-API-Key", "test-assistant-key").build();
+	}
+
 	private Map<String, Object> ingest(String title, String content) {
-		Map<String, Object> response = webTestClient.post().uri(INGEST_URI)
+		Map<String, Object> response = authenticated().post().uri(INGEST_URI)
 				.bodyValue(Map.of("title", title, "content", content))
 				.exchange()
 				.expectStatus().isOk()
@@ -470,7 +440,7 @@ class CorpusIngestionIntegrationTest {
 	}
 
 	private List<Map<String, Object>> search(String query, double threshold) {
-		List<Map<String, Object>> response = webTestClient.get()
+		List<Map<String, Object>> response = authenticated().get()
 				.uri(uri -> uri.path(SEARCH_URI).queryParam("query", query).queryParam("threshold", threshold).build())
 				.exchange()
 				.expectStatus().isOk()
@@ -495,17 +465,22 @@ class CorpusIngestionIntegrationTest {
 		return ((Number) chunk.get("similarity")).doubleValue();
 	}
 
+	private static String sourceOf(Map<String, Object> chunk) {
+		assertThat(chunk.get("source")).as("source title").isInstanceOf(String.class);
+		return (String) chunk.get("source");
+	}
+
 	// Persistence helpers (R2DBC) ----------------------------------------------------------------------------------
 
 	private long countChunks(String documentId) {
-		return db.sql("SELECT count(*) AS n FROM clinical_chunks WHERE document_id = CAST(:id AS uuid)")
+		return db.sql("SELECT count(*) AS n FROM evidence_fragments WHERE document_id = CAST(:id AS uuid)")
 				.bind("id", documentId)
 				.map((row, metadata) -> row.get("n", Long.class))
 				.one().block();
 	}
 
 	private long countChunksWithEmbedding(String documentId) {
-		return db.sql("SELECT count(*) AS n FROM clinical_chunks WHERE document_id = CAST(:id AS uuid) "
+		return db.sql("SELECT count(*) AS n FROM evidence_fragments WHERE document_id = CAST(:id AS uuid) "
 				+ "AND embedding IS NOT NULL")
 				.bind("id", documentId)
 				.map((row, metadata) -> row.get("n", Long.class))
@@ -513,7 +488,7 @@ class CorpusIngestionIntegrationTest {
 	}
 
 	private List<Integer> distinctEmbeddingDimensions(String documentId) {
-		return db.sql("SELECT DISTINCT vector_dims(embedding) AS dims FROM clinical_chunks "
+		return db.sql("SELECT DISTINCT vector_dims(embedding) AS dims FROM evidence_fragments "
 				+ "WHERE document_id = CAST(:id AS uuid)")
 				.bind("id", documentId)
 				.map((row, metadata) -> row.get("dims", Integer.class))
@@ -521,14 +496,14 @@ class CorpusIngestionIntegrationTest {
 	}
 
 	private long countChunksContaining(String tag) {
-		return db.sql("SELECT count(*) AS n FROM clinical_chunks WHERE content LIKE :pattern")
+		return db.sql("SELECT count(*) AS n FROM evidence_fragments WHERE content LIKE :pattern")
 				.bind("pattern", "%" + tag + "%")
 				.map((row, metadata) -> row.get("n", Long.class))
 				.one().block();
 	}
 
 	private long countChunksContainingWithOtherDocument(String tag, String documentId) {
-		return db.sql("SELECT count(*) AS n FROM clinical_chunks WHERE content LIKE :pattern "
+		return db.sql("SELECT count(*) AS n FROM evidence_fragments WHERE content LIKE :pattern "
 				+ "AND document_id <> CAST(:id AS uuid)")
 				.bind("pattern", "%" + tag + "%")
 				.bind("id", documentId)
@@ -537,7 +512,7 @@ class CorpusIngestionIntegrationTest {
 	}
 
 	private List<String> chunkContents(String documentId) {
-		return db.sql("SELECT content FROM clinical_chunks WHERE document_id = CAST(:id AS uuid) "
+		return db.sql("SELECT content FROM evidence_fragments WHERE document_id = CAST(:id AS uuid) "
 				+ "ORDER BY chunk_index")
 				.bind("id", documentId)
 				.map((row, metadata) -> row.get("content", String.class))
@@ -545,7 +520,7 @@ class CorpusIngestionIntegrationTest {
 	}
 
 	private List<Integer> chunkIndexes(String documentId) {
-		return db.sql("SELECT chunk_index FROM clinical_chunks WHERE document_id = CAST(:id AS uuid) "
+		return db.sql("SELECT chunk_index FROM evidence_fragments WHERE document_id = CAST(:id AS uuid) "
 				+ "ORDER BY chunk_index")
 				.bind("id", documentId)
 				.map((row, metadata) -> row.get("chunk_index", Integer.class))
@@ -556,10 +531,6 @@ class CorpusIngestionIntegrationTest {
 
 	private static String[] words(String text) {
 		return text.trim().split("\\s+");
-	}
-
-	private static int approxTokens(String text) {
-		return (int) Math.ceil(text.length() / (double) APPROX_CHARS_PER_TOKEN);
 	}
 
 	/** Longest run of words that ends {@code earlier} and starts {@code later}. */

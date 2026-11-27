@@ -419,10 +419,11 @@ class OperationalReportsIntegrationTest {
 
 	// ------------------------------------------------------------------ HTTP helpers
 
-	/** Single place to adapt when the real security setup (API key, DEC-05 / ADR-07) is implemented. */
+	/** Sends the API key expected by ADR-07 on every request; mockUser/csrf are leftovers from basic auth. */
 	private WebTestClient authenticated() {
 		return webTestClient.mutate()
 				.responseTimeout(Duration.ofSeconds(20))
+				.defaultHeader("X-API-Key", "test-triage-key")
 				.build()
 				.mutateWith(mockUser())
 				.mutateWith(csrf());
