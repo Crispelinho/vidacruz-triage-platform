@@ -16,7 +16,7 @@ source § → requirement ID → capability → OpenSpec change → task → cod
 - **task**: the task ID in the change's `tasks.md`. Pending until the change exists.
 - **code path**, **test**, **evidence**: filled during implementation. A row is done only when all of them are filled and the test passed.
 
-Legend for the status column: `plan` (the row is assigned, nothing built), `done` (test and evidence linked).
+Legend for the status column: `plan` (the row is assigned, nothing built), `partial` (code and unit/slice tests exist, but a named evidence gap is still open), `done` (test and evidence linked).
 
 ## 2. Functional requirements
 
@@ -28,7 +28,9 @@ Legend for the status column: `plan` (the row is assigned, nothing built), `done
 | §4 | RF-04-A | C-06 | 8 `clinical-assistant-rag` | pending | — | — | — | plan |
 | §4 | RF-04-B | C-07 | 9 `emergency-state-projection` | pending | — | — | — | plan |
 | §4 | RF-05 | C-08 | 6 `operational-reporting` | pending | — | — | — | plan |
-| §4 | RF-06 | C-09 | 7 `medical-escalation-alerts` | pending | — | — | — | plan |
+| §4 | RF-06 | C-09 | 7 `medical-escalation-alerts` | implemented; OpenSpec task artifacts not in this matrix | `triage-service/triage-service/src/main/java/com/vidacruz/triageservice/application/controller/AlertController.java`, `domain/service/SlaEvaluator.java`, `infrastructure/persistence/AlertChangeListener.java`, `src/main/resources/db/migration/V2__medical_alert.sql` | `AlertControllerTest` (WebFlux slice with `X-API-Key`: `text/event-stream`, `event:alerta`, `:latido`, ack and payload privacy), `WatchAlertsUseCaseTest`, `AcknowledgeAlertUseCaseTest`, `MedicalAlertPersistenceTest`, `TriageSLAEscalationIntegrationTest` | Unit/slice tests pass locally. Missing: E2E escalation through the public HTTPS URL and a DB-backed Testcontainers test of `pg_notify` → LISTEN delivery. | partial |
+
+RF-06 note: `partial` is not `done`. Passing unit/slice tests cover the alert contract and HTTP SSE framing; the remaining evidence is a live escalation through the public URL and a database-backed `pg_notify`/LISTEN test. ADR-15 records the same distinction.
 
 ## 3. Business rules
 
