@@ -1,5 +1,7 @@
 # Requirements Traceability Matrix v2 — 2026-11-26
 
+> **Vigencia:** snapshot de 2026-11-26. Los estados PROPOSED/NOT_DEFINED de TST-RAG, R-07, R-06, autenticación y contrato 401 quedaron superados por la evidencia y decisiones del 2026-11-27. Estado vigente en `open-decisions-register-v2-20261126.md`, `../20261127/adr-acceptance-acta-20261127.md` y `../../adr/ADR-05-assistant-llm-provider.md`. No se reescribe el snapshot.
+
 **Estado:** Borrador de validación documental (v2).  
 **Alcance:** Solo lectura de evidencia existente + decisiones humanas P-01..P-04 registradas en esta sesión.  
 **No sobrescribe:** `requirements-traceability-matrix-20261126.md` (snapshot histórico).

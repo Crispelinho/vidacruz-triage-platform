@@ -1,5 +1,7 @@
 # 📋 Resumen Final — Entregables de Auditoría
 
+> **Vigencia:** snapshot de 2026-11-26. La frase «ninguna decisión aceptada» y la lista de tests por ejecutar quedaron superadas por las decisiones humanas y la evidencia del 2026-11-27; ver `open-decisions-register-v2-20261126.md`, `../20261127/adr-acceptance-acta-20261127.md` y `../../adr/ADR-05-assistant-llm-provider.md`. No se reescribe el snapshot.
+
 **Fecha:** 26 de noviembre de 2026  
 **Fase:** Consolidación y auditoría de consistencia — CERRADA  
 **Modo:** Solo lectura, documentación de hallazgos  

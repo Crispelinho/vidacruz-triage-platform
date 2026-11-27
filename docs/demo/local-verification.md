@@ -164,4 +164,4 @@ Jaeger trace across both services. It is local evidence only and does not close 
 
 ## Scope boundary
 
-Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the public URL and the provisioning evidence. There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.
+Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the historical public URL and the provisioning evidence (the environment was retired on 2026-11-27). There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

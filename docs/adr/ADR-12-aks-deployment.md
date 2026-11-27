@@ -15,7 +15,7 @@ los dos servicios. El costo tiene que ser bajo: es una evaluación, no producci�
 ### AKS, no Container Apps
 
 Los manifests que pide el enunciado son de Kubernetes, y en AKS se aplican tal cual. Container Apps no usa esos
-manifests. El control plane va en el tier gratuito, con un solo nodo `Standard_B4ms`.
+manifests. El control plane va en el tier gratuito, con un solo nodo `Standard_B4as_v2`: el default original `Standard_B4ms` fue rechazado por la suscripción en `northcentralus` y la IaC ya usa el SKU corregido (ADR-11 y `docs/operations/despliegue-azure-y-pruebas.md`).
 
 ### Tamaño del clúster
 

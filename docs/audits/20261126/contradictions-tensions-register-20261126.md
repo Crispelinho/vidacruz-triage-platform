@@ -1,5 +1,7 @@
 # 📋 Contradictions & Tensions Register — 26 de noviembre de 2026
 
+> **Vigencia:** snapshot de 2026-11-26. La ausencia de dimensión vinculante y de contrato 401 quedó resuelta por decisiones humanas, y la calibración TST-RAG se ejecutó el 2026-11-27. Estado vigente en `contradictions-tensions-register-v2-20261126.md`, `open-decisions-register-v2-20261126.md` y `../20261127/adr-acceptance-acta-20261127.md`. No se reescribe el snapshot.
+
 **Identificadores compartidos con requirements-traceability-matrix-20261126.md y open-decisions-register-20261126.md.**  
 Las entradas documentan contradicciones reales, tensionesdocumentales y diferencias de nivel —no todas las diferencias son contradicciones.
 

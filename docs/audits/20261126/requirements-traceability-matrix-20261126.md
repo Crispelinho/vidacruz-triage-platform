@@ -1,5 +1,7 @@
 # 📋 Evidence & Test Coverage Register — 26 de noviembre de 2026
 
+> **Vigencia:** snapshot de 2026-11-26. Los estados «no ejecutado / pendiente» de TST-RAG, R-07, R-06 y de la calibración 0.65 quedaron superados por la evidencia ejecutada el 2026-11-27. Estado vigente en `open-decisions-register-v2-20261126.md`, `../20261127/adr-acceptance-acta-20261127.md` y `../../adr/ADR-05-assistant-llm-provider.md`. No se reescribe el snapshot.
+
 **Qué existe en código, qué está documentado, qué tests están escritos y cuáles se han ejecutado realmente.**  
 Identificadores compartidos con la matriz principal y los demás anexos.
 

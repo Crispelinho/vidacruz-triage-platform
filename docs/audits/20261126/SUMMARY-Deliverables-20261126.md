@@ -1,5 +1,7 @@
 # 📄 Resumen de Entregables — Fase de Consolidación y Auditoría
 
+> **Vigencia:** snapshot de 2026-11-26. Los tests allí listados como propuestos y no ejecutados tienen ejecución registrada el 2026-11-27 (TST-RXN, TST-RAG); ver `open-decisions-register-v2-20261126.md` y `../20261127/adr-acceptance-acta-20261127.md`. No se reescribe el snapshot.
+
 **Fecha:** 26 de noviembre de 2026  
 **Alcance:** Solo lectura, documentación de hallazgos  
 **Estado:** Cuatro documentos generados y listos para revisión
