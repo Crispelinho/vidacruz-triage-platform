@@ -15,11 +15,14 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 /** C17 chain behavior: failover, no same-node retry, per-node breakers and terminal 503 trigger. */
 class ResilientLLMRouterTest {
+
+	private final LlmCallMetrics metrics = new LlmCallMetrics(new SimpleMeterRegistry());
 
 	private static final List<EvidenceFragment> EVIDENCE = List.of(
 			EvidenceFragment.create(UUID.randomUUID(), 0, "PROTO-001", "Medidas", "texto", new float[] { 1f }));
@@ -52,7 +55,7 @@ class ResilientLLMRouterTest {
 		});
 		NamedLLMProvider second = provider("gemini", "gemini-2.5-flash", question -> Mono.just("respuesta [1]"));
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second),
-				CircuitBreakerRegistry.ofDefaults(), Duration.ofSeconds(1));
+				CircuitBreakerRegistry.ofDefaults(), Duration.ofSeconds(1), metrics);
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.assertNext(completion -> {
@@ -69,7 +72,7 @@ class ResilientLLMRouterTest {
 		NamedLLMProvider second = provider("gemini", "gemini-2.5-flash",
 				question -> Mono.error(new RuntimeException("down")));
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second),
-				CircuitBreakerRegistry.ofDefaults(), Duration.ofSeconds(1));
+				CircuitBreakerRegistry.ofDefaults(), Duration.ofSeconds(1), metrics);
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.expectErrorSatisfies(error -> assertThat(error).isInstanceOf(LLMUnavailableException.class))
@@ -86,7 +89,7 @@ class ResilientLLMRouterTest {
 			return Mono.just("should not be used");
 		});
 		NamedLLMProvider second = provider("opencode", "glm-5.3", question -> Mono.just("respuesta [1]"));
-		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second), registry, Duration.ofSeconds(1));
+		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second), registry, Duration.ofSeconds(1), metrics);
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.assertNext(completion -> assertThat(completion.usedModel()).isEqualTo("opencode/glm-5.3"))
@@ -99,7 +102,7 @@ class ResilientLLMRouterTest {
 		NamedLLMProvider first = provider("ollama", "llama3.1:8b", question -> Mono.never());
 		NamedLLMProvider second = provider("gemini", "gemini-2.5-flash", question -> Mono.just("respuesta [1]"));
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(first, second),
-				CircuitBreakerRegistry.ofDefaults(), Duration.ofMillis(20));
+				CircuitBreakerRegistry.ofDefaults(), Duration.ofMillis(20), metrics);
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.assertNext(completion -> assertThat(completion.usedModel()).isEqualTo("gemini/gemini-2.5-flash"))
@@ -110,7 +113,7 @@ class ResilientLLMRouterTest {
 	@Test
 	void anEmptyChainFailsWithLLMUnavailable() {
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(), CircuitBreakerRegistry.ofDefaults(),
-				Duration.ofSeconds(1));
+				Duration.ofSeconds(1), metrics);
 
 		StepVerifier.create(router.generate("q", EVIDENCE))
 				.expectError(LLMUnavailableException.class)

@@ -1,5 +1,6 @@
 package com.vidacruz.clinical.application.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -19,7 +20,9 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.services.RAGService;
+import com.vidacruz.clinical.infrastructure.metrics.MicrometerConsultationMetrics;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 
 /** Standalone WebFlux test: no Spring context, no security, no database. */
@@ -29,11 +32,15 @@ class RAGControllerTest {
 
 	private WebTestClient client;
 
+	private SimpleMeterRegistry registry;
+
 	@BeforeEach
 	void setUp() {
 		ragService = mock(RAGService.class);
-		client = WebTestClient.bindToController(new RAGController(ragService))
-				.controllerAdvice(new RAGExceptionHandler())
+		registry = new SimpleMeterRegistry();
+		MicrometerConsultationMetrics metrics = new MicrometerConsultationMetrics(registry);
+		client = WebTestClient.bindToController(new RAGController(ragService, metrics))
+				.controllerAdvice(new RAGExceptionHandler(metrics))
 				.build();
 	}
 
@@ -60,6 +67,8 @@ class RAGControllerTest {
 				.jsonPath("$.fuentes[1].protocolo").isEqualTo("PROTO-002")
 				.jsonPath("$..embedding").doesNotExist()
 				.jsonPath("$..content").doesNotExist();
+
+		assertThat(answers("answered")).isEqualTo(1.0d);
 	}
 
 	@Test
@@ -73,6 +82,8 @@ class RAGControllerTest {
 				.expectBody()
 				.jsonPath("$.respuesta").isEqualTo("no existe protocolo disponible")
 				.jsonPath("$.fuentes.length()").isEqualTo(0);
+
+		assertThat(answers("no_evidence")).isEqualTo(1.0d);
 	}
 
 	@Test
@@ -88,6 +99,9 @@ class RAGControllerTest {
 				.jsonPath("$.correlationId").isEqualTo("corr-123");
 
 		verifyNoInteractions(ragService);
+		assertThat(registry.get("assistant.answers").meters())
+				.allMatch(meter -> meter instanceof io.micrometer.core.instrument.Counter counter
+						&& counter.count() == 0.0d);
 	}
 
 	@Test
@@ -114,6 +128,12 @@ class RAGControllerTest {
 				.jsonPath("$.code").isEqualTo("LLM_UNAVAILABLE")
 				.jsonPath("$.message").isEqualTo("El asistente no está disponible temporalmente")
 				.jsonPath("$.correlationId").isNotEmpty();
+
+		assertThat(answers("unavailable")).isEqualTo(1.0d);
+	}
+
+	private double answers(String outcome) {
+		return registry.get("assistant.answers").tag("outcome", outcome).counter().count();
 	}
 
 }

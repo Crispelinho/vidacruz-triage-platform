@@ -16,6 +16,7 @@ import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.exception.IdempotencyKeyReusedException;
 import com.vidacruz.triageservice.domain.model.PatientRegistration;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
@@ -44,6 +45,7 @@ public class TriageRegistrationService {
 	private final TriageClassifier classifier;
 	private final SlaProperties slaProperties;
 	private final TransactionalOperator transactionalOperator;
+	private final TriageMetrics metrics;
 
 	public TriageRegistrationService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
@@ -52,7 +54,8 @@ public class TriageRegistrationService {
 			ObjectMapper objectMapper,
 			TriageClassifier classifier,
 			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator) {
+			TransactionalOperator transactionalOperator,
+			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
@@ -61,11 +64,13 @@ public class TriageRegistrationService {
 		this.classifier = classifier;
 		this.slaProperties = slaProperties;
 		this.transactionalOperator = transactionalOperator;
+		this.metrics = metrics;
 	}
 
 	public Mono<PatientRegistrationResponse> register(PatientRegistrationRequest request) {
 		Registration registration = prepare(request);
 		return transactionalOperator.transactional(registration.write())
+				.doOnNext(written -> metrics.patientClassified(registration.level()))
 				.thenReturn(registration.response());
 	}
 
@@ -117,6 +122,7 @@ public class TriageRegistrationService {
 					return registration.write()
 							.then(idempotencyRepository.complete(key, registration.response().id(), 201,
 									responseBody))
+							.doOnNext(completed -> metrics.patientClassified(registration.level()))
 							.thenReturn(registration.response());
 				});
 	}
@@ -158,9 +164,9 @@ public class TriageRegistrationService {
 						"fechaRegistro", registeredAt.toString()), registeredAt));
 
 		return new Registration(new PatientRegistrationResponse(
-				patientId, level.name(), slaMinutes, REGISTERED_STATUS, registeredAt), write);
+				patientId, level.name(), slaMinutes, REGISTERED_STATUS, registeredAt), write, level);
 	}
 
-	private record Registration(PatientRegistrationResponse response, Mono<?> write) {
+	private record Registration(PatientRegistrationResponse response, Mono<?> write, TriageLevel level) {
 	}
 }

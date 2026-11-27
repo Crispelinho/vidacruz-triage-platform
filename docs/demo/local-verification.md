@@ -107,6 +107,21 @@ curl -sS -i http://localhost:8081/triage/alertas -H 'X-API-Key: wrong'
 
 Both return `401` with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}` and an `X-Correlation-Id` header. Health probes stay public.
 
+## 7. NFR-07 — metrics
+
+The actuators expose the metrics registry at `/actuator/prometheus`. Unlike health probes, this endpoint requires the service API key.
+
+```bash
+curl -sS http://localhost:8081/actuator/prometheus -H 'X-API-Key: test-triage-key' \
+  | grep -E '^triage_(patients|alerts)_'
+curl -sS http://localhost:8082/actuator/prometheus -H 'X-API-Key: test-assistant-key' \
+  | grep -E '^assistant_(answers|llm_latency|urgency_events)'
+```
+
+Expected series after the flows above: `triage_patients_classified_total{level=...}`, `triage_patients_escalated_total{level=...}`, `triage_alerts_acknowledged_total{level=...}`, `assistant_answers_total{outcome=...}`, `assistant_llm_latency_seconds_bucket{outcome=...}` and `assistant_urgency_events_total{result=...}`. Counters are pre-registered at zero, so a level or outcome with no events reads `0` instead of disappearing.
+
+Open `http://localhost:9090` to query Prometheus and `http://localhost:3000` for the provisioned **VidaCruz — NFR-07 flow and latency** dashboard (anonymous viewer). If `TRIAGE_API_KEY` or `ASSISTANT_API_KEY` was overridden in `.env`, update the matching `secrets` in `observability/prometheus/prometheus.yml` so the scrapes keep returning `200` instead of `401`.
+
 ## Scope boundary
 
 No Azure deployment, public URL, k8s/Helm manifests or webhook receiver exist. ADR-11 remains blocked by unverified subscription/quota (R-06) and must be recorded as a blocker, not worked around. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

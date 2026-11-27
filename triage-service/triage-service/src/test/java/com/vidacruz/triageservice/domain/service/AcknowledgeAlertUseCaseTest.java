@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -22,6 +23,7 @@ import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -33,6 +35,9 @@ class AcknowledgeAlertUseCaseTest {
 
 	@Mock
 	private MedicalAlertRepository repository;
+
+	@Mock
+	private TriageMetrics metrics;
 
 	@Test
 	void takesAPendingAlertAndReturnsTheUpdatedRow() {
@@ -46,6 +51,8 @@ class AcknowledgeAlertUseCaseTest {
 					assertThat(alert.responsible()).isEqualTo("Dra. Pérez");
 				})
 				.verifyComplete();
+
+		verify(metrics).alertAcknowledged(TriageLevel.CRITICO);
 	}
 
 	@Test
@@ -80,7 +87,7 @@ class AcknowledgeAlertUseCaseTest {
 	}
 
 	private AcknowledgeAlertUseCase useCase() {
-		return new AcknowledgeAlertUseCase(repository);
+		return new AcknowledgeAlertUseCase(repository, metrics);
 	}
 
 	private static MedicalAlert alert(UUID id, AlertStatus status, String responsible) {

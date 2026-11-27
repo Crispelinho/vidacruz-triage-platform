@@ -78,3 +78,20 @@ opencode:
 assistant:
   # Local/demo default only. Override ASSISTANT_API_KEY outside localhost (ADR-07).
   api-key: ${ASSISTANT_API_KEY:test-assistant-key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    # Fixed buckets let the dashboards compute a p95 per route (NFR-07).
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

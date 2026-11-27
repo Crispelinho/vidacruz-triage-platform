@@ -20,6 +20,8 @@ import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.scheduler.Scheduler;
 
 /** Wiring and property binding without a database: the DataSource is a mock. */
@@ -27,7 +29,8 @@ class RAGConfigurationTest {
 
 	private final ApplicationContextRunner runner = new ApplicationContextRunner()
 			.withUserConfiguration(RAGConfiguration.class)
-			.withBean(DataSource.class, () -> mock(DataSource.class));
+			.withBean(DataSource.class, () -> mock(DataSource.class))
+			.withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
 	@Test
 	void wiresPortsToTheFailoverChain() {

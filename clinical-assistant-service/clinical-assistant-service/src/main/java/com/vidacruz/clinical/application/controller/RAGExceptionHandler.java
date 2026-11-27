@@ -12,6 +12,7 @@ import com.vidacruz.clinical.application.dto.ErrorResponseDTO;
 import com.vidacruz.clinical.domain.exceptions.InvalidCitationException;
 import com.vidacruz.clinical.domain.exceptions.InvalidPromptException;
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
+import com.vidacruz.clinical.domain.ports.ConsultationMetrics;
 
 /** Maps RAG failures to the API-04 error bodies. Messages never include question or answer text (CA-G-16). */
 @RestControllerAdvice(assignableTypes = RAGController.class)
@@ -23,6 +24,12 @@ public class RAGExceptionHandler {
 
 	static final String INVALID_LLM_RESPONSE_MESSAGE = "La respuesta del asistente no pudo validarse";
 
+	private final ConsultationMetrics metrics;
+
+	public RAGExceptionHandler(ConsultationMetrics metrics) {
+		this.metrics = metrics;
+	}
+
 	@ExceptionHandler(InvalidPromptException.class)
 	ResponseEntity<ErrorResponseDTO> invalidPrompt(InvalidPromptException ex, ServerWebExchange exchange) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -31,6 +38,7 @@ public class RAGExceptionHandler {
 
 	@ExceptionHandler(LLMUnavailableException.class)
 	ResponseEntity<ErrorResponseDTO> llmUnavailable(LLMUnavailableException ex, ServerWebExchange exchange) {
+		metrics.unavailable();
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
 				.body(new ErrorResponseDTO("LLM_UNAVAILABLE", LLM_UNAVAILABLE_MESSAGE, correlationId(exchange)));
 	}
@@ -42,6 +50,7 @@ public class RAGExceptionHandler {
 	@ExceptionHandler(InvalidCitationException.class)
 	ResponseEntity<com.vidacruz.clinical.application.dto.RAGResponseDTO> invalidCitation(InvalidCitationException ex,
 			ServerWebExchange exchange) {
+		metrics.invalidCitation();
 		return ResponseEntity.ok(com.vidacruz.clinical.application.dto.RAGResponseDTO
 				.from(com.vidacruz.clinical.domain.models.RAGResponse.noEvidence()));
 	}

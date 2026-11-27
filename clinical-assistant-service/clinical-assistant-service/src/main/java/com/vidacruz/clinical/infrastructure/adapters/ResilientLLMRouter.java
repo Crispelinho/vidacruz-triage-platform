@@ -29,10 +29,14 @@ public final class ResilientLLMRouter implements LLMRouter {
 
 	private final Duration timeout;
 
-	public ResilientLLMRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry, Duration timeout) {
+	private final LlmCallMetrics metrics;
+
+	public ResilientLLMRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry, Duration timeout,
+			LlmCallMetrics metrics) {
 		this.providers = List.copyOf(Objects.requireNonNull(providers, "providers"));
 		this.registry = Objects.requireNonNull(registry, "registry");
 		this.timeout = Objects.requireNonNull(timeout, "timeout");
+		this.metrics = Objects.requireNonNull(metrics, "metrics");
 		if (timeout.isZero() || timeout.isNegative()) {
 			throw new IllegalArgumentException("LLM timeout must be positive");
 		}
@@ -51,6 +55,7 @@ public final class ResilientLLMRouter implements LLMRouter {
 		CircuitBreaker breaker = registry.circuitBreaker(provider.key());
 		Mono<LLMCompletion> current = Mono.defer(() -> provider.generate(question, evidence))
 				.timeout(timeout)
+				.transform(metrics::timed)
 				.transform(mono -> ProviderFailures.map(provider.key(), provider.model(), mono))
 				.transformDeferred(CircuitBreakerOperator.of(breaker))
 				.onErrorMap(CallNotPermittedException.class,

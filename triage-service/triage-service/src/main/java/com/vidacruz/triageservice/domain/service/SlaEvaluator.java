@@ -14,6 +14,7 @@ import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -37,17 +38,20 @@ public class SlaEvaluator {
 	private final OutboxEventWriter eventWriter;
 	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
+	private final TriageMetrics metrics;
 
 	public SlaEvaluator(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator) {
+			TransactionalOperator transactionalOperator,
+			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
+		this.metrics = metrics;
 	}
 
 	/** Returns the number of patients escalated by this run. */
@@ -67,6 +71,7 @@ public class SlaEvaluator {
 	}
 
 	private Mono<Integer> escalate(PatientEntity patient, Instant changedAt) {
+		TriageLevel level = TriageLevel.valueOf(patient.level());
 		Mono<Integer> atomicWrite = patientRepository.escalate(patient.id(), changedAt)
 				.flatMap(updated -> {
 					if (updated != 1) {
@@ -85,7 +90,12 @@ public class SlaEvaluator {
 							.then(alertRepository.create(alert(patient, changedAt)))
 							.thenReturn(1);
 				});
-		return transactionalOperator.transactional(atomicWrite);
+		return transactionalOperator.transactional(atomicWrite)
+				.doOnNext(count -> {
+					if (count == 1) {
+						metrics.patientEscalated(level);
+					}
+				});
 	}
 
 	/** The alert holds the clinical signal only; the patient detail stays behind the regular API. */

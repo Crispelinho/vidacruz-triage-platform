@@ -30,6 +30,8 @@ import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.exception.IdempotencyKeyReusedException;
 import com.vidacruz.triageservice.domain.exception.InvalidPatientDataException;
+import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
@@ -63,6 +65,9 @@ class TriageRegistrationServiceTest {
 	@Mock
 	private TransactionalOperator transactionalOperator;
 
+	@Mock
+	private TriageMetrics metrics;
+
 	private TriageRegistrationService service;
 
 	@BeforeEach
@@ -70,7 +75,7 @@ class TriageRegistrationServiceTest {
 	void setUp() {
 		service = new TriageRegistrationService(patientRepository, auditRepository, eventWriter,
 				idempotencyRepository, mapper, new TriageClassifier(), new SlaProperties(Map.of()),
-				transactionalOperator);
+				transactionalOperator, metrics);
 		lenient().when(patientRepository.save(any(PatientEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		lenient().when(auditRepository.save(any(AuditEntryEntity.class)))
@@ -103,6 +108,7 @@ class TriageRegistrationServiceTest {
 				anyMap(), any(Instant.class));
 		verify(idempotencyRepository, never()).insertPending(anyString(), anyString(), any(Instant.class),
 				any(Instant.class));
+		verify(metrics).patientClassified(TriageLevel.CRITICO);
 	}
 
 	@Test
@@ -177,6 +183,7 @@ class TriageRegistrationServiceTest {
 		verify(idempotencyRepository).complete(eq("key-2"), any(UUID.class), eq(201),
 				org.mockito.ArgumentMatchers.argThat(body -> body.contains("\"nivel\"")
 						&& body.contains("\"slaMinutos\"") && body.contains("\"fechaRegistro\"")));
+		verify(metrics).patientClassified(TriageLevel.CRITICO);
 	}
 
 	@Test

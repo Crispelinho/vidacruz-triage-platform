@@ -28,6 +28,7 @@ import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.service.AcknowledgeAlertUseCase;
 import com.vidacruz.triageservice.domain.service.ListActiveAlertsUseCase;
 import com.vidacruz.triageservice.domain.service.WatchAlertsUseCase;
@@ -46,6 +47,9 @@ class AlertControllerTest {
 
 	@MockitoBean
 	private MedicalAlertRepository repository;
+
+	@MockitoBean
+	private TriageMetrics metrics;
 
 	@Autowired
 	private WebTestClient client;
