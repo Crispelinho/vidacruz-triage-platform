@@ -22,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.context.annotation.Import;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.testcontainers.kafka.KafkaContainer;
@@ -66,6 +68,14 @@ import com.vidacruz.triageservice.event.infrastructure.OutboxPublisher;
 })
 @DisplayName("UC-T08: outbox publisher (outbox_evento -> triaje.eventos)")
 class OutboxPublisherIntegrationTest {
+
+	@DynamicPropertySource
+	static void registerKafka(DynamicPropertyRegistry registry) {
+		registry.add("spring.kafka.bootstrap-servers", TriageTestContainers.KAFKA::getBootstrapServers);
+	}
+
+
+
 
 	private static final Duration SETTLE = Duration.ofSeconds(3);
 
