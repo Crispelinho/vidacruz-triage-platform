@@ -64,7 +64,7 @@ Main flow of UC-A1 is described step by step in section 6. Main flow of UC-A3 is
 
 ## 4. API endpoints: API-04 and API-05
 
-Both endpoints require the API key header (`X-API-Key`, DEC-05, NFR-10). `/actuator` health and probe endpoints stay public (D1 §9). Timestamps are ISO 8601 with offset. Field names are Spanish camelCase (DEC-08).
+Both endpoints require the API key header (`X-API-Key`, ADR-07, DEC-05, NFR-10). The key comes from `ASSISTANT_API_KEY` (local default `test-assistant-key`) and is compared in constant time. `/actuator/health[/**]` and `/health[/**]` stay public. Missing or wrong key → 401 with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}`; no basic-auth fallback. Spring Security's generated chain is disabled. Timestamps are ISO 8601 with offset. Field names are Spanish camelCase (DEC-08).
 
 ### 4.1 API-04 `POST /asistente/consulta`
 
