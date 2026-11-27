@@ -10,6 +10,9 @@ data:
   # Azure Database for PostgreSQL requires TLS. The password comes from clinical-assistant-service-secrets.
   SPRING_DATASOURCE_URL: jdbc:postgresql://__DB_HOST__:5432/assistant?sslmode=require
   SPRING_DATASOURCE_USERNAME: triage_admin
+  # The R2DBC starter is on the classpath even though Flyway uses JDBC; both URLs must be present.
+  SPRING_R2DBC_URL: r2dbc:postgresql://__DB_HOST__:5432/assistant?sslMode=require
+  SPRING_R2DBC_USERNAME: triage_admin
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: "6379"
   KAFKA_BOOTSTRAP_SERVERS: kafka-0.kafka:9092

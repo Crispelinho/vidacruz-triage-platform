@@ -15,7 +15,7 @@ The 2026-11-27 Developer/User amendment selects AKS over the earlier Container A
 
 | Item | Recorded value |
 |---|---|
-| Subscription | Azure for Students, US$100/year, with budget alerts at 50 % and 80 % |
+| Subscription | Azure for Students, US$100/year; 50 %/80 % budget alerts to configure (not yet evidenced as active) |
 | Region | `northcentralus` |
 | Cluster node | `Standard_B4as_v2` (4 vCPUs, 16 GB RAM) |
 | Database | PostgreSQL Flexible Server `Standard_B1ms` |
@@ -53,8 +53,8 @@ AKS is chosen for the three-day evaluation window because it demonstrates Kubern
 
 - Positive: AKS demonstrates Kubernetes directly, and the recorded node size and database tier are sized for the lightweight containers, Kafka and pgvector workload.
 - Negative: the cluster needs more setup than Container Apps, and the US$100/year budget needs active 50 %/80 % alerts to be effective.
-- ADR-05 no longer depends on GPU capacity in Azure after the C17 record; it still depends on the target evidence recorded here. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost.
-- C-01 Azure manifests wait for this ADR to be accepted; the rest of C-01 does not.
+- ADR-05 no longer depends on GPU capacity in Azure after the C17 record; it still needs the target evidence listed as pending under Verification. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost.
+- C-01 Azure manifests are delivered independently of this decision, but their adoption waits for this ADR to be accepted; the rest of C-01 does not wait.
 - A blocked deployment still produces a manifest deliverable and a named R-06 record.
 - The Container Apps analysis is kept as Option A history and must not be cited as the current proposal.
 
@@ -77,11 +77,14 @@ Repository evidence currently present:
 - [x] **T-22 local stack present:** `docker-compose.yml`, Dockerfiles, and service workflows exist; local/E2E verification remains the separate E2E track.
 - [x] **Manifest/schema validation automated:** `.github/workflows/k8s-manifests.yml` renders and validates `infra/k8s`, `infra/k8s/cluster`, `infra/k8s/edge`, `infra/k8s/routes`, `triage-service/deployment/k8s`, and `clinical-assistant-service/deployment/k8s` with `kustomize build` + `kubeconform -strict -ignore-missing-schemas`. Green `k8s-manifests` runs recorded in [46066172188](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46066172188) and [46066177746](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46066177746) (PR #119).
 
+Gates already closed:
+
+- [x] **IaC/SKU alignment:** `infra/azure/main.bicep` defaults to the recorded `Standard_B4as_v2` node; PostgreSQL `Standard_B1ms` and `northcentralus` remain consistent. Re-check these values before another Azure build.
+- [x] **ADR-10 gate:** satisfied by ADR-10 acceptance for evaluation scope (2026-11-27); keep the non-production OSS Boot 3.5.x constraint visible.
+
 Pending before formal acceptance:
 
 - [ ] **R-06 reproducible rerun:** rerun `infra/azure/provision.ps1` and `deploy.yml` from current `develop`/target commit with OIDC/RBAC hardening; attach CI run URL/log showing no manual `kubectl scale` workaround. Evidence template: `docs/operations/adr11-r06-rerun-evidence-template.md`.
-- [x] **IaC/SKU alignment:** `infra/azure/main.bicep` defaults to the recorded `Standard_B4as_v2` node; PostgreSQL `Standard_B1ms` and `northcentralus` remain consistent. Re-check these values before another Azure build.
 - [ ] **Budget alerts evidence:** show 50 % and 80 % Azure for Students budget alerts configured (screenshot/export/reference), not just recorded.
-- [ ] **Secret hygiene:** confirm no credential in repo/image/history; rotate credentials exposed during validation and record rotation without publishing values. Evidence template: `docs/operations/adr11-secret-hygiene-evidence-template.md`.
-- [x] **ADR-10 gate:** satisfied by ADR-10 acceptance for evaluation scope (2026-11-27); keep the non-production OSS Boot 3.5.x constraint visible.
+- [ ] **Secret hygiene:** confirm no credential in repo/image/history; rotate credentials exposed during validation and record rotation without publishing values. Evidence template: `docs/operations/adr11-secret-hygiene-evidence-template.md`. Partial repo/Actions evidence is recorded in [`github-actions-secret-hygiene.md`](../audits/20261127/github-actions-secret-hygiene.md); the rotation record and image scan remain open.
 - [ ] **ADR-05 target evidence:** record that the chosen AKS target can host the reduced ADR-05 workload in region/budget; chat GPU capacity is not required after C17.
