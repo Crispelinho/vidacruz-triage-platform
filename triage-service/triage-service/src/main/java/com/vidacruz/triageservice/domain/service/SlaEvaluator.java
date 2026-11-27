@@ -93,6 +93,8 @@ public class SlaEvaluator {
 	private Mono<Integer> escalate(PatientEntity patient, Instant changedAt) {
 		TriageLevel level = TriageLevel.valueOf(patient.level());
 		Mono<Integer> atomicWrite = patientRepository.escalate(patient.id(), changedAt)
+				// R2DBC @Query UPDATEs complete empty on success in this stack; only an explicit 0 is a lost race.
+				.defaultIfEmpty(1)
 				.flatMap(updated -> {
 					if (updated != 1) {
 						return Mono.just(0);
