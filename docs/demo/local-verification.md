@@ -83,7 +83,7 @@ curl -sS -G http://localhost:8081/triage/reportes/operacion \
   --data-urlencode 'hasta=2027-01-01T00:00:00Z'
 ```
 
-An offset or `Z` is mandatory. Missing or malformed parameters return `400 TRG-004` with a `field` hint.
+An offset or `Z` is mandatory. Missing or malformed parameters return `400 VALIDATION_ERROR` with a `field` hint. `TRG-004` is reserved for a repeated alert acknowledgement.
 
 ## 5. RF-04 — assistant (provider-dependent)
 
