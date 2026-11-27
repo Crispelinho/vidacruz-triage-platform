@@ -67,7 +67,7 @@ import reactor.core.publisher.Mono;
  *       the timing based tests cannot be deterministic: wire the Clock first.</li>
  * </ul>
  */
-@Import(TriageTestContainers.class)
+@Import({TriageTestContainers.class, OperationalReportsIntegrationTest.ClockConfig.class})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
 		"triage.sla.evaluation-enabled=false", "triage.sla.evaluation-interval=PT24H" })
 @AutoConfigureWebTestClient
@@ -130,9 +130,9 @@ class OperationalReportsIntegrationTest {
 	@TestConfiguration
 	static class ClockConfig {
 
-		@Bean
+		@Bean("clock")
 		@Primary
-		MutableClock mutableClock() {
+		Clock clock() {
 			return new MutableClock(HOUR_10);
 		}
 	}
