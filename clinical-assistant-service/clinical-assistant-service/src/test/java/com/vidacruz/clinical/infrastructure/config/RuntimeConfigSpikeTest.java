@@ -1,0 +1,113 @@
+package com.vidacruz.clinical.infrastructure.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.Duration;
+
+import javax.sql.DataSource;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
+import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
+import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
+/**
+ * ADR-05 runtime configuration spike (harness): proves custom config keys bind and select the intended beans.
+ *
+ * <p>Covered: rag.llm.chain, ollama.*, gemini.*, opencode.*, and clinical.vector-store.embedding-provider.
+ * Not covered: live provider calls, Spring AI static-key behavior, or network reachability.
+ */
+class RuntimeConfigSpikeTest {
+
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withUserConfiguration(RAGConfiguration.class)
+            .withBean(DataSource.class, () -> org.mockito.Mockito.mock(DataSource.class))
+            .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
+
+    @Test
+    void defaultChainBindsCustomKeysAndLexicalEmbedding() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+
+            LLMRouterProperties chain = context.getBean(LLMRouterProperties.class);
+            assertThat(chain.providerKeys()).containsExactly("ollama", "gemini", "opencode");
+            assertThat(chain.timeout()).isEqualTo(Duration.ofSeconds(15));
+
+            OllamaProperties ollama = context.getBean(OllamaProperties.class);
+            assertThat(ollama.url()).isEqualTo("http://localhost:11434");
+            assertThat(ollama.model()).isEqualTo("llama3.1:8b");
+            assertThat(ollama.timeout()).isEqualTo(Duration.ofSeconds(15));
+
+            GeminiProperties gemini = context.getBean(GeminiProperties.class);
+            assertThat(gemini.baseUrl()).isEqualTo("https://generativelanguage.googleapis.com/v1beta/models");
+            assertThat(gemini.model()).isEqualTo("gemini-3.5-flash-lite");
+            assertThat(gemini.apiKey()).isEmpty();
+
+            OpenCodeProperties opencode = context.getBean(OpenCodeProperties.class);
+            assertThat(opencode.url()).isEqualTo("https://opencode.ai/inference/openai/v1/chat/completions");
+            assertThat(opencode.model()).isEqualTo("glm-5.3");
+            assertThat(opencode.apiKey()).isEmpty();
+
+            assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
+            assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(GeminiHttpLLMAdapter.class);
+            assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(OpenCodeHttpLLMAdapter.class);
+            assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
+
+            VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
+            assertThat(vector.dimensions()).isEqualTo(768);
+            assertThat(vector.relevanceThreshold()).isEqualTo(VectorStoreProperties.CALIBRATED_RELEVANCE_THRESHOLD);
+            assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(LexicalEmbeddingAdapter.class);
+        });
+    }
+
+    @Test
+    void customLlmAndEmbeddingKeysAreBound() {
+        runner.withPropertyValues(
+                "rag.llm.chain=gemini,ollama",
+                "rag.llm.timeout=7s",
+                "ollama.url=http://ollama-host:11434",
+                "ollama.model=llama3.2:3b",
+                "ollama.timeout=9s",
+                "gemini.api-key=test-gemini-key",
+                "gemini.model=gemini-3.5-flash-lite",
+                "opencode.api-key=test-opencode-key",
+                "opencode.model=glm-custom",
+                "clinical.vector-store.embedding-provider=gemini",
+                "gemini.embedding.model=gemini-embedding-2",
+                "gemini.embedding.dimensions=768")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(LLMRouterProperties.class).providerKeys()).containsExactly("gemini", "ollama");
+                assertThat(context.getBean(LLMRouterProperties.class).timeout()).isEqualTo(Duration.ofSeconds(7));
+
+                assertThat(context.getBean(OllamaProperties.class).url()).isEqualTo("http://ollama-host:11434");
+                assertThat(context.getBean(OllamaProperties.class).model()).isEqualTo("llama3.2:3b");
+                assertThat(context.getBean(OllamaProperties.class).timeout()).isEqualTo(Duration.ofSeconds(9));
+                assertThat(context.getBean(GeminiProperties.class).apiKey()).isEqualTo("test-gemini-key");
+                assertThat(context.getBean(OpenCodeProperties.class).apiKey()).isEqualTo("test-opencode-key");
+                assertThat(context.getBean(OpenCodeProperties.class).model()).isEqualTo("glm-custom");
+
+                assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(GeminiEmbeddingAdapter.class);
+                GeminiEmbeddingProperties embedding = context.getBean(GeminiEmbeddingProperties.class);
+                assertThat(embedding.model()).isEqualTo("gemini-embedding-2");
+                assertThat(embedding.dimensions()).isEqualTo(768);
+            });
+    }
+
+    @Test
+    void unknownChainNodeFailsFast() {
+        runner.withPropertyValues("rag.llm.chain=gemini,unknown")
+            .run(context -> assertThat(context).hasFailed());
+    }
+}
