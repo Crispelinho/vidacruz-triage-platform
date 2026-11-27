@@ -1,6 +1,6 @@
 # ADR-10: Spring Boot Platform Line and Java Baseline
 
-**Status:** Proposed  
+**Status:** Accepted — developer-approved baseline for evaluation scope (2026-11-27)  
 **Date:** 2026-11-25  
 **Decision:** Accept Spring Boot 3.5.x on Java 21 despite EOL risk in June 2026.
 
@@ -87,7 +87,7 @@ The Developer/User accepts in writing the end of open-source support for Spring 
 
 ## Verification
 
-The following gates must pass before this ADR transitions from Proposed to Accepted:
+The following gates support acceptance of this ADR:
 
 - [x] Gradle 8.14.8 wrapper is configured in both services (`triage-service/triage-service/gradle/wrapper/gradle-wrapper.properties`, `clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties`) and Java 21 toolchain is enforced in both `build.gradle.kts` files.
 - [x] Spring Boot 3.5.16 is pinned in both services; Spring Cloud 2025.0.3 and Spring AI 1.1.1 are pinned in `clinical-assistant-service` where required. CI builds both services with Java 21 (`.github/workflows/ci.yml`, service workflows).
@@ -97,7 +97,7 @@ The following gates must pass before this ADR transitions from Proposed to Accep
 - [x] Reproducible build evidence: GitHub Actions CI run [46056455183](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46056455183) (`CI`, `develop`, head `93706912fc1d21e3ef8a72e8b84faa5310acbb3a`, 2026-11-27T19:24:16Z) completed `success` and runs both services (`cd triage-service/triage-service && ./gradlew build` and `cd clinical-assistant-service/clinical-assistant-service && ./gradlew build` per `.github/workflows/ci.yml`).
 - [x] No production deployment claim on OSS-only Boot 3.5.x found in README/docs review; README states "Production note: Boot 3.5.16 reached EOL..." and requires commercial support or Boot 4.1+ migration. ADR-10 records R-02 acceptance and post-delivery Boot 4.1+ path. Historical ADR-06 "Production-ready" wording refers to webhook receiver replaceability, not the Boot 3.5 OSS baseline.
 
-Formal acceptance remains a developer decision; this update records evidence for the previously pending gates.
+Formal acceptance recorded by developer approval in conversation on 2026-11-27; this ADR is accepted for the evaluation scope documented above, not as a production OSS support claim.
 
 ---
 
