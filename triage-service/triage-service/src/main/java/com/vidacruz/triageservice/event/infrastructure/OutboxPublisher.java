@@ -23,6 +23,7 @@ import jakarta.annotation.PreDestroy;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /** Publishes claimed outbox rows to triaje.eventos with lease protection and failure recording (G-T25). */
 @Component
@@ -113,8 +114,11 @@ public class OutboxPublisher {
 					if (claimed != 1) {
 						return Mono.just(0);
 					}
+					// KafkaTemplate.send() blocks on metadata before returning its future; keep it off the reactor
+					// event loop (TST-RXN). The bounded pool is the same non-blocking-boundary pattern as pgvector.
 					return Mono.defer(() -> Mono.fromFuture(
 									() -> kafkaTemplate.send(recordOf(event)), false))
+							.subscribeOn(Schedulers.boundedElastic())
 							.timeout(Duration.ofSeconds(leaseSeconds))
 							.then(repository.markPublished(event.getEventId(),
 									OffsetDateTime.now(ZoneOffset.UTC)))

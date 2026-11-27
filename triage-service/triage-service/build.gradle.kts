@@ -44,6 +44,9 @@ dependencies {
 	testImplementation("org.testcontainers:kafka")
 	testImplementation("org.testcontainers:postgresql")
 	testImplementation("org.testcontainers:r2dbc")
+	// TST-RXN: BlockHound detects blocking calls on reactor threads (ADR-04/ADR-05).
+	testImplementation("io.projectreactor.tools:blockhound:1.0.10.RELEASE")
+	testImplementation("io.projectreactor.tools:blockhound-junit-platform:1.0.10.RELEASE")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -59,6 +62,8 @@ tasks.withType<Test> {
 		"-Dfile.encoding=UTF-8",
 		"-Dsun.jnu.encoding=UTF-8",
 		"-Duser.country=US",
-		"-Duser.language=en"
+		"-Duser.language=en",
+		// BlockHound instruments JDK classes by adding methods (JDK 13+).
+		"-XX:+AllowRedefinitionToAddDeleteMethods"
 	)
 }
