@@ -1,0 +1,39 @@
+# Local-only overlay for Docker Desktop Kubernetes and Minikube.
+# It reuses the platform workloads from infra/k8s and replaces every deployment-specific value:
+# local images, local placeholder Secrets, one local PostgreSQL database, and the cluster default StorageClass.
+# No ingress, TLS material, public route or cloud resource is part of this overlay.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vidacruz
+resources:
+  - namespace.yaml
+  - ../../infra/k8s
+  - local-db.yaml
+  - local-secrets.yaml
+configMapGenerator:
+  - name: local-db-init
+    files:
+      - init.sql=local-db-init.sql
+images:
+  # The base kustomization renders these two names with placeholder registry and tag values.
+  - name: __REGISTRY__/triage-service
+    newName: triage-service
+    newTag: local
+  - name: __REGISTRY__/clinical-assistant-service
+    newName: clinical-assistant-service
+    newTag: local
+patches:
+  - path: local-config-patch.yaml
+  # managed-csi does not exist on a local cluster; omitting the class selects the cluster default.
+  - target:
+      kind: StatefulSet
+      name: kafka
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      - op: remove
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
