@@ -1,6 +1,7 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,7 @@ public interface OutboxEventoRepository extends R2dbcRepository<OutboxEvento, UU
 
     Mono<OutboxEvento> findFirstByPacienteIdOrderByPacienteSequenceDesc(UUID pacienteId);
 
+    @Modifying
     @Query("UPDATE outbox_evento SET lease_until = :leaseUntil, lease_owner = :leaseOwner " +
            "WHERE event_id = :eventId AND publicado_en IS NULL " +
            "AND (lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP)")
@@ -35,18 +37,21 @@ public interface OutboxEventoRepository extends R2dbcRepository<OutboxEvento, UU
     @Query("SELECT COUNT(*) FROM outbox_evento WHERE publicado_en IS NULL")
     Mono<Long> countUnpublished();
 
+    @Modifying
     @Query("UPDATE outbox_evento SET lease_until = :leaseUntil, lease_owner = :leaseOwner " +
            "WHERE event_id = :eventId")
     Mono<Void> claimLease(@Param("eventId") UUID eventId,
                           @Param("leaseUntil") OffsetDateTime leaseUntil,
                           @Param("leaseOwner") String leaseOwner);
 
+    @Modifying
     @Query("UPDATE outbox_evento SET publicado_en = :publicadoEn, " +
            "lease_until = NULL, lease_owner = NULL " +
            "WHERE event_id = :eventId")
     Mono<Void> markPublished(@Param("eventId") UUID eventId,
                              @Param("publicadoEn") OffsetDateTime publicadoEn);
 
+    @Modifying
     @Query("UPDATE outbox_evento SET " +
            "intentos = intentos + 1, " +
            "ultimo_fallo_en = CURRENT_TIMESTAMP, " +
@@ -57,6 +62,7 @@ public interface OutboxEventoRepository extends R2dbcRepository<OutboxEvento, UU
                              @Param("errorMessage") String errorMessage,
                              @Param("requiereRevision") Boolean requiereRevision);
 
+    @Modifying
     @Query("UPDATE outbox_evento SET " +
            "primer_fallo_en = CURRENT_TIMESTAMP, " +
            "ultimo_fallo_en = CURRENT_TIMESTAMP, " +

@@ -1,11 +1,13 @@
 package com.vidacruz.triageservice.domain.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -45,6 +47,7 @@ public class TriageRegistrationService {
 	private final TriageClassifier classifier;
 	private final SlaProperties slaProperties;
 	private final TransactionalOperator transactionalOperator;
+	private final Clock clock;
 	private final TriageMetrics metrics;
 
 	public TriageRegistrationService(PatientRepository patientRepository,
@@ -56,6 +59,21 @@ public class TriageRegistrationService {
 			SlaProperties slaProperties,
 			TransactionalOperator transactionalOperator,
 			TriageMetrics metrics) {
+		this(patientRepository, auditRepository, eventWriter, idempotencyRepository, objectMapper, classifier,
+				slaProperties, transactionalOperator, Clock.systemUTC(), metrics);
+	}
+
+	@Autowired
+	public TriageRegistrationService(PatientRepository patientRepository,
+			AuditEntryRepository auditRepository,
+			OutboxEventWriter eventWriter,
+			IdempotencyKeyRepository idempotencyRepository,
+			ObjectMapper objectMapper,
+			TriageClassifier classifier,
+			SlaProperties slaProperties,
+			TransactionalOperator transactionalOperator,
+			Clock clock,
+			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
@@ -64,6 +82,7 @@ public class TriageRegistrationService {
 		this.classifier = classifier;
 		this.slaProperties = slaProperties;
 		this.transactionalOperator = transactionalOperator;
+		this.clock = clock;
 		this.metrics = metrics;
 	}
 
@@ -102,7 +121,7 @@ public class TriageRegistrationService {
 
 	private Mono<PatientRegistrationResponse> createWithKey(PatientRegistrationRequest request, String key,
 			String requestHash) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		return idempotencyRepository.insertPending(key, requestHash, now,
 				now.plus(EXPIRY_HOURS, ChronoUnit.HOURS))
 				.flatMap(inserted -> {
@@ -112,7 +131,7 @@ public class TriageRegistrationService {
 								.flatMap(existing -> replay(existing, requestHash))
 								.switchIfEmpty(Mono.defer(() -> createWithKey(request, key, requestHash)));
 					}
-					Registration registration = prepare(request);
+					Registration registration = prepare(request, now);
 					String responseBody;
 					try {
 						responseBody = objectMapper.writeValueAsString(registration.response());
@@ -128,11 +147,14 @@ public class TriageRegistrationService {
 	}
 
 	private Registration prepare(PatientRegistrationRequest request) {
+		return prepare(request, clock.instant());
+	}
+
+	private Registration prepare(PatientRegistrationRequest request, Instant registeredAt) {
 		PatientRegistration patient = request.toDomain();
 		TriageLevel level = classifier.classify(patient);
 		int slaMinutes = slaProperties.minutesFor(level);
 		UUID patientId = UUID.randomUUID();
-		Instant registeredAt = Instant.now();
 
 		PatientEntity entity = new PatientEntity(
 				patientId,
