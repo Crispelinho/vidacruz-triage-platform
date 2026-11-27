@@ -35,7 +35,8 @@ adapters:
 
 clinical:
   vector-store:
-    # PROVISIONAL until ADR-05 picks the embedding model (G-01). Must match vector(N) in the Flyway migration.
+    # Definitive pgvector schema dimension (ADR-05, 2026-11-27). Must match vector(N) in the Flyway migration.
+    # The real embedding model is still pending; FixtureEmbeddingAdapter remains active (G-01).
     dimensions: 768
     scheduler:
       # Bounded pool isolating blocking pgvector JDBC calls from the event loop (ADR-04, NFR-01).
@@ -68,8 +69,8 @@ ollama:
 
 gemini:
   base-url: https://generativelanguage.googleapis.com/v1beta/models
-  # Availability of this exact id in Google AI Studio still has to be verified (C17 record).
-  model: gemini-2.5-flash
+  # Stable Gemini model, available in Google AI Studio Free Tier; chosen over the deprecated gemini-2.5-flash (ADR-05).
+  model: gemini-3.5-flash-lite
   api-key: ${GEMINI_API_KEY:}
 
 opencode:

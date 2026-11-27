@@ -1,8 +1,11 @@
-# ADR-05: LLM Provider and Framework — Spring AI 1.1.x GA
+# ADR-05 (superseded): LLM Provider and Framework — Spring AI 1.1.x GA
 
-**Status:** Proposed  
-**Date:** 2026-11-25  
-**Decision:** Use Spring AI 1.1.x GA as the LLM abstraction layer; provider chosen at deployment time via configuration.
+**Status:** Superseded on 2026-11-27 by [ADR-05-assistant-llm-provider.md](ADR-05-assistant-llm-provider.md). Retained for history; do not use it as the current ADR-05 or as implementation/acceptance criteria.
+**Date:** 2026-11-25
+**Superseded:** 2026-11-27
+**Original decision:** Use Spring AI 1.1.x GA as the LLM abstraction layer; provider chosen at deployment time via configuration.
+
+> The canonical ADR preserves the framework comparison from this draft, replaces the stale `spring.ai.provider`/`EmbeddingClient` wording, records the C17 chat chain and the dedicated `WebClient` adapters, and keeps ADR-05 `Proposed` until verification passes.
 
 ---
 
