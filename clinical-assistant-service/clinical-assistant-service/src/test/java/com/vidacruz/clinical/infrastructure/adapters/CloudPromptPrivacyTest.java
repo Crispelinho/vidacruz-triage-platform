@@ -134,7 +134,7 @@ class CloudPromptPrivacyTest {
 				.map(answer -> new LLMCompletion(node.key(), node.model(), answer));
 		CorpusIndex corpusIndex = new CorpusIndex();
 		corpusIndex.add(new ProtocolSection("PROTO-001", "Medidas"));
-		RAGService service = new RAGService(embeddings, vectorStore, router, corpusIndex,
+		RAGService service = new RAGService(embeddings, vectorStore, router, new JacksonGroundedAnswerDecoder(), corpusIndex,
 				RAGService.DEFAULT_RELEVANCE_THRESHOLD);
 		PromptRequest request = new PromptRequest(QUESTION, 1, PATIENT_CONTEXT, null);
 

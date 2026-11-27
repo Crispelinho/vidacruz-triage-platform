@@ -3,8 +3,6 @@ package com.vidacruz.triageservice.domain.service;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.stereotype.Service;
-
 import com.vidacruz.triageservice.domain.exception.AlertConflictException;
 import com.vidacruz.triageservice.domain.exception.AlertNotFoundException;
 import com.vidacruz.triageservice.domain.exception.InvalidAlertRequestException;
@@ -15,7 +13,6 @@ import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import reactor.core.publisher.Mono;
 
 /** RF-06: a team member takes a pending alert. The conditional update prevents two doctors taking the same alert. */
-@Service
 public class AcknowledgeAlertUseCase {
 
 	private static final int MIN_LENGTH = 3;

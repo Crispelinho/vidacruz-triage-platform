@@ -1,7 +1,5 @@
 package com.vidacruz.triageservice.domain.service;
 
-import org.springframework.stereotype.Service;
-
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 
@@ -12,7 +10,6 @@ import reactor.core.publisher.Flux;
  * changes while the snapshot is read cannot be missed. Duplicate delivery is possible; clients deduplicate by
  * {@code actualizadaEn}.
  */
-@Service
 public class WatchAlertsUseCase {
 
 	private final MedicalAlertRepository alertRepository;

@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.stereotype.Service;
 
 import com.vidacruz.triageservice.application.dto.LatencyPercentileReport;
 import com.vidacruz.triageservice.application.dto.OperationHourReport;
@@ -21,7 +20,6 @@ import reactor.core.publisher.Flux;
  * RF-05 reports. Plain SQL on PostgreSQL (ordered-set aggregates and FILTER) executed through the non-blocking
  * {@link DatabaseClient}. All time bucketing is done in UTC.
  */
-@Service
 public class ReportService {
 
 	private static final String OPERATION_BY_HOUR_SQL = """

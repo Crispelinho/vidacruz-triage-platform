@@ -22,6 +22,7 @@ import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaLLMAdapter;
 import com.vidacruz.clinical.infrastructure.config.OllamaProperties;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -52,7 +53,7 @@ class FixtureRagPipelineTest {
 		LLMProvider llm = new OllamaLLMAdapter(new OllamaProperties("http://unused:11434", "fixture-model",
 				Duration.ofSeconds(5), new OllamaProperties.Fixture(Duration.ZERO)));
 		// Fixture embeddings are non-semantic; the operational 0.65 gate would reject every unrelated fragment.
-		service = new RAGService(embeddings, store, llm, corpusIndex, 0.0d);
+		service = new RAGService(embeddings, store, llm, new JacksonGroundedAnswerDecoder(), corpusIndex, 0.0d);
 	}
 
 	/** Ingests a synthetic fragment whose embedding is derived from {@code topic}. */
@@ -120,7 +121,7 @@ class FixtureRagPipelineTest {
 		ingest("tema-alfa", "FIXTURE-A", "Seccion A");
 		LLMProvider hallucinating = (question, evidence) -> Mono.just(
 				"{\"respuesta\":\"segun [1]\",\"fuentes\":[{\"protocolo\":\"FIXTURE-INVENTADO\",\"seccion\":\"Seccion inventada\"}]}");
-		RAGService strict = new RAGService(embeddings, store, hallucinating, corpusIndex, 0.0d);
+		RAGService strict = new RAGService(embeddings, store, hallucinating, new JacksonGroundedAnswerDecoder(), corpusIndex, 0.0d);
 
 		StepVerifier.create(strict.answer(PromptRequest.of("tema-alfa")))
 				.expectError(InvalidCitationException.class)

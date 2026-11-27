@@ -9,8 +9,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,7 +31,6 @@ import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 import reactor.core.publisher.Mono;
 
 /** RF-01 use case: validate, classify, persist, audit and record the registration event atomically. */
-@Service
 public class TriageRegistrationService {
 
 	private static final Logger log = LoggerFactory.getLogger(TriageRegistrationService.class);
@@ -54,20 +51,6 @@ public class TriageRegistrationService {
 	private final Clock clock;
 	private final TriageMetrics metrics;
 
-	public TriageRegistrationService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
-			IdempotencyKeyRepository idempotencyRepository,
-			ObjectMapper objectMapper,
-			TriageClassifier classifier,
-			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator,
-			TriageMetrics metrics) {
-		this(patientRepository, auditRepository, eventWriter, idempotencyRepository, objectMapper, classifier,
-				slaProperties, transactionalOperator, Clock.systemUTC(), metrics);
-	}
-
-	@Autowired
 	public TriageRegistrationService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,

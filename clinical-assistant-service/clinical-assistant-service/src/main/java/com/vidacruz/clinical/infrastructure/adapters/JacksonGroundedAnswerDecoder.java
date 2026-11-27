@@ -1,7 +1,8 @@
-package com.vidacruz.clinical.domain.services;
+package com.vidacruz.clinical.infrastructure.adapters;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -9,25 +10,33 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.clinical.domain.exceptions.InvalidLLMResponseException;
 import com.vidacruz.clinical.domain.models.GroundedAnswer;
 import com.vidacruz.clinical.domain.models.ProtocolSection;
+import com.vidacruz.clinical.domain.ports.GroundedAnswerDecoder;
 
 /**
- * Strict parser for the G-04 LLM contract: {@code {"respuesta":"...","fuentes":[{"protocolo":"...","seccion":"..."}]}}.
- * Any parse error throws {@link InvalidLLMResponseException}; the caller rejects the answer without regenerating it.
+ * Strict Jackson decoder for the G-04 LLM contract:
+ * {@code {"respuesta":"...","fuentes":[{"protocolo":"...","seccion":"..."}]}}. Any parse error throws
+ * {@link InvalidLLMResponseException}; the caller rejects the answer without regenerating it.
  */
-public final class GroundedAnswerParser {
+public final class JacksonGroundedAnswerDecoder implements GroundedAnswerDecoder {
 
-	private static final ObjectMapper MAPPER = new ObjectMapper();
+	private final ObjectMapper mapper;
 
-	private GroundedAnswerParser() {
+	public JacksonGroundedAnswerDecoder() {
+		this(new ObjectMapper());
 	}
 
-	public static GroundedAnswer parse(String raw) {
+	public JacksonGroundedAnswerDecoder(ObjectMapper mapper) {
+		this.mapper = Objects.requireNonNull(mapper, "mapper");
+	}
+
+	@Override
+	public GroundedAnswer decode(String raw) {
 		if (raw == null || raw.isBlank()) {
 			throw new InvalidLLMResponseException("LLM answer is empty");
 		}
 		JsonNode root;
 		try {
-			root = MAPPER.readTree(raw);
+			root = mapper.readTree(raw);
 		}
 		catch (JsonProcessingException ex) {
 			throw new InvalidLLMResponseException("LLM answer is not valid JSON", ex);

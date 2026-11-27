@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
@@ -25,7 +24,6 @@ import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 import reactor.core.publisher.Mono;
 
 /** RF-02 clinical state flow with RN-04 audit and EVT-03/EVT-04 outbox rows. */
-@Service
 public class PatientLifecycleService {
 
 	private static final Logger log = LoggerFactory.getLogger(PatientLifecycleService.class);

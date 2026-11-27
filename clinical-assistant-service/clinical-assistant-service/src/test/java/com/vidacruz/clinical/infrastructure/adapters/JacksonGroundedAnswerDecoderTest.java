@@ -1,4 +1,4 @@
-package com.vidacruz.clinical.domain.services;
+package com.vidacruz.clinical.infrastructure.adapters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,11 +8,13 @@ import org.junit.jupiter.api.Test;
 import com.vidacruz.clinical.domain.exceptions.InvalidLLMResponseException;
 import com.vidacruz.clinical.domain.models.GroundedAnswer;
 
-class GroundedAnswerParserTest {
+class JacksonGroundedAnswerDecoderTest {
+
+	private final JacksonGroundedAnswerDecoder decoder = new JacksonGroundedAnswerDecoder();
 
 	@Test
-	void parsesTheG04Contract() {
-		GroundedAnswer answer = GroundedAnswerParser.parse("{\"respuesta\":\"texto [1]\",\"fuentes\":["
+	void decodesTheG04Contract() {
+		GroundedAnswer answer = decoder.decode("{\"respuesta\":\"texto [1]\",\"fuentes\":["
 				+ "{\"protocolo\":\"PROTO-001\",\"seccion\":\"Medidas iniciales\"}]}");
 
 		assertThat(answer.respuesta()).isEqualTo("texto [1]");
@@ -22,19 +24,25 @@ class GroundedAnswerParserTest {
 
 	@Test
 	void rejectsMalformedJsonWithoutEchoingContent() {
-		assertThatThrownBy(() -> GroundedAnswerParser.parse("respuesta libre con dato sensible"))
+		assertThatThrownBy(() -> decoder.decode("respuesta libre con dato sensible"))
 				.isInstanceOf(InvalidLLMResponseException.class)
 				.hasMessageNotContaining("dato sensible");
 	}
 
 	@Test
+	void rejectsEmptyInput() {
+		assertThatThrownBy(() -> decoder.decode(null)).isInstanceOf(InvalidLLMResponseException.class);
+		assertThatThrownBy(() -> decoder.decode("  ")).isInstanceOf(InvalidLLMResponseException.class);
+	}
+
+	@Test
 	void rejectsWrongShapesAndEmptySources() {
-		assertThatThrownBy(() -> GroundedAnswerParser.parse("[]")).isInstanceOf(InvalidLLMResponseException.class);
-		assertThatThrownBy(() -> GroundedAnswerParser.parse("{\"respuesta\":\"x\"}"))
+		assertThatThrownBy(() -> decoder.decode("[]")).isInstanceOf(InvalidLLMResponseException.class);
+		assertThatThrownBy(() -> decoder.decode("{\"respuesta\":\"x\"}"))
 				.isInstanceOf(InvalidLLMResponseException.class);
-		assertThatThrownBy(() -> GroundedAnswerParser.parse("{\"respuesta\":\"x\",\"fuentes\":[]}"))
+		assertThatThrownBy(() -> decoder.decode("{\"respuesta\":\"x\",\"fuentes\":[]}"))
 				.isInstanceOf(InvalidLLMResponseException.class);
-		assertThatThrownBy(() -> GroundedAnswerParser.parse(
+		assertThatThrownBy(() -> decoder.decode(
 				"{\"respuesta\":\"x\",\"fuentes\":[{\"protocolo\":\"P\",\"seccion\":\" \"}]}"))
 				.isInstanceOf(InvalidLLMResponseException.class);
 	}
