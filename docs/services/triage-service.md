@@ -136,7 +136,8 @@ Skeleton read from `feature/scaffold-skeletons` (`triage-service/triage-service`
 - **Query:** `desde`, `hasta`, ISO 8601 with offset or `Z` (DEC-11).
 - **Rules:** `desde` and `hasta` are both inclusive natural dates, in UTC. The span is limited to 90 natural dates; a span of 91 is rejected with HTTP 400 (G-T15, G-T17). The limit and the inclusive semantics are decided by the user and are pending their record in DEC-11.
 - **Response 200:** array of hourly buckets `{ hora, totalRegistrados, porNivel, promedioEsperaMinutos, p95EsperaMinutos }` (D1 §9). `promedioEsperaMinutos` and `p95EsperaMinutos` are `null` when an hour has no patient with a consultation entry (proposed, G-T14).
-- **Errors:** 400 for missing or unparseable parameters, reversed range or range over the limit. Error code open (G-T02); `INVALID_RANGE` is a working name, not a decision.
+- **Errors:** 400 for missing or unparseable parameters, reversed range or range over the limit, with the NFR-20 body. The range code is `INVALID_REPORT_RANGE` and `field` names the offending parameter ([requirements.md](../requirements.md), RF-05).
+- **Implemented:** `GET /triage/reportes/operacion` returns `{ desde, hasta, horas, resumen }`. Every UTC hour of the range is included; `promedioEsperaMinutos` and `p95EsperaMinutos` are `null` when no patient in that group entered consultation. PostgreSQL computes all figures in one grouped query (`ROW_NUMBER`, `FILTER`, `PERCENTILE_CONT`); `app.report.max-range` defaults to `P90D` (90 inclusive natural dates).
 - No side effects. Read-only query; no caching assumed.
 
 ### 3.6 Error codes summary (Triage)
