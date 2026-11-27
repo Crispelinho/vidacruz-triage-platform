@@ -153,6 +153,15 @@ Result: **29/29 checks passed**. Verified in one run: both health endpoints; the
 
 No provider key was configured for this run, so the assistant correctly returned `503 LLM_UNAVAILABLE`. A later run with `RAG_LLM_CHAIN=gemini` and a valid key injected only as an environment variable returned `200` with `respuesta`, `fuentes`, `citas` and `modelo_usado`, including at least one `[n]` citation. A separate OpenCode trial key returned `503 LLM_UNAVAILABLE` and is not treated as a verified answer. No patient names, complaints, prompts, answers or keys were written to logs, metrics or spans in either run.
 
+## 10. Verified local Kubernetes E2E run (2026-11-27)
+
+The same checklist was executed against the `k8s/local` overlay on Docker Desktop Kubernetes with
+`kubectl --context docker-desktop` and `127.0.0.1` forwards: **33/33 checks passed**. The steps to reproduce,
+the per-area results and the reusable harness (`scripts/verify-local-k8s.ps1`) are documented in
+`docs/demo/local-kubernetes-e2e.md`. This run covers the real one-minute SLA escalation, acknowledgement and
+SSE, outbox → Kafka `traceparent`, the urgency projection, auth negatives, both metric registries and a shared
+Jaeger trace across both services. It is local evidence only and does not close the Azure gates in ADR-11.
+
 ## Scope boundary
 
 Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the public URL and the provisioning evidence. There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

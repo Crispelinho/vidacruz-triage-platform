@@ -5,6 +5,9 @@ local images, placeholder Secrets, one local PostgreSQL instance, and cluster-de
 Ingress, Gateway, TLS material, public route, cloud resource, or real credential. The commands below are a
 verification procedure, not a claim that the cluster run has already happened.
 
+A complete 33/33 checklist run against this overlay, with reproduction steps and the reusable harness, is
+recorded in `docs/demo/local-kubernetes-e2e.md` and `scripts/verify-local-k8s.ps1`.
+
 ## Build and apply
 
 Run from the repository root. Ensure both Gradle wrappers have LF endings before building on Windows.
