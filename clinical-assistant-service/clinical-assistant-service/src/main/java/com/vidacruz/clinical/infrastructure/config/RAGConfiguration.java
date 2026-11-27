@@ -26,6 +26,7 @@ import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.CorpusIndexRefresher;
 import com.vidacruz.clinical.domain.services.CorpusIngestionService;
+import com.vidacruz.clinical.domain.services.GroundingCheck;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.domain.services.RagRetrievalService;
 import com.vidacruz.clinical.domain.services.TextChunker;
@@ -61,7 +62,8 @@ import reactor.core.scheduler.Schedulers;
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
 @EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
-		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
+		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class,
+		GroundingProperties.class })
 class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
@@ -195,9 +197,10 @@ class RAGConfiguration {
 
 	@Bean
 	RAGService ragService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
-			GroundedAnswerDecoder groundedAnswerDecoder, CorpusIndex corpusIndex, VectorStoreProperties properties) {
+			GroundedAnswerDecoder groundedAnswerDecoder, CorpusIndex corpusIndex, VectorStoreProperties properties,
+			GroundingProperties grounding) {
 		return new RAGService(embeddingProvider, vectorStore, llmRouter, groundedAnswerDecoder, corpusIndex,
-				properties.relevanceThreshold());
+				properties.relevanceThreshold(), new GroundingCheck(grounding.toPolicy()));
 	}
 
 	@Bean

@@ -79,8 +79,10 @@ class OpenRouterHttpLLMAdapterWireTest {
 		assertThat(body.get()).contains("\"model\":\"" + MODEL + "\"")
 				.contains("\"data_collection\":\"deny\"")
 				.contains("\"max_price\":{\"prompt\":0,\"completion\":0}")
-				.contains("Allowed sources and evidence:")
-				.contains("PROTO-001 / Medidas")
+				// M-1: system message first, then the delimited question and evidence as the user message.
+				.contains("{\"role\":\"system\",\"content\":\"You are a clinical protocol assistant")
+				.contains("<pregunta>crisis hipertensiva</pregunta>")
+				.contains("protocolo=\\\"PROTO-001\\\" seccion=\\\"Medidas\\\"")
 				.doesNotContain("\"zdr\"");
 	}
 

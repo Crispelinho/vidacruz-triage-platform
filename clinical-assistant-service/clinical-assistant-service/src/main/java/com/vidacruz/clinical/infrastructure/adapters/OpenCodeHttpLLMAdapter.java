@@ -38,7 +38,9 @@ public final class OpenCodeHttpLLMAdapter implements NamedLLMProvider {
 	@Override
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
 		ChatRequest body = new ChatRequest(model,
-				List.of(new Message("user", GroundedPrompt.build(question, evidence))));
+				// M-1: the trusted instruction is the system message; only delimited data goes in the user message.
+				List.of(new Message("system", GroundedPrompt.systemInstruction()),
+						new Message("user", GroundedPrompt.userContent(question, evidence))));
 		Mono<String> answer = client.post()
 				.headers(headers -> {
 					if (!apiKey.isBlank()) {

@@ -68,6 +68,14 @@ rag:
     # C17: ordered failover chain and one timeout per node. No retry against the same node.
     chain: ${RAG_LLM_CHAIN:ollama,gemini,opencode}
     timeout: 15s
+  # M-1 post-check on the answer text. CitationValidator proves the source exists; this ties the text to it.
+  grounding:
+    require-markers: ${RAG_GROUNDING_REQUIRE_MARKERS:true}
+    # Opt-in: share of content words that must appear in the cited fragments (0 disables). The Ollama fixture
+    # answer cannot pass it, so enable it (suggested 0.3) only with a real provider.
+    min-lexical-overlap: ${RAG_GROUNDING_MIN_LEXICAL_OVERLAP:0.0}
+    # Opt-in: every number (dose, range, time) in the answer must appear in a cited fragment.
+    numbers-must-appear-in-evidence: ${RAG_GROUNDING_NUMBERS_IN_EVIDENCE:false}
 
 ollama:
   url: ${OLLAMA_BASE_URL:http://localhost:11434}

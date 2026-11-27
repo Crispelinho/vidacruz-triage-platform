@@ -98,7 +98,10 @@ class CloudPromptPrivacyTest {
 		assertThat(capturedBody.get()).isNotNull()
 				.contains(QUESTION)
 				.contains(EVIDENCE_TEXT)
-				.doesNotContain(PATIENT_CONTEXT);
+				.doesNotContain(PATIENT_CONTEXT)
+				// M-1: the instruction travels in systemInstruction, the question inside its delimiter.
+				.contains("\"systemInstruction\":{\"parts\":[{\"text\":\"You are a clinical protocol assistant")
+				.contains("<pregunta>" + QUESTION + "</pregunta>");
 	}
 
 	@Test
@@ -113,7 +116,10 @@ class CloudPromptPrivacyTest {
 		assertThat(capturedBody.get()).isNotNull()
 				.contains(QUESTION)
 				.contains(EVIDENCE_TEXT)
-				.doesNotContain(PATIENT_CONTEXT);
+				.doesNotContain(PATIENT_CONTEXT)
+				// M-1: system message first, then the delimited data as the user message.
+				.contains("{\"role\":\"system\",\"content\":\"You are a clinical protocol assistant")
+				.contains("{\"role\":\"user\",\"content\":\"<pregunta>" + QUESTION + "</pregunta>");
 	}
 
 	private String baseUrl() {

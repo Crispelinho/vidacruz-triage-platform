@@ -40,8 +40,9 @@ public final class GeminiHttpLLMAdapter implements NamedLLMProvider {
 
 	@Override
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
-		GenerateRequest body = new GenerateRequest(
-				List.of(new Content(List.of(new Part(GroundedPrompt.build(question, evidence))))));
+		// M-1: the trusted instruction goes in systemInstruction; the delimited question and evidence go in contents.
+		GenerateRequest body = new GenerateRequest(new Content(List.of(new Part(GroundedPrompt.systemInstruction()))),
+				List.of(new Content(List.of(new Part(GroundedPrompt.userContent(question, evidence))))));
 		Mono<String> answer = client.post()
 				.uri(uriBuilder -> uriBuilder.path("/{model}:generateContent").build(model))
 				.header("x-goog-api-key", apiKey)
@@ -58,7 +59,7 @@ public final class GeminiHttpLLMAdapter implements NamedLLMProvider {
 	record Content(List<Part> parts) {
 	}
 
-	record GenerateRequest(List<Content> contents) {
+	record GenerateRequest(Content systemInstruction, List<Content> contents) {
 	}
 
 	record ResponseContent(List<Part> parts) {
