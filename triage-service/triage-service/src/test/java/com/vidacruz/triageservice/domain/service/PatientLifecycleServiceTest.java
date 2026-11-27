@@ -24,6 +24,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
@@ -74,7 +77,7 @@ class PatientLifecycleServiceTest {
 		UUID patientId = UUID.randomUUID();
 		Instant registeredAt = Instant.now().minus(3, ChronoUnit.MINUTES);
 		when(patientRepository.findById(patientId)).thenReturn(Mono.just(patient(patientId,
-				PatientLifecycleService.REGISTERED, false, registeredAt)));
+				PatientLifecycleService.REGISTERED, false, registeredAt, registeredAt)));
 		when(patientRepository.changeStatus(eq(patientId), eq(PatientLifecycleService.REGISTERED),
 				eq(PatientLifecycleService.IN_CONSULTATION), any(Instant.class))).thenReturn(Mono.just(1));
 		when(auditRepository.save(any(AuditEntryEntity.class)))
@@ -102,7 +105,7 @@ class PatientLifecycleServiceTest {
 	void rejectsTransitionFromDischargedPatient() {
 		UUID patientId = UUID.randomUUID();
 		when(patientRepository.findById(patientId)).thenReturn(Mono.just(patient(patientId,
-				PatientLifecycleService.DISCHARGED, false, Instant.now())));
+				PatientLifecycleService.DISCHARGED, false, Instant.now(), Instant.now())));
 
 		StepVerifier.create(service.changeStatus(patientId, PatientLifecycleService.IN_CONSULTATION))
 				.expectError(InvalidStateTransitionException.class)
@@ -121,9 +124,47 @@ class PatientLifecycleServiceTest {
 				.verify();
 	}
 
-	private static PatientEntity patient(UUID id, String status, boolean escalated, Instant changedAt) {
+	@Test
+	void detailContainsEveryRegisteredClinicalFieldAndUsesStatusStartForTheTimer() {
+		UUID patientId = UUID.randomUUID();
+		Instant registeredAt = Instant.parse("2026-03-10T09:50:00Z");
+		Instant statusSince = Instant.parse("2026-03-10T09:53:00Z");
+		Instant lastChangedAt = Instant.parse("2026-03-10T09:54:00Z"); // escalation, not a state change
+		when(patientRepository.findById(patientId)).thenReturn(Mono.just(
+				patient(patientId, PatientLifecycleService.REGISTERED, true,
+						registeredAt, lastChangedAt, statusSince)));
+
+		JsonNode json = new ObjectMapper().findAndRegisterModules()
+				.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+				.valueToTree(service.getPatient(patientId).block());
+		assertThat(json.path("id").asText()).isEqualTo(patientId.toString());
+		assertThat(json.path("nombreCompleto").asText()).isEqualTo("Paciente de prueba");
+		assertThat(json.path("nivel").asText()).isEqualTo("NO_URGENTE");
+		assertThat(json.path("slaMinutos").asInt()).isEqualTo(60);
+		assertThat(json.path("estado").asText()).isEqualTo(PatientLifecycleService.REGISTERED);
+		assertThat(json.path("escalado").asBoolean()).isTrue();
+		assertThat(json.path("fechaRegistro").asText()).isEqualTo(registeredAt.toString());
+		assertThat(json.path("tiempoEnEstadoMinutos").asLong()).isEqualTo(7);
+		assertThat(json.path("edad").asInt()).isEqualTo(40);
+		assertThat(json.path("frecuenciaCardiaca").asInt()).isEqualTo(80);
+		assertThat(json.path("presionSistolica").asInt()).isEqualTo(120);
+		assertThat(json.path("presionDiastolica").asInt()).isEqualTo(80);
+		assertThat(json.path("spo2").asInt()).isEqualTo(98);
+		assertThat(json.path("temperatura").asDouble()).isEqualTo(36.5);
+		assertThat(json.path("dolor").asInt()).isEqualTo(2);
+		assertThat(json.path("gcs").asInt()).isEqualTo(15);
+		assertThat(json.path("quejaPrincipal").asText()).isEqualTo("Control");
+	}
+
+	private static PatientEntity patient(UUID id, String status, boolean escalated, Instant changedAt,
+			Instant statusSince) {
+		return patient(id, status, escalated, changedAt, changedAt, statusSince);
+	}
+
+	private static PatientEntity patient(UUID id, String status, boolean escalated, Instant registeredAt,
+			Instant changedAt, Instant statusSince) {
 		return new PatientEntity(id, "Paciente de prueba", 40, 80, 120, 80, 98,
 				BigDecimal.valueOf(36.5), 2, 15, "Control", "NO_URGENTE", 60,
-				status, escalated, changedAt, changedAt);
+				status, escalated, registeredAt, changedAt, statusSince);
 	}
 }

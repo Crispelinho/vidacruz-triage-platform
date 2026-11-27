@@ -117,10 +117,20 @@ public class PatientLifecycleService {
 				status,
 				Boolean.TRUE.equals(patient.escalated()),
 				patient.registeredAt(),
-				minutes);
+				minutes,
+				patient.age(),
+				patient.heartRate(),
+				patient.systolic(),
+				patient.diastolic(),
+				patient.spo2(),
+				patient.temperature(),
+				patient.pain(),
+				patient.gcs(),
+				patient.complaint());
 	}
 
 	private static PatientDetailResponse toResponse(PatientEntity patient, Instant now) {
-		return toResponse(patient, patient.lastChangedAt(), now, patient.status());
+		// The timer follows the status start, not the last mutation: escalation stays in the same status.
+		return toResponse(patient, patient.statusSince(), now, patient.status());
 	}
 }

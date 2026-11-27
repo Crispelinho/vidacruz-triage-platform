@@ -115,9 +115,9 @@ class TriageReportEvidenceTest {
 		databaseClient.sql("""
 				INSERT INTO paciente (id, nombre, edad, frecuencia_cardiaca, presion_sistolica,
 				    presion_diastolica, spo2, temperatura, dolor, gcs, queja_principal, nivel,
-				    sla_minutos, estado, escalado, fecha_registro, ultimo_cambio_en)
+				    sla_minutos, estado, escalado, fecha_registro, ultimo_cambio_en, estado_desde)
 				VALUES (:id, 'Paciente Prueba', 45, 80, 120, 80, 98, 36.5, 1, 15, 'prueba', :nivel,
-				    30, 'REGISTRADO', false, :registrado, :registrado)
+				    30, 'REGISTRADO', false, :registrado, :registrado, :registrado)
 				""")
 				.bind("id", id)
 				.bind("nivel", level)

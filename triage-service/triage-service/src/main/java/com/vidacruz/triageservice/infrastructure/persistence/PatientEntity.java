@@ -52,6 +52,8 @@ public class PatientEntity implements Persistable<UUID> {
 	private final Instant registeredAt;
 	@Column("ultimo_cambio_en")
 	private final Instant lastChangedAt;
+	@Column("estado_desde")
+	private final Instant statusSince;
 
 	@Transient
 	private boolean isNew = true;
@@ -60,7 +62,7 @@ public class PatientEntity implements Persistable<UUID> {
 	public PatientEntity(UUID id, String fullName, Integer age, Integer heartRate, Integer systolic,
 			Integer diastolic, Integer spo2, BigDecimal temperature, Integer pain, Integer gcs,
 			String complaint, String level, Integer slaMinutes, String status, Boolean escalated,
-			Instant registeredAt, Instant lastChangedAt) {
+			Instant registeredAt, Instant lastChangedAt, Instant statusSince) {
 		this.id = id;
 		this.fullName = fullName;
 		this.age = age;
@@ -78,6 +80,7 @@ public class PatientEntity implements Persistable<UUID> {
 		this.escalated = escalated;
 		this.registeredAt = registeredAt;
 		this.lastChangedAt = lastChangedAt;
+		this.statusSince = statusSince;
 	}
 
 	@Override
@@ -156,5 +159,9 @@ public class PatientEntity implements Persistable<UUID> {
 
 	public Instant lastChangedAt() {
 		return lastChangedAt;
+	}
+
+	public Instant statusSince() {
+		return statusSince;
 	}
 }
