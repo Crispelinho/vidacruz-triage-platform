@@ -94,10 +94,10 @@ The following gates must pass before this ADR transitions from Proposed to Accep
 - [x] pgvector/Spring AI integration is covered by tests in `clinical-assistant-service` (contract/integration/db tests under `src/test/java/com/vidacruz/clinical/...pgvector...`, `CorpusPgvectorTest`, `VectorRepositoryTest`, etc.).
 - [x] CI/CD gate enforces Java 21 (`actions/setup-java@v4`, `java-version: '21'`) in CI workflows.
 - [x] README documents Boot 3.5.16/Java 21 baseline and EOL/migration note (`README.md`).
+- [x] Reproducible build evidence: GitHub Actions CI run [46056455183](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46056455183) (`CI`, `develop`, head `93706912fc1d21e3ef8a72e8b84faa5310acbb3a`, 2026-11-27T19:24:16Z) completed `success` and runs both services (`cd triage-service/triage-service && ./gradlew build` and `cd clinical-assistant-service/clinical-assistant-service && ./gradlew build` per `.github/workflows/ci.yml`).
+- [x] No production deployment claim on OSS-only Boot 3.5.x found in README/docs review; README states "Production note: Boot 3.5.16 reached EOL..." and requires commercial support or Boot 4.1+ migration. ADR-10 records R-02 acceptance and post-delivery Boot 4.1+ path. Historical ADR-06 "Production-ready" wording refers to webhook receiver replaceability, not the Boot 3.5 OSS baseline.
 
-Pending before formal acceptance:
-- [ ] Attach/refresh a reproducible build evidence artifact (CI run URL or local log) showing both services build/test green on the accepted baseline.
-- [ ] Confirm no production deployment claims are made on OSS-only Boot 3.5.x; keep R-02 acceptance and post-delivery Boot 4.1+ migration path explicit in release docs.
+Formal acceptance remains a developer decision; this update records evidence for the previously pending gates.
 
 ---
 
