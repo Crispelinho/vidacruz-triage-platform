@@ -178,7 +178,7 @@ No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del a
 | `clinical-assistant-service.yml` @ versión desplegada | `success`, run `45916716209` |
 | Runs anteriores | `45913361321` y `45914065087`, ambos `success` |
 | CI @ versión corregida (fix de hallazgos) | `success`, runs `45936449205` y `45936449238` |
-| Comprobación de proveedor LLM | En la ejecución original, una key de Gemini puesta en `ANTHROPIC_API_KEY` devolvió 401 (`ASSISTANT_UNAVAILABLE`). En esta rama el chain es `ollama,gemini,opencode` (`application.yaml:62`), las keys son `GEMINI_API_KEY` / `OPENCODE_API_KEY` (`deployment/k8s/secret.example.yaml:14-15`) y sin proveedor el endpoint responde `503 LLM_UNAVAILABLE` (`RAGExceptionHandler.java:43`). Objetivo pendiente: verificar `POST /asistente/consulta` con una key válida y confirmar `200`. |
+| Comprobación de proveedor LLM | En la ejecución original, una key de Gemini puesta en `ANTHROPIC_API_KEY` devolvió 401 (`ASSISTANT_UNAVAILABLE`). En esta rama el chain es `ollama,gemini,opencode` (`application.yaml:62`), las keys son `GEMINI_API_KEY` / `OPENCODE_API_KEY` (`deployment/k8s/secret.example.yaml:14-15`) y sin proveedor el endpoint responde `503 LLM_UNAVAILABLE` (`RAGExceptionHandler.java:43`). Verificado el 2026-11-27: con `RAG_LLM_CHAIN=gemini` y una key válida inyectada sólo como variable de entorno, `POST /asistente/consulta` devolvió `200` con `respuesta`, `fuentes`, `citas` y `modelo_usado`, y al menos una cita `[n]`. La key no se escribió en logs ni artefactos. El nodo OpenCode con la key de prueba devolvió `503 LLM_UNAVAILABLE`; queda como fallback no verificado. |
 
 ### 2.2 Infraestructura y despliegue
 
@@ -238,7 +238,7 @@ No requiere API key: `/actuator/health/**` y `/health/**` están en las rutas p�
 
 ### Verificación funcional
 
-- [ ] `POST /asistente/consulta` con API key. Sin proveedor LLM configurado, esperado `503 AST-002` en modo degradado; con `GEMINI_API_KEY` u `OPENCODE_API_KEY` válida, esperado `200`.
+- [x] `POST /asistente/consulta` con API key. Sin proveedor LLM configurado, verificado `503 LLM_UNAVAILABLE` en modo degradado; con `GEMINI_API_KEY` válida, verificado `200` el 2026-11-27. La key de prueba de OpenCode devolvió `503 LLM_UNAVAILABLE` y no cuenta como verificación.
 - [ ] **RF-06 E2E por SSE**: registrar un paciente crítico, dejar vencer el SLA de RN-02, abrir `GET /triage/alertas/stream`, Confirmar el evento `alerta` con su `actualizadaEn`, reconocerlo con `POST /triage/alertas/{id}/reconocimiento` y verificar la transición a `RECONOCIDA`.
 - [ ] Verificar que el payload de la alerta **no incluya** nombre ni queja principal del paciente (regla registrada en el handoff de RF-06).
 - [ ] Swagger del asistente y del triaje con el botón **Authorize** usando la API key rotada.

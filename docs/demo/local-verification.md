@@ -97,7 +97,7 @@ curl -sS -X POST http://localhost:8082/asistente/consulta \
 curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-assistant-key'
 ```
 
-With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. To exercise a real answer, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
+With no reachable provider, `/asistente/consulta` returns `503 LLM_UNAVAILABLE` and the fixed notice — that is the documented degraded mode, not a failure of the stack. A real answer was verified with `RAG_LLM_CHAIN=gemini` and a valid key supplied only through `GEMINI_API_KEY`. Alternatively, start `docker compose --profile ollama up -d`, pull a model (`docker compose --profile ollama run --rm ollama ollama pull llama3.1:8b`) and point `OLLAMA_BASE_URL` at it. Provider keys are read from `GEMINI_API_KEY` / `OPENCODE_API_KEY`; never commit them.
 
 ## 6. Auth negatives
 
@@ -151,7 +151,7 @@ docker compose -f docker-compose.yml -f docker-compose.demo.yml -p vidacruz-e2e 
 
 Result: **29/29 checks passed**. Verified in one run: both health endpoints; the six E1-E6 classifications; patient detail and the `EN_CONSULTA`/`ALTA` transitions plus the `409` invalid transition and unknown-patient `404`; SLA escalation to `PENDIENTE`, acknowledgement to `RECONOCIDA`, the `TRG-009` duplicate-ack conflict and the SSE `alerta` events; the operation report and its naive-date `400`; the assistant `/asistente/consulta` and `/rag` alias; the urgency projection rebuilt from `triaje.eventos`; `401` negatives with public health; both Prometheus registries; and one trace with spans from both services queried through Jaeger 2.x `/api/traces/{traceId}`.
 
-No provider key was configured for this run, so the assistant correctly returned `503 LLM_UNAVAILABLE`; the `200` answer with a valid provider key remains a separate verification step. No patient names, complaints, prompts or answers were written to logs, metrics or spans by this run.
+No provider key was configured for this run, so the assistant correctly returned `503 LLM_UNAVAILABLE`. A later run with `RAG_LLM_CHAIN=gemini` and a valid key injected only as an environment variable returned `200` with `respuesta`, `fuentes`, `citas` and `modelo_usado`, including at least one `[n]` citation. A separate OpenCode trial key returned `503 LLM_UNAVAILABLE` and is not treated as a verified answer. No patient names, complaints, prompts, answers or keys were written to logs, metrics or spans in either run.
 
 ## Scope boundary
 
