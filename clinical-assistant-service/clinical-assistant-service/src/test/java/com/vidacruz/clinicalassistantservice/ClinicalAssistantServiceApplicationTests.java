@@ -52,10 +52,21 @@ class ClinicalAssistantServiceApplicationTests {
 	}
 
 	@Test
-	void unknownBusinessRouteRequiresAuthentication() {
+	void businessRouteRequiresApiKey() {
 		webTestClient.get().uri("/asistente/estado-urgencias")
 				.exchange()
-				.expectStatus().isUnauthorized();
+				.expectStatus().isUnauthorized()
+				.expectHeader().exists("X-Correlation-Id")
+				.expectBody().jsonPath("$.code").isEqualTo("UNAUTHORIZED");
+	}
+
+	@Test
+	void validApiKeyPassesTheSecurityChain() {
+		webTestClient.get().uri("/asistente/estado-urgencias")
+				.header("X-API-Key", "test-assistant-key")
+				.exchange()
+				.expectBody()
+				.consumeWith(result -> assertThat(result.getStatus().value()).isNotEqualTo(401));
 	}
 
 	@Test

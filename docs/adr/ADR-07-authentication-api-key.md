@@ -1,6 +1,6 @@
 # ADR-07: Authentication — API Key via HTTP Header
 
-**Status:** Proposed  
+**Status:** Accepted — implemented in both services on 2026-11-26 (supersedes the Proposed `ADR-07-authentication.md`)  
 **Date:** 2026-11-25  
 **Decision:** Secure endpoints with an API key passed in the `X-API-Key` HTTP header, validated by a WebFlux filter.
 

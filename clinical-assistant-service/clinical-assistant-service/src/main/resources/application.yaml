@@ -74,3 +74,7 @@ opencode:
   # OpenCode inference is prepaid, not free (C17 record).
   model: glm-5.3
   api-key: ${OPENCODE_API_KEY:}
+
+assistant:
+  # Local/demo default only. Override ASSISTANT_API_KEY outside localhost (ADR-07).
+  api-key: ${ASSISTANT_API_KEY:test-assistant-key}
