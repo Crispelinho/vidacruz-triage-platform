@@ -155,10 +155,6 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2026-03-01' = {
     networkProfile: {
       networkPlugin: 'azure'
       networkPluginMode: 'overlay'
-      // Azure CNI powered by Cilium: enforces the NetworkPolicies of infra/k8s/network-policies.yaml (M-6).
-      // Without a policy engine they are accepted and ignored. Set at cluster creation.
-      networkDataplane: 'cilium'
-      networkPolicy: 'cilium'
       loadBalancerSku: 'standard'
       loadBalancerProfile: {
         outboundIPs: {

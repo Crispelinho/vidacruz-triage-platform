@@ -10,7 +10,7 @@ resources:
   - kafka.yaml
   - kafka-topic.yaml
   - redis.yaml
-  # M-6: default-deny plus one allow rule per flow; enforced by the Cilium dataplane of the cluster.
+  # M-6: default-deny plus one allow rule per flow. Not enforced until the cluster has a policy engine (see file).
   - network-policies.yaml
   - ../../triage-service/deployment/k8s
   - ../../clinical-assistant-service/deployment/k8s

@@ -5,9 +5,16 @@
 #   both services -> PostgreSQL:5432 (Azure Flexible Server, outside the cluster)
 #   clinical-assistant-service -> HTTPS:443 on public addresses only (Gemini, OpenCode)
 #   every pod -> cluster DNS
-# Kubelet health probes are not subject to NetworkPolicy. The policies need an enforcing dataplane: AKS runs
-# Azure CNI powered by Cilium (infra/azure/main.bicep); on a cluster without one they are accepted and ignored.
-# A new in-cluster flow (for example a Prometheus scraper) needs its own allow rule here.
+#   a Prometheus scraper (pods labelled app.kubernetes.io/name=prometheus, any namespace) -> both services
+#
+# ENFORCEMENT: NetworkPolicy needs a policy engine. infra/azure/main.bicep sets no networkProfile.networkPolicy, and
+# Docker Desktop and Minikube (default CNI) enforce none, so TODAY these objects are accepted and IGNORED. They are
+# the reviewed allow-list for when an engine is enabled (for example Azure CNI powered by Cilium); see the security
+# backlog in README.md. Then verify the flows below before relying on them.
+#
+# Not affected: kubelet probes (host traffic), kubectl port-forward, the long-lived SSE stream /triage/alertas/stream
+# (an allowed Gateway connection is not cut), and Let's Encrypt HTTP-01 solvers (they run in vidacruz-edge, which has
+# no policy). No source-IP restriction is applied: the public routes stay open through the Gateway.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -52,6 +59,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: vidacruz-edge
+        # Prometheus scrape of /actuator/prometheus (still needs the metrics:read API key scope).
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
       ports:
         - protocol: TCP
           port: 8081
@@ -86,6 +98,10 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: vidacruz-edge
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
       ports:
         - protocol: TCP
           port: 8082
