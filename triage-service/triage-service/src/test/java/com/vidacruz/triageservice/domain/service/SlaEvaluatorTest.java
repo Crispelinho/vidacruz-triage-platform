@@ -103,6 +103,30 @@ class SlaEvaluatorTest {
 	}
 
 	@Test
+	void escalatesWhenTheConditionalUpdateCompletesEmpty() {
+		UUID patientId = UUID.randomUUID();
+		Instant registeredAt = Instant.parse("2026-03-10T09:54:00Z");
+		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
+		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.empty());
+		when(auditRepository.save(any(AuditEntryEntity.class)))
+				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), SlaEvaluator.ESCALATED_EVENT, "{}",
+						patientId, 1, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
+						UUID.randomUUID())));
+
+		StepVerifier.create(evaluator.evaluateOnce())
+				.assertNext(count -> assertThat(count).isEqualTo(1))
+				.verifyComplete();
+
+		verify(auditRepository).save(any(AuditEntryEntity.class));
+		verify(eventWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
+				any(Instant.class));
+		verify(alertRepository).create(any(MedicalAlert.class));
+		verify(metrics).patientEscalated(TriageLevel.CRITICO);
+	}
+
+	@Test
 	void doesNotEscalateBeforeTheSlaBoundary() {
 		UUID patientId = UUID.randomUUID();
 		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId,

@@ -1,0 +1,94 @@
+# One disposable PostgreSQL instance for both local databases. pgvector is required by the assistant migrations.
+apiVersion: v1
+kind: Service
+metadata:
+  name: local-db
+  labels:
+    app.kubernetes.io/name: local-db
+    app.kubernetes.io/part-of: vidacruz
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: local-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: local-db
+  labels:
+    app.kubernetes.io/name: local-db
+    app.kubernetes.io/part-of: vidacruz
+spec:
+  serviceName: local-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: local-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: local-db
+        app.kubernetes.io/part-of: vidacruz
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: triage
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: local-db-auth
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: local-db-auth
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d triage"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d triage"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: local-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

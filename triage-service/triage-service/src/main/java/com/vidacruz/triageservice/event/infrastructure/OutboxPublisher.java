@@ -55,13 +55,19 @@ public class OutboxPublisher {
 		this.publishIntervalMs = publishIntervalMs;
 	}
 
+	// One cycle at a time: delay, publish, then repeat. Ticks cannot queue up while a slow cycle is running.
+	Flux<Integer> timerCycles() {
+		return Mono.defer(() -> publish()
+				.onErrorResume(error -> {
+					log.warn("Outbox publication cycle failed", error);
+					return Mono.empty();
+				}))
+				.delaySubscription(Duration.ofMillis(this.publishIntervalMs))
+				.repeat();
+	}
+
 	private Disposable startTimer() {
-		return Flux.interval(Duration.ofMillis(this.publishIntervalMs))
-				.concatMap(ignored -> publish()
-						.onErrorResume(error -> {
-							log.warn("Outbox publication cycle failed", error);
-							return Mono.empty();
-						}))
+		return timerCycles()
 				.subscribe(count -> {
 					if (count > 0) {
 						log.debug("Published {} outbox event(s)", count);
@@ -101,6 +107,8 @@ public class OutboxPublisher {
 		OffsetDateTime leaseUntil = OffsetDateTime.ofInstant(
 				Instant.now().plusSeconds(leaseSeconds), ZoneOffset.UTC);
 		return repository.claimLeaseIfAvailable(event.getEventId(), leaseUntil, owner)
+				// R2DBC @Query UPDATEs complete empty on success; only an explicit 0 is a lost claim.
+				.defaultIfEmpty(1)
 				.flatMap(claimed -> {
 					if (claimed != 1) {
 						return Mono.just(0);
