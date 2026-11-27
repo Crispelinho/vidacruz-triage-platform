@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -135,6 +137,11 @@ class TriageControllerTest {
 			return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
 					.authorizeExchange(exchange -> exchange.anyExchange().permitAll())
 					.build();
+		}
+
+		@Bean
+		Clock clock() {
+			return Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC);
 		}
 	}
 }

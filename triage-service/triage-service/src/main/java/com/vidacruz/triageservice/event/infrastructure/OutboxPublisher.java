@@ -22,7 +22,7 @@ import reactor.kafka.sender.SenderRecord;
 
 /** Publishes claimed outbox rows to triaje.eventos with lease protection and failure recording. */
 @Component
-@ConditionalOnProperty(prefix = "triage.outbox", name = "publisher-enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "app.outbox", name = "publisher-enabled", havingValue = "true")
 public class OutboxPublisher {
 
 	private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
@@ -37,9 +37,9 @@ public class OutboxPublisher {
 
 	public OutboxPublisher(OutboxEventoRepository repository,
 			KafkaSender<String, String> sender,
-			@Value("${triage.outbox.topic:triaje.eventos}") String topic,
-			@Value("${triage.outbox.batch-size:50}") int batchSize,
-			@Value("${triage.outbox.lease-seconds:30}") long leaseSeconds) {
+			@Value("${app.outbox.topic:${TRIAGE_EVENTS_TOPIC:triaje.eventos}}") String topic,
+			@Value("${app.outbox.batch-size:50}") int batchSize,
+			@Value("${app.outbox.lease-seconds:30}") long leaseSeconds) {
 		this.repository = repository;
 		this.sender = sender;
 		this.topic = topic;
@@ -51,7 +51,7 @@ public class OutboxPublisher {
 	 * fixedDelay already prevents overlap within one instance; the guard also covers a slow run that is
 	 * still subscribed, and the row lease covers multiple instances.
 	 */
-	@Scheduled(fixedDelayString = "${triage.outbox.publish-interval:5000}")
+	@Scheduled(fixedDelayString = "${app.outbox.publish-interval-ms:5000}")
 	public void publishBatch() {
 		if (!running.compareAndSet(false, true)) {
 			log.debug("Outbox publish skipped: previous run still in progress");

@@ -78,7 +78,7 @@ class SlaEvaluatorTest {
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), patientId, "paciente_escalado", "{}", Instant.now())));
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_escalado", "{}", patientId, 1, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), UUID.randomUUID())));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isEqualTo(1))

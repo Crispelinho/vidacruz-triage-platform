@@ -35,6 +35,9 @@ app:
   outbox:
     publisher-enabled: ${OUTBOX_PUBLISHER_ENABLED:false}
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
+    batch-size: 50
+    lease-seconds: 30
+    publish-interval-ms: 5000
   report:
     max-range: ${REPORT_MAX_RANGE:P90D}
 alerts:

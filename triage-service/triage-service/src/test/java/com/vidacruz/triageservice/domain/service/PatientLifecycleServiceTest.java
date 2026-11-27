@@ -80,7 +80,7 @@ class PatientLifecycleServiceTest {
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), patientId, "paciente_en_consulta", "{}", Instant.now())));
+				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_en_consulta", "{}", patientId, 1, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), UUID.randomUUID())));
 
 		StepVerifier.create(service.changeStatus(patientId, PatientLifecycleService.IN_CONSULTATION))
 				.assertNext(response -> {
