@@ -141,4 +141,4 @@ Open `http://localhost:16686/trace/$TRACE_ID`. The trace must contain spans from
 
 ## Scope boundary
 
-No Azure deployment, public URL, k8s/Helm manifests or webhook receiver exist. ADR-11 remains blocked by unverified subscription/quota (R-06) and must be recorded as a blocker, not worked around. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.
+Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the public URL and the provisioning evidence. There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

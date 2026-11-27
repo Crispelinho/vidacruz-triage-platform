@@ -57,7 +57,7 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 
 ## Known limits
 
-- **No cloud deployment.** ADR-11 is blocked by unverified subscription/quota (R-06). There is no k8s/Helm manifest and no public URL; this stack is localhost-only. Traces are exported only to the local Jaeger container.
+- **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target and public URL are recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md) and `docs/operations/despliegue-azure-y-pruebas.md`. The live URL depends on the `azure` GitHub environment; no credentials are stored here. Local traces still go to the Jaeger container.
 - **RF-04 path drift.** API-04 documents `POST /asistente/consulta`, but the running scaffold exposes `POST /rag`. Use the implemented path until the endpoint is aligned.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
