@@ -1,40 +1,66 @@
-# VidaCruz Triage Platform
+# VidaCruz Triage Platform — local demo
 
-Event-driven triage management system built with Spring Boot 3.5.16, Kafka, PostgreSQL, and pgvector RAG.
+One command starts both services and their infrastructure on `localhost`. No Azure subscription, public URL, or LLM provider key is needed for RF-01/RF-02/RF-03/RF-05/RF-06; RF-04 needs a reachable provider or demonstrates the documented 503 fallback.
 
-## Quick Start
+## Run it
+
+Prerequisites: Docker with Compose v2. Nothing else is installed on the host.
 
 ```bash
-docker-compose up -d
-./gradlew build -x test
+cp .env.example .env          # optional: local overrides
+docker compose up -d --build  # first build downloads Gradle deps and both JDK images
+docker compose ps
 ```
 
-## Architecture
+| Service | URL | Auth |
+|---|---|---|
+| Triage API | `http://localhost:8081` | `X-API-Key: test-triage-key` |
+| Clinical Assistant API | `http://localhost:8082` | `X-API-Key: test-assistant-key` |
+| Health (public) | `http://localhost:8081/actuator/health`, `http://localhost:8082/actuator/health` | none |
+| PostgreSQL (triage) | `localhost:5432` | `triage_app` / `triage_local` |
+| PostgreSQL + pgvector (assistant) | `localhost:5433` | `assistant_app` / `assistant_local` |
+| Kafka | `localhost:9092` | topic `triaje.eventos` |
+| Redis | `localhost:6379` | urgency projection |
 
-- **Triage Service**: Patient registration, escalation (port 8081)
-- **Clinical Assistant**: RAG-based clinical insights (port 8082)
-- **Event Bridge**: Kafka (async, no sync HTTP coupling)
-- **Storage**: PostgreSQL (per-service), Redis (projections), pgvector (embeddings)
+Stop with `docker compose down`; keep data with `docker compose down` (volumes persist) or delete it with `docker compose down -v`.
 
-## Technologies
+## First request
 
-- Java 21, Spring Boot 3.5.16 (evaluation only - requires Boot 4.1 or commercial support for production)
-- Spring Cloud 2025.0.3, Spring Kafka, Spring Data R2DBC
-- PostgreSQL 16 with pgvector extension
-- Kafka 7.5.0, Redis 7.2
+```bash
+curl -s http://localhost:8081/actuator/health
+curl -s -i http://localhost:8081/triage/alertas \
+  -H 'X-API-Key: wrong'          # 401, body {code, message, correlationId}
+curl -s http://localhost:8081/triage/alertas \
+  -H 'X-API-Key: test-triage-key'  # 200, []
+```
 
-## Production Note
+Missing or wrong keys return `401` with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}`. Keys come from `TRIAGE_API_KEY` / `ASSISTANT_API_KEY`; the values above are localhost-only defaults. See `docs/adr/ADR-07-authentication-api-key.md`.
 
-**This baseline is for development and evaluation only.** Boot 3.5.16 reached EOL on 2026-06-30. Production deployments require either:
-1. Commercial Spring Support contract for Boot 3.5.x, OR
-2. Migration to Boot 4.1.x+ (open-source support)
+## Local verification checklist
 
-See ADR-10 for details and post-delivery migration plan.
+Run in order. Details and ready-to-import requests are in [`docs/demo/local-verification.md`](docs/demo/local-verification.md) and [`postman/`](postman/).
 
-## ADRs
+- [ ] Both `/actuator/health` endpoints return `{"status":"UP"}`.
+- [ ] `POST /triage/pacientes` with E1…E6 returns `201` and the expected `nivel` (`CRITICO`, `URGENTE`, `URGENTE_2`, `NO_URGENTE`, `NO_URGENTE_2`, `CRITICO`).
+- [ ] `GET /triage/pacientes/{id}` and `PATCH /triage/pacientes/{id}/estado` with `{"estado":"EN_CONSULTA"}` then `{"estado":"ALTA"}`.
+- [ ] RF-03: wait for the short demo SLA, then `GET /triage/alertas` shows a `PENDIENTE` alert; changing state resolves it.
+- [ ] `POST /triage/alertas/{id}/reconocimiento` with `{"responsable":"..."}` moves it to `RECONOCIDA`; a second call returns `TRG-009`.
+- [ ] `GET /triage/alertas/stream` pushes the initial snapshot and live changes (use `curl -N` or streaming `fetch`).
+- [ ] `GET /triage/reportes/operacion?desde=...&hasta=...` with ISO 8601 offsets (`2026-01-01T00:00:00Z`).
+- [ ] RF-04: `POST /rag` returns an answer with the fixed notice, or `503` with `LLM_UNAVAILABLE` when no provider is configured.
+- [ ] `GET /asistente/estado-urgencias` reflects patients published through `triaje.eventos` (outbox publisher is enabled in Compose).
 
-- ADR-01: Two-service decomposition (Triage + Clinical Assistant)
-- ADR-02: Event contract and retention strategy
-- ADR-03: Transactional outbox with idempotent consumers
-- ADR-10: Spring Boot 3.5.16 baseline (EOL documented)
-- ADR-14: One database per service with Redis projections
+## Known limits
+
+- **No cloud deployment.** ADR-11 is blocked by unverified subscription/quota (R-06). There is no k8s/Helm manifest and no public URL; this stack is localhost-only.
+- **RF-04 path drift.** API-04 documents `POST /asistente/consulta`, but the running scaffold exposes `POST /rag`. Use the implemented path until the endpoint is aligned.
+- **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
+- **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
+- **No idempotency header.** RF-01 does not yet implement `Idempotency-Key`; replaying a registration creates a new patient.
+- **E2E tests.** Local Testcontainers has no usable Docker socket in this environment; CI runs the full suite including PostgreSQL LISTEN/NOTIFY.
+
+## Architecture and decisions
+
+Spring Boot 3.5.16 / Java 21, Spring WebFlux, R2DBC + Flyway, Kafka with transactional outbox, Redis projections, pgvector. Services own separate databases (ADR-14). See [`docs/adr/`](docs/adr/), [`docs/services/`](docs/services/) and [`docs/requirements.md`](docs/requirements.md).
+
+**Production note:** Boot 3.5.16 reached EOL on 2026-06-30. Production requires commercial Spring support or a migration to Boot 4.1+ (ADR-10).
