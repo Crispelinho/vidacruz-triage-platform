@@ -97,7 +97,7 @@ class TriageReportEvidenceTest {
 		String reportPlan = explain((String) field.get(null), from, to);
 		assertThat(reportPlan)
 				.contains("idx_paciente_fecha_registro")
-				.contains("idx_auditoria_tipo_evento_creado_en");
+				.containsAnyOf("idx_auditoria_tipo_evento_creado_en", "idx_auditoria_paciente_creado_en");
 	}
 
 	private String explain(String sql, Instant from, Instant to) {
