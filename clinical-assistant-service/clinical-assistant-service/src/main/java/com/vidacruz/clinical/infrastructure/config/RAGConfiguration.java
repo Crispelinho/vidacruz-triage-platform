@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -37,11 +38,11 @@ import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecode
 import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
-import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAiOllamaChatAdapter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -56,7 +57,8 @@ import reactor.core.scheduler.Schedulers;
  * <p>{@code clinical.vector-store.mode} picks the {@code VectorStore} and the document repository: {@code pgvector}
  * (default, real JDBC adapters) or {@code fixture} (in-memory, no database, for pipeline tests only).
  * {@code rag.llm.chain} picks and orders the LLM nodes; every node has its own circuit breaker from
- * {@link Resilience4jConfiguration}.
+ * {@link Resilience4jConfiguration}. The {@code ollama} node runs on Spring AI {@code ChatClient}; the cloud fallbacks
+ * ({@code gemini}, {@code opencode}) keep their dedicated {@code WebClient} adapters (ADR-05).
  */
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
@@ -107,9 +109,15 @@ class RAGConfiguration {
 		return WebClient.builder();
 	}
 
+	/**
+	 * The only chain node on Spring AI (ADR-05). {@link OllamaChatModel} comes from
+	 * {@code spring-ai-starter-model-ollama}, configured through {@code spring.ai.ollama.*}, which
+	 * {@code application.yaml} maps from {@code ollama.url} and {@code ollama.model}. The reported model is read from
+	 * the chat model's own options so {@code modelo_usado} names what is actually sent.
+	 */
 	@Bean
-	NamedLLMProvider ollamaNode(WebClient.Builder builder, OllamaProperties properties) {
-		return new OllamaHttpLLMAdapter(builder, properties);
+	NamedLLMProvider ollamaNode(OllamaChatModel ollamaChatModel) {
+		return new SpringAiOllamaChatAdapter(ollamaChatModel, ollamaChatModel.getDefaultOptions().getModel());
 	}
 
 	@Bean

@@ -19,6 +19,7 @@ import reactor.core.scheduler.Scheduler;
 class FixtureModeWiringTest {
 
 	private final ApplicationContextRunner runner = new ApplicationContextRunner()
+			.withConfiguration(SpringAiOllamaTestAutoConfigurations.ALL)
 			.withUserConfiguration(RAGConfiguration.class)
 			.withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 

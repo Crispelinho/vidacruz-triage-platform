@@ -15,10 +15,10 @@ import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAiOllamaChatAdapter;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -27,11 +27,13 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
  * ADR-05 runtime configuration spike (harness): proves custom config keys bind and select the intended beans.
  *
  * <p>Covered: rag.llm.chain, ollama.*, gemini.*, opencode.*, openrouter.*, and clinical.vector-store.embedding-provider.
- * Not covered: live provider calls, Spring AI static-key behavior, or network reachability.
+ * Not covered: live provider calls or network reachability. The Spring AI {@code spring.ai.ollama.*} keys behind
+ * {@code ollamaNode} are exercised against a local stub in {@link SpringAiOllamaWiringTest}.
  */
 class RuntimeConfigSpikeTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withConfiguration(SpringAiOllamaTestAutoConfigurations.ALL)
             .withUserConfiguration(RAGConfiguration.class)
             .withBean(DataSource.class, () -> org.mockito.Mockito.mock(DataSource.class))
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
@@ -66,7 +68,7 @@ class RuntimeConfigSpikeTest {
             assertThat(openRouter.apiKey()).isEmpty();
             assertThat(openRouter.dataCollection()).isEqualTo("deny");
 
-            assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
+            assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAiOllamaChatAdapter.class);
             assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(GeminiHttpLLMAdapter.class);
             assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(OpenCodeHttpLLMAdapter.class);
             assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(OpenRouterHttpLLMAdapter.class);

@@ -33,6 +33,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+	// ADR-05: only the first C17 node (ollama) runs on Spring AI ChatClient; gemini/opencode stay on WebClient.
+	implementation("org.springframework.ai:spring-ai-starter-model-ollama")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.flywaydb:flyway-database-postgresql")
