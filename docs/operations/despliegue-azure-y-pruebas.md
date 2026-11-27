@@ -1,6 +1,6 @@
 # Despliegue en Kubernetes y registro de pruebas
 
-Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué se verificó el **26 de noviembre de 2026 (hora local)** y qué queda pendiente. El resultado inmediato es una URL HTTPS pública con los dos servicios y el Gateway operativos. La ejecución inicial necesitó **workarounds manuales**; los manifiestos y la IaC entregados en este repositorio ya incorporan las correcciones y conservan la topología validada.
+Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué se verificó el **26 de noviembre de 2026 (hora local)** y qué queda pendiente. El resultado de esa ejecución fue una URL HTTPS pública con los dos servicios y el Gateway operativos; el entorno fue retirado el 2026-11-27 y no hay URL viva (ver el aviso más abajo). La ejecución inicial necesitó **workarounds manuales**; los manifiestos y la IaC entregados en este repositorio ya incorporan las correcciones y conservan la topología validada.
 
 > **Alcance:** el despliegue y las pruebas corresponden a la ejecución validada en AKS. Los IDs de run y las referencias a hallazgos registran esa ejecución; los SHA se sustituyen por etiquetas descriptivas porque pertenecen al historial de origen y no están presentes en este repositorio.
 >
@@ -143,7 +143,7 @@ Los artefactos entregados cierran los hallazgos del despliegue:
 | Preparación del cluster | la hacía `deploy.ps1` | la hace `provision.ps1` (cert-manager con SHA-256, Gateway, namespaces, rutas) |
 | Requests de CPU | 1850m totales → nodo al 96 % | 850m totales (Kafka 100m, Redis 50m, triaje 100m ×2, asistente 250m ×2) |
 | Swagger | `/swagger-ui.html` → 404 | regla `Exact` que reescribe a `/swagger-ui.html` con `X-Forwarded-Prefix` |
-| README | “URL en Azure: se completa al desplegar” | URL real y rutas de Swagger documentadas |
+| README | “URL en Azure: se completa al desplegar” | URL pública histórica y rutas de Swagger documentadas (retirada el 2026-11-27) |
 
 Secuencia recomendada:
 
@@ -247,7 +247,7 @@ No requiere API key: `/actuator/health/**` y `/health/**` están en las rutas p�
 
 ### Operación y costos
 
-- [ ] Crear alertas de presupuesto en **Cost Management → Budgets** (80 % y 100 %).
+- [ ] Crear alertas de presupuesto en **Cost Management → Budgets** (50 % y 80 %, según ADR-11).
 - [ ] Mientras dure la evaluación: `az aks stop` + `az postgres flexible-server stop` cuando no se use; `start` en orden inverso (PostgreSQL primero).
 - [x] Al entregar: `az group delete -g vidacruz-rg --yes --no-wait` para llevar el costo a cero, después de guardar la evidencia de las pruebas. El 2026-11-27 se comprobó que el resource group ya no existe.
 - [ ] Opcional y no recomendado: publicar `/health` agregando una ruta al repo. Hoy es interno por decisión de diseño.

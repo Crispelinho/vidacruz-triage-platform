@@ -44,11 +44,11 @@ Los XML de outbox que en la foto inicial tenían `failures="3"` y `failures="1"`
 | 7 | ADR-07 — Authentication via API key | `Accepted` | Cierre D-ADR-07 en `open-decisions-register-v2-20261126.md:39`; `X-API-Key` definitivo, JWT rechazado; implementado en ambos servicios | **ACTA EMITIDA** (ver § Acta emitida) |
 | 8 | ADR-12 — Idempotency key | `Proposed` | XML de `TriageIdempotencyEvidenceTest` en verde; limpieza a 24 h deshabilitada y dependencias G-08/G-07/ADR-03 pendientes | **Sin acta — bloqueado** |
 | 9 | ADR-04 — pgvector JDBC isolation | `Proposed` | Control negativo de BlockHound PASS; sin evidencia de recuperación pgvector real ni carga p95 < 200 ms | **Sin acta — bloqueado** |
-| 10 | ADR-05 — Assistant LLM provider | `Proposed` | OD-16 PASS, TST-RXN PASS y TST-RAG PASS ([run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910)); evidencia cruda y replicación en `docs/audits/20261127/gemini-embedding-tst-rag-verification.md`; R-07 (chat), R-06 y spike de configuración sin verificar | **Sin acta — bloqueado** |
+| 10 | ADR-05 — Assistant LLM provider | `Proposed` | OD-16 PASS, TST-RXN PASS, TST-RAG PASS ([run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910), con evidencia cruda y replicación en `docs/audits/20261127/gemini-embedding-tst-rag-verification.md`) y R-07 parcial: endpoint/id y latencia del chat verificados ([guía R-07](gemini-chat-r07-verification.md)); coste, spike completo y compuertas ADR-11 abiertos | **Sin acta — bloqueado** |
 | 11 | ADR-09 — Circuit breaker / degraded mode | `Proposed` | Sin XML de TST-RES, frontera sin coincidencia ni métricas | **Sin acta — bloqueado** |
 | 12 | ADR-08 — Urgency projection store | `ACCEPTED — AMENDED` | Aceptación acotada a Redis+Lua; TST-PJ, edge cases y 503 por Redis indisponible sin ejecutar | **Sin acta de verificación — bloqueado** |
 | 13 | ADR-06 — Notification channel | `Superseded` | ADR-15 (`Accepted`) supersede ambos borradores y prohíbe implementar el webhook | **Sin acta — no elegible** |
-| 14 | ADR-11 — Azure target | `Proposed` | R-06 sin artefacto; SKU IaC `Standard_B4ms` ≠ `Standard_B4as_v2`; sin alertas de presupuesto ni escaneo de secretos | **Sin acta — bloqueado** |
+| 14 | ADR-11 — Azure target | `Proposed` | Registro de ejecución R-06/T-24 presente en `docs/operations/despliegue-azure-y-pruebas.md` (entorno retirado y workarounds manuales); IaC ya con SKU `Standard_B4as_v2`; sin rerun reproducible, alertas de presupuesto, validación de manifiestos ni escaneo de secretos | **Sin acta — bloqueado** |
 
 ## Acta emitida
 
@@ -72,11 +72,11 @@ Los ADR restantes permanecen en su estado actual. Los bloqueos se registran por 
 - **G-T27, G-T28, T-11/T-12 y TST-ESC** (ADR-13); el XML de SLA está en verde.
 - **Configuración de limpieza a 24 h y dependencias G-08/G-07/ADR-03** (ADR-12); el XML de idempotencia está en verde.
 - **Recuperación real pgvector y carga p95 < 200 ms** (ADR-04); el control negativo de TST-RXN ya pasó.
-- **R-07 (endpoint/id, latencia y coste del nodo de chat), spike de configuración y artefacto ADR-11** (ADR-05). OD-16, TST-RXN y TST-RAG tienen PASS aislados y no cierran el ADR. TST-RAG verificó `gemini-embedding-2` con 5/5 por sonda en [run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910); el coste no se midió y el nodo de chat no participó en esa ejecución.
+- **Coste, spike de configuración completo, gate de chat de TST-RAG y compuertas ADR-11** (ADR-05). OD-16, TST-RXN y TST-RAG tienen PASS aislados y no cierran el ADR. TST-RAG verificó `gemini-embedding-2` con 5/5 por sonda en [run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910), con LLM stub. La verificación [R-07](gemini-chat-r07-verification.md) cerró endpoint/id y latencia del nodo `gemini` con una sola llamada; el coste no se midió, los otros nodos no se ejercitaron y la reingesta en producción sigue pendiente.
 - **TST-RES, frontera sin coincidencia y métricas** (ADR-09).
 - **TST-PJ, edge cases, cutover, 503 por Redis y métricas NFR-19** (ADR-08).
 - **Conflicto ADR-15: no implementar webhook y no marcar ADR-06 como `Accepted`** (ADR-06).
-- **Artefacto R-06, corrección de SKU a `Standard_B4as_v2`, alertas 50 %/80 %, comprobación de esquema y escaneo de secretos** (ADR-11).
+- **Rerun reproducible de R-06, alertas 50 %/80 %, validación de manifiestos y escaneo de secretos** (ADR-11). El registro de ejecución existe y la IaC ya usa `Standard_B4as_v2`, pero el entorno fue retirado el 2026-11-27.
 
 ## Declaración final
 

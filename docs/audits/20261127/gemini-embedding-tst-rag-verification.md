@@ -57,4 +57,4 @@ The chat LLM is a stub here. This run does not verify the chat route, R-07 (chat
 
 ## Next step
 
-Review [PR #104](https://github.com/Crispelinho/vidacruz-triage-platform/pull/104) and [ADR-05](../../adr/ADR-05-assistant-llm-provider.md). Do not merge before the evidence is reviewed.
+[PR #104](https://github.com/Crispelinho/vidacruz-triage-platform/pull/104) was merged into `develop` as `bc6b411`; this page is the committed evidence record. [ADR-05](../../adr/ADR-05-assistant-llm-provider.md) remains `Proposed` because its remaining gates are still open.

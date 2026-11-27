@@ -1,5 +1,7 @@
 # 📋 Open Decisions Register — 26 de noviembre de 2026
 
+> **Vigencia:** snapshot de 2026-11-26. Las decisiones humanas posteriores (D05-01/02, D-RN05-01/02/03, D-API-401-NFR20, OD-16, D-ADR-07/10) y la evidencia ejecutada el 2026-11-27 superan este registro. Estado vigente en `open-decisions-register-v2-20261126.md` y `../20261127/adr-acceptance-acta-20261127.md`. No se reescribe el snapshot.
+
 **Decisiones humanas todavía necesarias, con sus consecuencias sobre API-04.**  
 Identificadores compartidos con requirements-traceability-matrix-20261126.md y contradictions-tensions-register-20261126.md.  
 Ninguna decisión ha sido aceptada; todas permanecen abiertas.

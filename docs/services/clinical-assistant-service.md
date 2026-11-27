@@ -197,7 +197,7 @@ Pipeline steps follow D0 §9. Each step lists its responsibility, the owning com
 - The gate is a pure decision on the retrieval result: "does at least one chunk have similarity ≥ threshold?"
 - If the gate fails, the service returns the fixed notice with HTTP 200 and `fuentes: []`. The LLM port must not be invoked. Tests verify this with a mock that records zero calls (TST-RAG).
 - The gate is not a circuit-breaker event. A gate rejection does not count as an LLM failure.
-- The similarity metric is cosine and `top-k=4` is definitive (D-RN05-01 / G-02). The base threshold target is **0.65**, pending TST-RAG calibration with a real embedding model. The operational value stays at 0.20 because that is the only calibrated value (lexical adapter); applying 0.65 to it would reject every clinical query. This decision does not make ADR-05 `Accepted`.
+- The similarity metric is cosine and `top-k=4` is definitive (D-RN05-01 / G-02). The base threshold target is **0.65**, confirmed by TST-RAG with `gemini-embedding-2` in [run 46045071910](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46045071910). The operational value stays at 0.20 because production still uses the lexical adapter and the seeded corpus was not re-embedded; applying 0.65 to it would reject every clinical query. This decision does not make ADR-05 `Accepted`.
 
 ### 6.2 Citation validation (step 8) in detail
 
@@ -394,7 +394,7 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 
 | Requirement | Part | Section(s) of this analysis | Status | Gap IDs |
 |---|---|---|---|---|
-| RF-04 A: retrieval over the corpus with citations | A | 6 (steps 3, 4, 9), 4.1 | **Decided, evidence pending** (cosine, `k=4`; 0.65 target under TST-RAG) | G-02 |
+| RF-04 A: retrieval over the corpus with citations | A | 6 (steps 3, 4, 9), 4.1 | **Evidence recorded** (cosine, `k=4`, 0.65 target confirmed in TST-RAG run 46045071910 with a stub LLM) | G-02 |
 | RF-04 A: fixed notice when no relevant protocol exists (no clinical content generated) | A | 6 (step 5), 6.4 | **Covered** | — |
 | RF-04 A: 503 when the LLM is unavailable (NFR-03) | A | 4.1, 7 | **Gap** (timeout and breaker values, failure definition) | G-05 |
 | RF-04 B: count of patients not in `ALTA`, grouped by level | B | 4.2, 8 | **Covered by protocol** (level from EVT-01 applied in sequence; §8.3; G-08 resolved) | G-09, G-11 |
@@ -406,12 +406,12 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 
 | Rule or case | Section(s) | Status | Gap IDs |
 |---|---|---|---|
-| RN-05.1: every clinical answer cites at least one corpus source | 6 (step 8), 6.2 | **Decided, evidence pending** (`(protocolo, seccion)` in corpus index and retrieved set) | G-03 |
+| RN-05.1: every clinical answer cites at least one corpus source | 6 (step 8), 6.2 | **PARTIAL** (TST-RAG recorded the citation gates for PROTO-001/PROTO-002; the in-memory index check is still unverified) | G-03 |
 | RN-05.2: a citation outside the corpus makes the response invalid; the service must not return it | 6 (step 8), 6.2 | **Covered** | — |
 | RN-05.3: no relevant match → exact notice "no existe protocolo disponible", no clinical content | 6 (step 5), 4.1 | **Covered** (text and status fixed) | — |
-| RN-05.4: relevance gate before any LLM call (DEC-07) | 6 (step 5), 6.1 | **Decided, evidence pending** (cosine, `k=4`, 0.65 target; 0.20 operational) | G-02 |
-| Edge: query matches PROTO-001 → answer, `fuentes` contains PROTO-001 | 6.3 (Q1) | **Decided, evidence pending** (G-04 JSON contract; TST-RAG) | G-02, G-04 |
-| Edge: query matches PROTO-002 → answer, `fuentes` contains PROTO-002 | 6.3 (Q2) | **Decided, evidence pending** (same) | G-02, G-04 |
+| RN-05.4: relevance gate before any LLM call (DEC-07) | 6 (step 5), 6.1 | **Evidence recorded** (cosine, `k=4`, 0.65 target confirmed in TST-RAG; 0.20 operational) | G-02 |
+| Edge: query matches PROTO-001 → answer, `fuentes` contains PROTO-001 | 6.3 (Q1) | **Evidence recorded** (TST-RAG run 46045071910, stub LLM) | G-02, G-04 |
+| Edge: query matches PROTO-002 → answer, `fuentes` contains PROTO-002 | 6.3 (Q2) | **Evidence recorded** (same run, stub LLM) | G-02, G-04 |
 | Edge: diabetes type 2, no protocol → notice, `fuentes: []`, LLM not called | 6.3 (Q3), 6.1 | **Covered** | — |
 | Edge: LLM cites PROTO-999 → rejected, notice returned, anti-hallucination event logged | 6 (step 8), 6.2 | **Covered** (logging content policy in G-16) | G-16 |
 | Edge: JSON without `fuentes`, or malformed JSON → rejected directly, notice returned | 6 (step 8) | **Decided, evidence pending** (D-RN05-03: no regeneration) | G-04 |
@@ -516,8 +516,8 @@ Each gap has an impact on implementation, a reference to the AMB or DEC it depen
 
 | ID | Gap | Refs | Impact | Decision needed (PROPOSED where noted) |
 |---|---|---|---|---|
-| G-01 | LLM provider and embedding model not chosen. No provider starter in the skeleton. Embedding dimension unknown, so the vector column size is unknown | AMB-15, DEC-06, TC-07 | Blocks steps 2, 3, 7 and the vector schema | Choose one chat and one embedding provider; record dimension; ADR-05 |
-| G-02 | **Closed by decision D-RN05-01 (2026-11-27):** cosine metric, `top-k=4` definitive, 0.65 base threshold target. Evidence remains open: TST-RAG with a real embedding model must record the calibrated value; 0.20 stays operational for the lexical adapter | AMB-16, DEC-07, RN-05.4 | Gate determinism; Q1 and Q2 outcomes | Run TST-RAG; record measured threshold. Do not apply 0.65 to `LexicalEmbeddingAdapter` |
+| G-01 | **Closed by human decisions D05-01/D05-02 (2026-11-27):** chat chain `ollama,gemini,opencode` and `gemini-embedding-2` at 768 dimensions, with `LexicalEmbeddingAdapter` as the production default | AMB-15, DEC-06, TC-07 | Steps 2, 3, 7 and the vector schema | No longer an open design question; ADR-05 acceptance still needs its verification gates |
+| G-02 | **Closed by decision D-RN05-01 (2026-11-27):** cosine metric, `top-k=4` definitive, 0.65 base threshold target confirmed by TST-RAG run 46045071910; 0.20 stays operational for the lexical adapter | AMB-16, DEC-07, RN-05.4 | Gate determinism; Q1 and Q2 outcomes | Do not apply 0.65 to `LexicalEmbeddingAdapter`; full re-ingestion is required before production uses the semantic model |
 | G-03 | **Closed by decision D-RN05-02 (2026-11-27):** `(protocolo, seccion)` must be in the in-memory corpus index and in the retrieved set; index refreshed on ingestion; no `DocumentoClinico` read per request | DEC-07, RN-05.1–2, D0 §9.8 | Step 8 result for edge cases | Implemented; verification tracked by TST-RAG. No longer an open design question |
 | G-04 | **Closed by decision D-RN05-03 (2026-11-27):** JSON `{"respuesta","fuentes":[{"protocolo","seccion"}]}`; parse error is rejected directly, without regeneration | RN-05 edge, DEC-07 | Step 6 and 8 | Implemented; verification tracked by TST-RAG. No longer an open design question |
 | G-05 | Timeout values; circuit breaker parameters (window, failure rate, open wait); failure definition; retry policy; retrieval error response (no code) | DEC-07, NFR-03, NFR-08, R-04 | Section 7 mapping and tests | PROPOSED: no retries; timeout configurable; failure = timeout, 5xx, connection, 429. Define 503 code for retrieval failure |
@@ -568,18 +568,18 @@ These are candidate names for OpenSpec capabilities. They have not been created.
 
 | Requirement | Status |
 |---|---|
-| RF-04 Part A (RAG query with citations) | Decided, evidence pending (G-02 calibration, G-05) |
+| RF-04 Part A (RAG query with citations) | Evidence recorded in TST-RAG (G-02 calibration); G-05 still open |
 | RF-04 Part A, fixed notice when no protocol | Covered |
 | RF-04 Part A, 503 when LLM unavailable | Gap (G-05) |
 | RF-04 Part B (count by level from events) | Gap (G-08, G-09, G-11) |
 | RF-04 Part B, no Triage API calls | Covered |
 | RF-04 Part B, projection persistence | Gap (G-11) |
 | RF-04 Part B, 503 projection unavailable | Gap (G-07) |
-| RN-05.1 citation required | Decided, evidence pending (G-03) |
+| RN-05.1 citation required | PARTIAL (TST-RAG citation gates recorded; in-memory index check pending under G-03) |
 | RN-05.2 invalid citation rejected | Covered |
 | RN-05.3 exact notice, no clinical content | Covered |
-| RN-05.4 relevance gate before LLM | Decided, evidence pending (G-02) |
-| Acceptance questions Q1, Q2 | Decided, evidence pending (G-02, G-04) |
+| RN-05.4 relevance gate before LLM | Evidence recorded in TST-RAG (G-02) |
+| Acceptance questions Q1, Q2 | Evidence recorded in TST-RAG run 46045071910 (stub LLM) |
 | Acceptance question Q3 and empty-protocol case | Covered (empty corpus readiness: G-22) |
 | Edge: 400 for empty question | Gap (G-06) |
 | Edge: 503 for LLM circuit or timeout | Gap (G-05) |
@@ -590,7 +590,7 @@ Requirements owned by Triage (RF-01, RF-02, RF-03, RF-05, RF-06, RN-01 to RN-04)
 
 ## 17. Next steps
 
-1. G-02, G-03 and G-04 are closed by decisions D-RN05-01/02/03; their verification remains in TST-RAG. Still open for the first implementation slice: G-01, G-11, G-12 and G-14. G-08 and G-10 are resolved by the fixed order protocol; G-09 needs only numeric limits.
+1. G-01 to G-04 are closed by recorded human decisions. TST-RAG recorded evidence for G-02 and the PROTO-001/PROTO-002 gates; the in-memory index check under G-03 and the JSON parse-error path under G-04 still need verification. Still open for the first implementation slice: G-11, G-12 and G-14. G-08 and G-10 are resolved by the fixed order protocol; G-09 needs only numeric limits.
 2. Run the startup spike for R2DBC and pgvector JDBC coexistence (G-14) before any feature work.
 3. Verify version compatibility (G-18) before the first build.
 4. Confirm the numeric gap timeout, pending-map size, DLT retry count and Redis TTL margin under ADR-02/ADR-08. No EVT-04 payload change is required.

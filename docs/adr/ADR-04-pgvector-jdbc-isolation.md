@@ -1,6 +1,6 @@
 # ADR-04: Vector store and JDBC isolation for the Clinical Assistant
 
-- **Status:** Proposed. Not accepted. Option A is the proposed route; the spike in §Verification is still required.
+- **Status:** Proposed. Not accepted. Option A is the proposed route. Implementation note (2026-11-27): the active adapter is `PgvectorVectorStoreAdapter` over the repository's own `VectorRepository` with `JdbcClient`, Flyway owns the schema (V3/V4/V6) and TST-RXN passed; reconciling that implementation with Option A requires a decision, so this ADR is not promoted.
 - **Date:** 2026-11-25
 - **Deciders:** developer (pending)
 - **Scope:** C-06 retrieval path of `POST /asistente/consulta`. This ADR chooses the vector store access model and how the blocking JDBC call is isolated. It does not choose the LLM or embedding provider (ADR-05), and it does not define the relevance gate or citation validation (RN-05, R-10, C-06).
@@ -12,7 +12,7 @@ TC-11 fixes the Spring AI 1.x line, and DER-06 records that its pgvector store i
 
 The skeleton has an R2DBC stack and a pgvector starter, but no JDBC URL or JDBC driver. The Assistant database also holds `DocumentoClinico` through R2DBC, so two connection pools would coexist on the same PostgreSQL database. There is no cross-store transaction between the document and vector tables, which makes ingestion idempotency necessary.
 
-The schema owner is undecided: Flyway under TC-12 or Spring AI's table creation at startup (G-14). The table layout, metadata keys and ANN index type are also undecided (G-15). The embedding dimension and distance metric are decided jointly with ADR-05, because changing the embedding model later requires re-ingesting the whole corpus.
+At the time of this proposal the schema owner was undecided: Flyway under TC-12 or Spring AI's table creation at startup (G-14). The implementation note in the status line records the later outcome: Flyway owns the schema. The table layout, metadata keys and ANN index type were defined under G-15 in migrations V3/V4/V6. The embedding dimension and distance metric are decided jointly with ADR-05, because changing the embedding model later requires re-ingesting the whole corpus.
 
 ## Decision drivers
 

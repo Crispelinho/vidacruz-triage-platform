@@ -1,5 +1,7 @@
 # ADR-09: Arquitectura de Circuit Breaker + Fallback
 
+> **Alcance histórico:** estos diagramas reflejan el borrador original con un único breaker y Modelo A/B. La decisión vigente es la enmienda de 2026-11-26 en [ADR-09](ADR-09-circuit-breaker-degraded-mode.md): un breaker por nodo (`ollama`, `gemini`, `opencode`) con `slidingWindowSize=10`, `failureRateThreshold=50 %`, `waitDurationInOpenState=30 s`, `permittedNumberOfCallsInHalfOpenState=3` y `timeoutDuration=15 s`. La cadena y el modelo de embeddings vigentes están en [ADR-05](ADR-05-assistant-llm-provider.md).
+
 ## Diagrama 1: Flujo primario y fallback
 
 ```

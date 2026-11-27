@@ -38,7 +38,7 @@ This page records the runtime evidence for the ADR-05 R-07 gate. It covers the *
 - **Cost:** not measured. No billing API was queried and no invoice was inspected; the free-tier classification is a documented property, not billing evidence. OpenCode prepaid cost is still unmeasured.
 - **TST-RAG / chat:** this is a single smoke call, not five runs per PROTO probe. PR #104's TST-RAG evidence uses a stub LLM and does not close this gate for chat.
 - **Runtime spike (remainder):** the other two chain nodes and the Spring AI static keys are unverified. Ollama answered only the no-evidence notice (`modelo_usado=none`) in this environment; its first real attempt timed out at the 15 s chain limit because local CPU inference took about 206 s, and a 600 s override produced no evidence rather than a model answer. OpenCode returned `503 LLM_UNAVAILABLE` with a cause not yet isolated.
-- **ADR-11 target evidence:** ADR-11 already lists `docs/operations/despliegue-azure-y-pruebas.md` as the R-06/T-24 execution record, while PR #104 still marks the ADR-05 "ADR-11 evidence" gate as blocked. That inconsistency must be resolved before acceptance.
+- **ADR-11 target evidence:** ADR-11 lists `docs/operations/despliegue-azure-y-pruebas.md` as the R-06/T-24 execution record, and ADR-05 now records that artifact as partial evidence. The environment was retired on 2026-11-27, so a reproducible rerun, budget-alert evidence, manifest validation and secret-hygiene confirmation are still open before acceptance.
 - ADR-05 remains `Proposed`; this artifact does not issue an acceptance acta.
 
 ## Reproduction
