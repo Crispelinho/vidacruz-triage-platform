@@ -11,6 +11,7 @@ import java.util.stream.IntStream;
 import com.vidacruz.clinical.domain.exceptions.InvalidCorpusRequestException;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.IngestedDocument;
+import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
@@ -37,12 +38,20 @@ public class CorpusIngestionService {
 
 	private final ClinicalDocumentRepository documents;
 
+	private final CorpusIndex corpusIndex;
+
 	public CorpusIngestionService(TextChunker chunker, EmbeddingProvider embeddingProvider, VectorStore vectorStore,
 			ClinicalDocumentRepository documents) {
+		this(chunker, embeddingProvider, vectorStore, documents, new CorpusIndex());
+	}
+
+	public CorpusIngestionService(TextChunker chunker, EmbeddingProvider embeddingProvider, VectorStore vectorStore,
+			ClinicalDocumentRepository documents, CorpusIndex corpusIndex) {
 		this.chunker = Objects.requireNonNull(chunker, "chunker");
 		this.embeddingProvider = Objects.requireNonNull(embeddingProvider, "embeddingProvider");
 		this.vectorStore = Objects.requireNonNull(vectorStore, "vectorStore");
 		this.documents = Objects.requireNonNull(documents, "documents");
+		this.corpusIndex = Objects.requireNonNull(corpusIndex, "corpusIndex");
 	}
 
 	public Mono<IngestedDocument> ingestDocument(String title, String content) {
@@ -55,13 +64,20 @@ public class CorpusIngestionService {
 
 	private Mono<IngestedDocument> ingest(UUID documentId, String title, String content) {
 		List<String> chunks = chunker.split(content);
+		// G-03: every ingested chunk carries a (protocolo, seccion) key. The current API supplies a single title;
+		// it is used as the protocol code and the section is the whole document. Seeded migrations provide finer sections.
+		String protocol = title.trim();
+		String section = "Documento";
+		ProtocolSection pair = ProtocolSection.of(protocol, section);
 		return Flux.fromIterable(IntStream.range(0, chunks.size()).boxed().toList())
 				// concatMap keeps embedding calls sequential: bounded load on the embedding provider.
 				.concatMap(index -> embeddingProvider.embed(chunks.get(index))
 						.flatMap(embedding -> vectorStore.save(new EvidenceFragment(chunkId(documentId, index),
-								documentId, index, null, title, chunks.get(index), embedding))))
+								documentId, index, protocol, section, chunks.get(index), embedding))))
+				.doOnNext(fragment -> corpusIndex.add(ProtocolSection.from(fragment)))
 				.then(Mono.defer(() -> documents.saveIfAbsent(new IngestedDocument(documentId, title, chunks.size()),
-						content)));
+						content)))
+				.doOnSuccess(document -> corpusIndex.add(pair));
 	}
 
 	private static void validate(String title, String content) {

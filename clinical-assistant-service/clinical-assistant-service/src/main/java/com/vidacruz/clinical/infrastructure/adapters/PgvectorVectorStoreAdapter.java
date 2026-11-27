@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
+import com.vidacruz.clinical.domain.ports.CorpusIndexSource;
 import com.vidacruz.clinical.domain.ports.ScoredVectorStore;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
@@ -17,7 +19,7 @@ import reactor.core.scheduler.Scheduler;
  * bounded scheduler, so the Netty event loop never blocks (NFR-01). When the scheduler's queue is full, subscription
  * fails fast with a {@code RejectedExecutionException} instead of queueing without limit.
  */
-public class PgvectorVectorStoreAdapter implements ScoredVectorStore, VectorStore {
+public class PgvectorVectorStoreAdapter implements ScoredVectorStore, VectorStore, CorpusIndexSource {
 
 	private final VectorRepository repository;
 
@@ -53,6 +55,11 @@ public class PgvectorVectorStoreAdapter implements ScoredVectorStore, VectorStor
 	public Mono<List<ScoredEvidenceFragment>> similaritySearchWithScores(float[] queryEmbedding, int topK) {
 		return Mono.fromCallable(() -> repository.searchSimilarWithScores(queryEmbedding, topK))
 				.subscribeOn(jdbcScheduler);
+	}
+
+	@Override
+	public Mono<List<ProtocolSection>> protocolSections() {
+		return Mono.fromCallable(repository::protocolSections).subscribeOn(jdbcScheduler);
 	}
 
 }

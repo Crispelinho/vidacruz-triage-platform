@@ -75,6 +75,20 @@ class VectorRepositoryTest {
 	}
 
 	@Test
+	void protocolSectionsAreDistinctAndSkipFragmentsWithoutMetadata() {
+		repository.upsert(fragment(UUID.randomUUID(), 0, "PROTO-001", vector(0, -1, 0)));
+		repository.upsert(fragment(UUID.randomUUID(), 1, "PROTO-001", vector(0, -1, 0)));
+		repository.upsert(EvidenceFragment.create(UUID.randomUUID(), 2, null, "sin protocolo", "texto",
+				vector(0, -1, 0)));
+
+		assertThat(repository.protocolSections()).hasSize(1)
+				.first().satisfies(pair -> {
+					assertThat(pair.protocolo()).isEqualTo("PROTO-001");
+					assertThat(pair.seccion()).isEqualTo("Medidas iniciales");
+				});
+	}
+
+	@Test
 	void nullableMetadataRoundTripsAsNull() {
 		EvidenceFragment saved = repository.upsert(EvidenceFragment.create(UUID.randomUUID(), 0, null, null, "texto",
 				vector(0, -1, 0)));

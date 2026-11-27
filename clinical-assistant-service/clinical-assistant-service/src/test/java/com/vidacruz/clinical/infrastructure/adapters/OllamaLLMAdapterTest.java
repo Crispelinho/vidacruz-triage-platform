@@ -36,8 +36,8 @@ class OllamaLLMAdapterTest {
 				.expectSubscription()
 				.expectNoEvent(Duration.ofMillis(1199))
 				.thenAwait(Duration.ofMillis(1))
-				.assertNext(answer -> assertThat(answer).startsWith("[FIXTURE:llama3.1:8b]")
-						.contains("2 fragmento(s)"))
+				.assertNext(answer -> assertThat(answer).contains("\"respuesta\":\"[FIXTURE:llama3.1:8b]")
+						.contains("2 fragmento(s)").contains("\"fuentes\""))
 				.verifyComplete();
 	}
 

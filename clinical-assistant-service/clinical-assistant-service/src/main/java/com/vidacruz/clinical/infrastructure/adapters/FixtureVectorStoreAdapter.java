@@ -7,7 +7,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.ProtocolSection;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
+import com.vidacruz.clinical.domain.ports.CorpusIndexSource;
 import com.vidacruz.clinical.domain.ports.ScoredVectorStore;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 
@@ -20,7 +22,7 @@ import reactor.core.publisher.Mono;
  *
  * <p>Ties are broken by (documentId, chunkIndex) so rankings are deterministic.
  */
-public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore {
+public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore, CorpusIndexSource {
 
 	private final Map<UUID, EvidenceFragment> fragments = new ConcurrentHashMap<>();
 
@@ -64,6 +66,16 @@ public class FixtureVectorStoreAdapter implements ScoredVectorStore, VectorStore
 					.limit(topK)
 					.toList();
 		});
+	}
+
+	@Override
+	public Mono<List<ProtocolSection>> protocolSections() {
+		return Mono.fromSupplier(() -> fragments.values().stream()
+				.filter(f -> f.protocol() != null && !f.protocol().isBlank() && f.section() != null
+						&& !f.section().isBlank())
+				.map(ProtocolSection::from)
+				.distinct()
+				.toList());
 	}
 
 	private static double normalizedCosine(float[] a, float[] b) {
