@@ -94,6 +94,8 @@ Set-Secret 'clinical-assistant-service-secrets' @{
 }
 
 Send-Manifest (Get-RenderedManifests (Join-Path $repositoryRoot 'infra/k8s') $tokens)
+# The topic must exist before the services' init containers can finish
+Invoke-Kubectl --namespace $namespace wait --for=condition=complete job/kafka-topic-init --timeout=300s
 foreach ($workload in @('statefulset/kafka', 'statefulset/redis', 'deployment/triage-service',
         'deployment/clinical-assistant-service')) {
     Invoke-Kubectl --namespace $namespace rollout status $workload --timeout=600s
