@@ -25,7 +25,7 @@ param(
     # Subject of the OIDC token of the deployment job. Empty: computed from the ids of the repository, in the format
     # of the repositories created since July 2026 (repo:OWNER@OWNER-ID/REPO@REPO-ID:environment:azure)
     [string] $GithubSubject,
-    [string] $NodeVmSize = 'Standard_B4ms',
+    [string] $NodeVmSize = 'Standard_B4as_v2',
     [ValidateRange(1, 3)] [int] $NodeCount = 1
 )
 

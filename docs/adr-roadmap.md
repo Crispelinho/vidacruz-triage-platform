@@ -47,7 +47,7 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 | ADR-08 | Projection store for urgency state (Redis) | C-07 | RF-04-B, DEC-10 | Proposed | C-07 |
 | ADR-09 | Degraded mode and circuit breaker (relevance gate and citation validation stay in C-06) | C-06 | DEC-07, NFR-03, R-04, R-10 | Proposed | C-06 |
 | ADR-10 | Spring Boot 3.x line and end-of-support risk; Java 21 | C-01 | DEC-12, DEC-13, R-02, R-05 | Proposed (Boot 3.x chosen by the user) | C-01 |
-| ADR-11 | Azure target: Container Apps or AKS | C-01 (Azure manifests only) | §14 of D0, R-06 | Proposed | Azure manifests in C-01. Dockerfiles, docker-compose and CI do not wait for it |
+| ADR-11 | Azure target: AKS on Azure for Students | C-01 (Azure manifests only) | §14 of D0, R-06, ADR-12 | Proposed (amended; evidence pending) | Azure manifests/IaC in C-01; acceptance pending R-06 artifact, budget-alert evidence, ADR-10 gate |
 | ADR-12 | Idempotency-Key replay for registration | C-02 | DEC-15, R-09 | Proposed (accepted as scope by the user) | C-02 |
 | ADR-13 | SLA evaluation mechanism (scheduled job, conditional update) | C-04 | RF-03, DEC-04 | Proposed (new) | C-04 |
 | ADR-14 | Database ownership: one PostgreSQL per service | C-01, C-02, C-07 | DEC-10 | Proposed (new) | C-01 |
