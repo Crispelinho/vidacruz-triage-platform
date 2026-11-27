@@ -59,11 +59,12 @@ The original analysis (D0 §16) listed twelve candidates. This roadmap adds two:
 
 ### 3.2 Open decisions linked to ADRs
 
-These decisions come from D2 §6. OD-3 and OD-4 are recorded as decided in the documents merged through PR #6 (2026-11-24); neither needs an ADR. OPEN-09/OPEN-10 and G-T29 were closed on 2026-11-25 as Option A with a 7-day configurable outbox retention (see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`). OD-5 remains open, and each remaining open decision is resolved only when the linked ADR or design is accepted.
+These decisions come from D2 §6. OD-3 and OD-4 are recorded as decided in the documents merged through PR #6 (2026-11-24); neither needs an ADR. OPEN-09/OPEN-10 and G-T29 were closed on 2026-11-25 as Option A with a 7-day configurable outbox retention (see `docs/decisions/OPEN-09-10-outbox-durability-recovery.md`). OD-5 remains open. OD-16 was recorded by the Developer/User on 2026-11-27 and is linked to ADR-05; it does not redefine OD-5. Each remaining open decision is resolved only when the linked ADR or design is accepted.
 
 - **OD-3 — Retention of `triaje.eventos`.** Linked to ADR-02 (retention is part of the messaging contract) and ADR-08 (rebuilding the projection after losing its store, including the option of a snapshot plus replay). Decided (2026-11-24): Kafka retains 30 days; full reconstruction uses the durable history EventoHistorico in Triage (DER-09), so ADR-08 does not need a snapshot for correctness. The open item is OD-5, the retention period of EventoHistorico.
 - **OD-4 — Maximum span of an operational report range.** Decided (developer, 2026-11-24): 90 calendar days, inclusive, in UTC, as recorded in `requirements.md` and `capabilities-map.md`. Not architectural, so no ADR; RF-05 (C-08) records the value in its design.
-- **OD-5 — Retention period of `EventoHistorico`.** Open, not decided. The durable record itself was decided by OPEN-09/OPEN-10 (Option A, 2026-11-25), and G-T29 closed at 7 days for the operational outbox. OD-5 is only the clinical retention period: no time-based purge until the developer sets it. Blocks the production retention policy.
+- **OD-5 — Retention period of `EventoHistorico`.** Open, not decided. The durable record itself was decided by OPEN-09/OPEN-10 (Option A, 2026-11-25), and G-T29 closed at 7 days for the operational outbox. OD-5 is only the clinical retention period: no time-based purge until the developer sets it. Blocks the production retention policy. Unchanged by OD-16.
+- **OD-16 — Prompt privacy for cloud LLM nodes.** Recorded by the Developer/User on 2026-11-27 and linked to ADR-05: sending the grounded prompt to `gemini` and `opencode` is approved under a zero-PII rule. `GroundedPrompt` sends only the question plus retrieved protocol fragments; `contexto_paciente` is validated but not forwarded. No automated PII scrubber exists, so the rule depends on prompt authoring. OD-5 is not redefined by this decision.
 
 ### 3.3 Order of acceptance
 
@@ -87,10 +88,10 @@ The open values listed in §4 are still blocking acceptance; an ADR with a pendi
 
 These are choices, not analysis. Each one is blocking acceptance of its ADR.
 
-- **ADR-05 LLM provider.** The Spring AI versus LangChain4j comparison now cites official documentation; model, dimension, hardware, budget and ADR-11 evidence are still pending. No equivalence of features is assumed.
+- **ADR-05 LLM provider.** The Spring AI versus LangChain4j comparison cites official documentation. The C17 chain (`ollama,gemini,opencode`) and the 768-dimension schema are recorded by the Developer/User, and the hybrid WebClient amendment and OD-16 privacy policy are in the canonical ADR. Still needed before acceptance: runtime spike, runtime verification of `gemini-3.5-flash-lite` with latency/cost evidence, TST-RXN, TST-RAG calibration and the ADR-11 repository artifact. No equivalence of features is assumed.
 - **ADR-06 channel.** DEC-09 proposes a webhook. The developer must confirm that a mock receiver in docker-compose is acceptable for the evaluation.
 - **ADR-07 authentication.** DEC-05 proposes an API key in `X-API-Key`. Confirm, or choose JWT with its extra cost.
-- **ADR-11 Azure target.** Container Apps or AKS. Blocked by R-06 (subscription and quota). Record the blocker if access is not available.
+- **ADR-11 Azure target.** Amended 2026-11-27: AKS on Azure for Students in `northcentralus`, `Standard_B4as_v2` node and PostgreSQL Flexible `Standard_B1ms`, with a US$100/year budget and 50 %/80 % alerts to configure; the earlier Container Apps proposal is superseded/historical. Formal acceptance still blocked by the R-06 repository artifact and ADR-10 support-risk acceptance. Record the blocker if access is not available.
 - **ADR-10 support risk.** R-02 is verified: the official Spring announcement of 2026-06-25 (https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/) states that Spring Boot 3.5.16 is the last open-source release of the 3.5.x line, and that continued OSS support requires 4.0.x or 4.1.x. The brief requires Boot 3.x, so the developer must accept the end of OSS support in ADR-10 and record the link; the alternative (a supported line) is excluded by the brief.
 
 ## 5. ADR template

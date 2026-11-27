@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "gemini")
 public record GeminiProperties(
 		@DefaultValue("https://generativelanguage.googleapis.com/v1beta/models") String baseUrl,
-		@DefaultValue("gemini-2.5-flash") String model,
+		@DefaultValue("gemini-3.5-flash-lite") String model,
 		@DefaultValue("") String apiKey) {
 
 	public GeminiProperties {
