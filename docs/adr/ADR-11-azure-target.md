@@ -75,13 +75,13 @@ Repository evidence currently present:
 - [x] **T-23 manifests/IaC delivered:** Kubernetes manifests and Azure IaC exist in `infra/k8s/`, `infra/azure/`, and service `deployment/k8s/` directories; ADR-12 documents the topology.
 - [x] **R-06/T-24 execution record present:** `docs/operations/despliegue-azure-y-pruebas.md` records the AKS deployment, public HTTPS URL, validation, manual workarounds, and pending hardening. It is repository evidence, but not a clean unattended rerun.
 - [x] **T-22 local stack present:** `docker-compose.yml`, Dockerfiles, and service workflows exist; local/E2E verification remains the separate E2E track.
+- [x] **Manifest/schema validation automated:** `.github/workflows/k8s-manifests.yml` renders and validates `infra/k8s`, `infra/k8s/cluster`, `infra/k8s/edge`, `infra/k8s/routes`, `triage-service/deployment/k8s`, and `clinical-assistant-service/deployment/k8s` with `kustomize build` + `kubeconform -strict -ignore-missing-schemas`. Attach green run URL from PR/`develop` as evidence.
 
 Pending before formal acceptance:
 
 - [ ] **R-06 reproducible rerun:** rerun `infra/azure/provision.ps1` and `deploy.yml` from current `develop`/target commit with OIDC/RBAC hardening; attach CI run URL/log showing no manual `kubectl scale` workaround.
-- [x] **IaC/SKU alignment:** `infra/azure/main.bicep` now defaults to the recorded `Standard_B4as_v2` node; PostgreSQL `Standard_B1ms` and `northcentralus` remain consistent. Re-check these values before another Azure build.
+- [x] **IaC/SKU alignment:** `infra/azure/main.bicep` defaults to the recorded `Standard_B4as_v2` node; PostgreSQL `Standard_B1ms` and `northcentralus` remain consistent. Re-check these values before another Azure build.
 - [ ] **Budget alerts evidence:** show 50 % and 80 % Azure for Students budget alerts configured (screenshot/export/reference), not just recorded.
-- [ ] **Manifest/schema validation evidence:** attach `kubectl apply --dry-run=client`/schema validation output for delivered manifests.
 - [ ] **Secret hygiene:** confirm no credential in repo/image/history; rotate credentials exposed during validation and record rotation without publishing values.
-- [ ] **ADR-10 gate:** ADR-10 remains Proposed until its remaining verification evidence is attached; ADR-11 acceptance should not outrun the platform baseline acceptance.
+- [ ] **ADR-10 gate:** satisfied by ADR-10 acceptance for evaluation scope (2026-11-27); keep the non-production OSS Boot 3.5.x constraint visible.
 - [ ] **ADR-05 target evidence:** record that the chosen AKS target can host the reduced ADR-05 workload in region/budget; chat GPU capacity is not required after C17.
