@@ -24,7 +24,7 @@ Start here. This index lists the **canonical** record for each decision, where i
 | [ADR-07](ADR-07-authentication-api-key.md) | Authentication with `X-API-Key`; JWT rejected | **Accepted** | `ApiKeyAuthenticationFilter` (both services) |
 | [ADR-08](ADR-08-urgency-projection-store.md) | Urgency projection in Redis with atomic Lua scripts | **Accepted** (amended) | `RedisUrgencyStateRepository`, `redis/*.lua` |
 | [ADR-09](ADR-09-circuit-breaker-degraded-mode.md) | Resilience4j circuit breaker per LLM node; 503 `LLM_UNAVAILABLE` degraded mode | Proposed | `ResilientLLMRouter`, `RAGExceptionHandler` |
-| [ADR-10](ADR-10-spring-boot-platform-and-java-baseline.md) | Spring Boot 3.5.x / Java 21 baseline (non-production restriction) | Proposed | `build.gradle.kts` (both services) |
+| [ADR-10](ADR-10-spring-boot-platform-and-java-baseline.md) | Spring Boot 3.5.x / Java 21 baseline (non-production restriction) | **Accepted** (evaluation scope) | `build.gradle.kts` (both services) |
 | [ADR-11](ADR-11-azure-target.md) | Azure target: AKS (amended from the original option) | Proposed | `infra/azure/main.bicep` |
 | [ADR-12 (AKS)](ADR-12-aks-deployment.md) | AKS deployment topology and Gateway | **Accepted** | `infra/k8s/`, `*/deployment/k8s/`, `.github/workflows/deploy.yml` |
 | [ADR-12 (Idempotency)](ADR-12-idempotency-key.md) | Optional `Idempotency-Key` replay on `POST /triage/pacientes` | Proposed | `TriageRegistrationService`, migration `V3__idempotency_key.sql` |
