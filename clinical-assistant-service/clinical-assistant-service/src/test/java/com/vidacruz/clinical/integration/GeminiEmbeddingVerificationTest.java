@@ -42,6 +42,7 @@ import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.config.GeminiEmbeddingProperties;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
@@ -261,7 +262,7 @@ class GeminiEmbeddingVerificationTest {
 					+ evidence.get(0).protocol() + "\",\"seccion\":\"" + evidence.get(0).section() + "\"}]}";
 			return reactor.core.publisher.Mono.just(new LLMCompletion("stub", "stub", answer));
 		};
-		return new RAGService(embeddings, store, router, corpusIndex, CALIBRATION_TARGET);
+		return new RAGService(embeddings, store, router, new JacksonGroundedAnswerDecoder(), corpusIndex, CALIBRATION_TARGET);
 	}
 
 	private static void writeEvidence(ObjectNode evidence) {

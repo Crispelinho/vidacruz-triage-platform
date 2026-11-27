@@ -28,6 +28,7 @@ import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -53,7 +54,7 @@ class RAGServiceTest {
 	@BeforeEach
 	void setUp() {
 		corpusIndex = new CorpusIndex();
-		service = new RAGService(embeddingProvider, vectorStore, llmProvider, corpusIndex);
+		service = new RAGService(embeddingProvider, vectorStore, llmProvider, new JacksonGroundedAnswerDecoder(), corpusIndex);
 	}
 
 	private static EvidenceFragment fragment(String protocol, String section) {
@@ -82,7 +83,7 @@ class RAGServiceTest {
 	private RAGService withThreshold(double threshold) {
 		com.vidacruz.clinical.domain.ports.LLMRouter router = (q, evidence) -> llmProvider.generate(q, evidence)
 				.map(answer -> new com.vidacruz.clinical.domain.models.LLMCompletion("single", "unknown", answer));
-		return new RAGService(embeddingProvider, vectorStore, router, corpusIndex, threshold);
+		return new RAGService(embeddingProvider, vectorStore, router, new JacksonGroundedAnswerDecoder(), corpusIndex, threshold);
 	}
 
 	@Test
@@ -228,11 +229,11 @@ class RAGServiceTest {
 
 	@Test
 	void constructorRejectsNullCollaboratorsAndInvalidThreshold() {
-		assertThatThrownBy(() -> new RAGService(null, vectorStore, llmProvider))
+		assertThatThrownBy(() -> new RAGService(null, vectorStore, llmProvider, new JacksonGroundedAnswerDecoder()))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new RAGService(embeddingProvider, null, llmProvider))
+		assertThatThrownBy(() -> new RAGService(embeddingProvider, null, llmProvider, new JacksonGroundedAnswerDecoder()))
 				.isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new RAGService(embeddingProvider, vectorStore, (com.vidacruz.clinical.domain.ports.LLMRouter) null))
+		assertThatThrownBy(() -> new RAGService(embeddingProvider, vectorStore, (com.vidacruz.clinical.domain.ports.LLMRouter) null, new JacksonGroundedAnswerDecoder()))
 				.isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> withThreshold(1.2d)).isInstanceOf(IllegalArgumentException.class);
 		assertThat(RAGService.DEFAULT_RELEVANCE_THRESHOLD).isEqualTo(0.65d);

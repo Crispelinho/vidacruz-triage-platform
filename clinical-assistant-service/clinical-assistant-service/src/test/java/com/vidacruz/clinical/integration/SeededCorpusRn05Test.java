@@ -31,6 +31,7 @@ import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.config.VectorStoreProperties;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -151,7 +152,7 @@ class SeededCorpusRn05Test {
 	}
 
 	private RAGService service(LLMRouter router) {
-		return new RAGService(embeddings, store, router, corpusIndex, THRESHOLD);
+		return new RAGService(embeddings, store, router, new JacksonGroundedAnswerDecoder(), corpusIndex, THRESHOLD);
 	}
 
 }
