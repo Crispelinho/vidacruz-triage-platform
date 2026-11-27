@@ -42,6 +42,13 @@ class CorrelationIdWebFilterTest {
 		assertThat(seen.contextValue).hasValue(generated);
 	}
 
+	@Test
+	void replacesAnOversizedOrUnsafeCallerId() {
+		assertThat(CorrelationId.fromHeader("a".repeat(129))).isNotEqualTo("a".repeat(129)).hasSize(36);
+		assertThat(CorrelationId.fromHeader("corr\r\nforged: 1")).hasSize(36);
+		assertThat(CorrelationId.fromHeader("trace-01.A_b")).isEqualTo("trace-01.A_b");
+	}
+
 	/** Captures what the next filter in the chain observes. */
 	private static final class Seen implements WebFilterChain {
 

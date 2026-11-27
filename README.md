@@ -140,7 +140,7 @@ More views (registration sequence, escalation race guard, state machine, event f
 | Conditional `UPDATE` for escalation | Escalate once (RN-03), even with several replicas evaluating at the same time | [ADR-13](docs/adr/ADR-13-sla-evaluation.md) |
 | RF-06 alerts as persisted rows streamed over SSE | An alert exists if and only if the escalation committed; no external receiver needed | [ADR-15](docs/adr/ADR-15-persisted-sse-alerts.md) |
 | pgvector as vector store | Same PostgreSQL engine; JDBC isolated off the event loop | [ADR-04](docs/adr/ADR-04-pgvector-jdbc-isolation.md) |
-| Citation validation against corpus and retrieved set | RN-05: no answer without a valid source; no LLM call when nothing relevant is retrieved | [ADR-05](docs/adr/ADR-05-assistant-llm-provider.md) |
+| Citation validation against corpus and retrieved set | RN-05: no answer without a valid source; no LLM call when nothing relevant is retrieved | [Clinical Assistant service doc](docs/services/clinical-assistant-service.md) (RN-05) |
 | Circuit breaker with 503 degraded mode | A failing LLM yields a clear 503 instead of timeouts | [ADR-09](docs/adr/ADR-09-circuit-breaker-degraded-mode.md) |
 | Redis urgency projection rebuilt from Kafka | RF-04 B without calling the triage API | [ADR-08](docs/adr/ADR-08-urgency-projection-store.md) |
 | API key authentication | Simple service-to-service auth; JWT rejected for this scope | [ADR-07](docs/adr/ADR-07-authentication-api-key.md) |

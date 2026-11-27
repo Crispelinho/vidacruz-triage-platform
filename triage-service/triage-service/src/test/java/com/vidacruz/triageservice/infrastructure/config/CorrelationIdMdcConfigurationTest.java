@@ -23,9 +23,9 @@ class CorrelationIdMdcConfigurationTest {
 		Hooks.enableAutomaticContextPropagation();
 	}
 
+	/** The hook stays on: it is global per JVM and production enables it once (context-propagation: auto). */
 	@AfterEach
-	void disablePropagation() {
-		Hooks.disableAutomaticContextPropagation();
+	void clearMdc() {
 		MDC.clear();
 	}
 

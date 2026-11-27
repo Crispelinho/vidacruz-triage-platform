@@ -20,7 +20,7 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 logging:
   # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
-  # Set LOG_FORMAT to an empty value for plain text on a developer console.
+  # LOG_FORMAT accepts the Spring Boot formats ecs, logstash or gelf.
   structured:
     format:
       console: ${LOG_FORMAT:ecs}
