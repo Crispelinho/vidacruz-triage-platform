@@ -157,4 +157,4 @@ Three production defects were found and fixed while running this overlay: `SlaEv
 
 ## Scope boundary
 
-No Azure deployment, public URL or webhook receiver is used here. The only Kubernetes manifests are the local-only `k8s/local` overlay, which never references Azure. ADR-11 remains blocked by unverified subscription/quota (R-06) and must be recorded as a blocker, not worked around. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.
+Azure deployment is covered by the AKS manifests and IaC delivered for deliverable 4; see ADR-12 and `docs/operations/despliegue-azure-y-pruebas.md` for the public URL and the provisioning evidence. The `k8s/local` overlay is local-only and never references Azure. There is no webhook receiver: RF-06 uses persisted alerts and SSE. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.

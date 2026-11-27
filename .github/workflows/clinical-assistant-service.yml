@@ -1,0 +1,52 @@
+# CI of clinical-assistant-service: build with every test (Testcontainers runs Kafka and Redis; the model APIs are
+# faked with fixtures, so no key is needed) and the image used by the deployment.
+name: clinical-assistant-service
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - clinical-assistant-service/**
+      - .github/workflows/clinical-assistant-service.yml
+  pull_request:
+    paths:
+      - clinical-assistant-service/**
+      - .github/workflows/clinical-assistant-service.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clinical-assistant-service-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            clinical-assistant-service/clinical-assistant-service/*.gradle*
+            clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build and test
+        working-directory: clinical-assistant-service/clinical-assistant-service
+        run: ./gradlew build --no-daemon
+
+      - name: Keep the test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinical-assistant-service-test-reports
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/tests/
+          retention-days: 7
+
+      - name: Build the image
+        run: docker build --file clinical-assistant-service/deployment/Dockerfile --tag clinical-assistant-service:${{ github.sha }} clinical-assistant-service/clinical-assistant-service

@@ -2,13 +2,16 @@ package com.vidacruz.triageservice.domain.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -42,6 +45,7 @@ public class SlaEvaluator {
 	private final OutboxEventWriter eventWriter;
 	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
+	private final Clock clock;
 	private final TriageMetrics metrics;
 
 	public SlaEvaluator(PatientRepository patientRepository,
@@ -50,11 +54,24 @@ public class SlaEvaluator {
 			MedicalAlertRepository alertRepository,
 			TransactionalOperator transactionalOperator,
 			TriageMetrics metrics) {
+		this(patientRepository, auditRepository, eventWriter, alertRepository, transactionalOperator,
+				Clock.systemUTC(), metrics);
+	}
+
+	@Autowired
+	public SlaEvaluator(PatientRepository patientRepository,
+			AuditEntryRepository auditRepository,
+			OutboxEventWriter eventWriter,
+			MedicalAlertRepository alertRepository,
+			TransactionalOperator transactionalOperator,
+			Clock clock,
+			TriageMetrics metrics) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
+		this.clock = clock;
 		this.metrics = metrics;
 	}
 
@@ -66,8 +83,11 @@ public class SlaEvaluator {
 	}
 
 	private Mono<Integer> escalateIfOverdue(PatientEntity patient) {
-		Instant now = Instant.now();
-		Instant expiresAt = patient.registeredAt().plusSeconds(patient.slaMinutes() * 60L);
+		// PostgreSQL TIMESTAMPTZ has microsecond precision. Comparing a nanosecond clock against the stored instant
+		// would escalate up to one microsecond before the real SLA boundary (AMB-04).
+		Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+		Instant registeredAt = patient.registeredAt().truncatedTo(ChronoUnit.MICROS);
+		Instant expiresAt = registeredAt.plusSeconds(patient.slaMinutes() * 60L);
 		if (!now.isAfter(expiresAt)) {
 			return Mono.just(0);
 		}

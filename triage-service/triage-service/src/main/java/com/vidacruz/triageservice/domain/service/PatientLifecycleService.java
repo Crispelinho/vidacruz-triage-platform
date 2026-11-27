@@ -1,5 +1,6 @@
 package com.vidacruz.triageservice.domain.service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -44,17 +45,20 @@ public class PatientLifecycleService {
 	private final OutboxEventWriter eventWriter;
 	private final MedicalAlertRepository alertRepository;
 	private final TransactionalOperator transactionalOperator;
+	private final Clock clock;
 
 	public PatientLifecycleService(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator) {
+			TransactionalOperator transactionalOperator,
+			Clock clock) {
 		this.patientRepository = patientRepository;
 		this.auditRepository = auditRepository;
 		this.eventWriter = eventWriter;
 		this.alertRepository = alertRepository;
 		this.transactionalOperator = transactionalOperator;
+		this.clock = clock;
 	}
 
 	public Mono<PatientDetailResponse> changeStatus(UUID patientId, String requestedStatus) {
@@ -66,7 +70,7 @@ public class PatientLifecycleService {
 	public Mono<PatientDetailResponse> getPatient(UUID patientId) {
 		return patientRepository.findById(patientId)
 				.switchIfEmpty(Mono.error(new PatientNotFoundException(patientId)))
-				.map(patient -> toResponse(patient, Instant.now()));
+				.map(patient -> toResponse(patient, clock.instant()));
 	}
 
 	private Mono<PatientDetailResponse> applyTransition(PatientEntity patient, String requestedStatus) {
@@ -77,7 +81,7 @@ public class PatientLifecycleService {
 					previousStatus + " no puede pasar a " + requestedStatus));
 		}
 
-		Instant changedAt = Instant.now();
+		Instant changedAt = clock.instant();
 		boolean consultation = IN_CONSULTATION.equals(requestedStatus);
 		String eventType = consultation ? CONSULTATION_EVENT : DISCHARGE_EVENT;
 		String auditType = consultation ? CONSULTATION_AUDIT : DISCHARGE_AUDIT;

@@ -38,6 +38,7 @@ import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
+import com.vidacruz.triageservice.infrastructure.config.ClockConfig;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -50,7 +51,7 @@ import reactor.core.publisher.Mono;
 
 @WebFluxTest(controllers = TriageController.class)
 @Import({ TriageRegistrationService.class, PatientLifecycleService.class, TriageClassifier.class,
-		SlaProperties.class, TriageControllerTest.TestSecurity.class })
+		SlaProperties.class, ClockConfig.class, TriageControllerTest.TestSecurity.class })
 class TriageControllerTest {
 
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();

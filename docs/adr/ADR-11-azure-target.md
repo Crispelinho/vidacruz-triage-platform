@@ -1,8 +1,9 @@
 # ADR-11: Azure target for deployment
 
-- **Status:** Proposed. Not accepted. Option A is the proposed route; it is blocked by R-06 until access and quota are verified. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17); Azure Free Tier is the environment constraint, not a verified deployment quota.
-- **Date:** 2026-11-25
-- **Deciders:** developer; environment constraint recorded 2026-11-26, ADR acceptance still pending R-06 evidence
+- **Status:** Proposed. Not accepted. Amended 2026-11-27: Option B (AKS) replaces Option A (Azure Container Apps) as the proposed route, and the subscription, region and SKU values below are recorded as empirically validated by the Developer/User. Formal acceptance still requires the R-06 artifact in the repository and the ADR-10 support-risk acceptance. The GPU requirement was removed from the ADR-05 workload by the Developer/User record of 2026-11-26 (C17).
+- **Date:** 2026-11-25 (amended 2026-11-27)
+- **Delivered artifacts:** [ADR-12](ADR-12-aks-deployment.md) records the AKS manifests and IaC delivered for deliverable 4.
+- **Deciders:** developer; AKS amendment and infrastructure parameters recorded 2026-11-27, ADR acceptance still pending the R-06 repository artifact
 - **Scope:** C-01 Azure manifests only. This ADR chooses the Azure compute target. Dockerfiles, docker-compose and CI do not wait for it, as recorded in `adr-roadmap.md` §3.3.
 - **Related:** NFR-13, NFR-14, AMB-11, R-06, G-20, CA-G-18, DEC-12, DEC-13, §14 of [analysis.md](../analysis.md), [ADR-05](ADR-05-assistant-llm-provider.md), T-22, T-23, T-24 in [implementation-roadmap.md](../implementation-roadmap.md)
 
@@ -10,7 +11,18 @@
 
 NFR-14 requires an Azure target. D0 §14 lists AKS and Azure Container Apps: Container Apps is simpler for the three-day evaluation window; AKS demonstrates Kubernetes directly. AMB-11 and R-06 record that manifests are delivered regardless, but the deployment URL depends on subscription access and quota.
 
-The target also has to support ADR-05. Option D of that ADR originally proposed serving chat and embedding models through Ollama inside the Azure perimeter, with a provisional GPU requirement. The Developer/User record of 2026-11-26 (C17) removes that requirement from the chat workload: Ollama runs on hardware the Developer/User already owns and is reached through a Cloudflare Tunnel, with Google AI Studio and OpenCode inference as the cloud failover nodes. Azure is therefore used for lightweight containers, Kafka and pgvector under the recorded Free Tier constraint, not for GPU model serving. ADR-05 still needs evidence that the chosen target can host that reduced workload; this ADR produces that evidence but is not blocked by it. If the evidence shows the workload is not viable, ADR-05 changes route. Regional availability and quota are not assumed for either option.
+The 2026-11-27 Developer/User amendment selects AKS over the earlier Container Apps proposal and records the following validated infrastructure:
+
+| Item | Recorded value |
+|---|---|
+| Subscription | Azure for Students, US$100/year, with budget alerts at 50 % and 80 % |
+| Region | `northcentralus` |
+| Cluster node | `Standard_B4as_v2` (4 vCPUs, 16 GB RAM) |
+| Database | PostgreSQL Flexible Server `Standard_B1ms` |
+
+These values were recorded by the Developer/User as empirically validated. No URL, quota document or deployment output for them is attached in the repository, so R-06 evidence remains a separate acceptance gate. The budget alerts are a control to configure, not a claim that they are already active in Azure.
+
+The target also has to support ADR-05. Option D of that ADR originally proposed serving chat and embedding models through Ollama inside the Azure perimeter, with a provisional GPU requirement. The Developer/User record of 2026-11-26 (C17) removes that requirement from the chat workload: Ollama runs on hardware the Developer/User already owns and is reached through a Cloudflare Tunnel, with Google AI Studio (`gemini-3.5-flash-lite`) and OpenCode inference (`glm-5.3`) as the cloud failover nodes. Azure is therefore used for lightweight containers, Kafka and pgvector, not for GPU model serving. ADR-05 still needs a repository artifact showing that the chosen target can host that reduced workload; the parameters recorded here do not replace that evidence and do not block this amendment. If that evidence shows the workload is not viable, ADR-05 changes route.
 
 Local delivery is independent: T-22 delivers Dockerfiles and docker-compose, and T-23 delivers Kubernetes manifests. Only the Azure deployment in T-24 depends on this decision. No secret may be committed; configuration goes through ConfigMap and Secret resources under NFR-13.
 
@@ -18,35 +30,40 @@ Local delivery is independent: T-22 delivers Dockerfiles and docker-compose, and
 
 - NFR-14: a reachable Azure deployment, or a documented blocker that names R-06.
 - NFR-13: valid Deployment, Service, probes, ConfigMap and Secret manifests.
-- Support for the ADR-05 workload, including GPU verification where required.
+- Support for the ADR-05 workload, now without a GPU requirement for chat.
 - No change to the local one-command run (NFR-12).
 - No secrets in the repository or the image (NFR-09, NFR-10).
-- A decision that can be recorded even when Azure access is unavailable.
+- A recorded infrastructure target with budget guardrails, without treating a recorded value as repository evidence.
 
 ## Alternatives considered
 
 | Option | Description | Pros | Cons | Status / why not chosen |
 |---|---|---|---|---|
-| **A. Azure Container Apps** | Deploy both services as managed containers in the target region | Simpler operations; fits the three-day window; manifest and probe work stays small | GPU capability, regional availability and quota are not assumed and must be verified; demonstrates Kubernetes less directly | **Proposed**, not rejected. Acceptance depends on R-06 access and quota evidence; ADR-05 workload viability is recorded as an output |
-| **B. AKS with a GPU node pool** | Deploy both services to a managed Kubernetes cluster with an explicit GPU node pool | Direct Kubernetes demonstration; explicit node pool for the ADR-05 workload | More cluster setup and operations; stronger dependency on quota and cost; longer path to a URL | Kept as the fallback if Container Apps cannot satisfy the verified GPU requirement |
+| **A. Azure Container Apps** | Deploy both services as managed containers in the target region | Simpler operations; fits the three-day window; manifest and probe work stays small | Superseded by the AKS amendment; demonstrates Kubernetes less directly | **Superseded/historical as of 2026-11-27.** It was the original Option A proposal, not accepted |
+| **B. AKS on Azure for Students** | Deploy both services to a managed Kubernetes cluster with the recorded `Standard_B4as_v2` node and PostgreSQL Flexible `Standard_B1ms` in `northcentralus` | Direct Kubernetes demonstration; direct support for the ADR-05 workload; recorded as empirically validated by the Developer/User | More cluster setup and operations than Container Apps; budget alerts must be configured; R-06 artifact not yet in the repository | **Proposed by the 2026-11-27 amendment.** It replaces Option A; formal acceptance still pending |
 | **C. Deliver manifests only and record the R-06 blocker** | Stop before deploying; document that access or quota is unavailable | Guarantees the manifest deliverable without depending on external access | Does not satisfy the deployment-URL part of NFR-14 | Rejected as a primary choice. Allowed only as the recorded outcome of T-24 when R-06 blocks deployment |
 
 ## Decision
 
-**Proposed: Option A, Azure Container Apps, for the three-day evaluation window.** Acceptance depends on access, region and quota evidence for this target, not on the ADR-05 model workload. This ADR records separately whether the target can host that workload, including any GPU requirement, within budget; ADR-05 uses that record to decide its own route. If the target cannot host the workload, ADR-05 changes route; a change from Option A to Option B here needs an explicit update of this ADR. Dockerfiles, docker-compose and CI remain independent of this decision. ConfigMap and Secret resources carry configuration under NFR-13; no secret is committed. If R-06 prevents deployment, T-24 records the blocker rather than working around it. This is a proposal, not an accepted decision.
+**Proposed, as amended 2026-11-27: Option B, AKS on Azure for Students in `northcentralus`, with a `Standard_B4as_v2` node and PostgreSQL Flexible Server `Standard_B1ms`.** This supersedes the earlier Option A (Container Apps) proposal. The subscription is Azure for Students with a US$100/year budget and alerts to be configured at 50 % and 80 %. The Developer/User records these values as empirically validated; this ADR does not claim a repository artifact for them and R-06 acceptance evidence is still required.
+
+AKS is chosen for the three-day evaluation window because it demonstrates Kubernetes directly and hosts the reduced ADR-05 workload without a GPU node pool: the chat node is the already-owned Ollama endpoint behind Cloudflare Tunnel. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost. Dockerfiles, docker-compose and CI remain independent of this decision. ConfigMap and Secret resources carry configuration under NFR-13; no secret is committed. If R-06 prevents deployment, T-24 records the blocker rather than working around it. This remains a proposal, not an accepted ADR.
 
 ## Consequences
 
-- Positive: a simple managed target keeps the delivery path short and leaves local delivery untouched.
-- Negative: ADR-05 remains blocked until the target is verified; Option A demonstrates Kubernetes less directly than AKS.
-- C-01 Azure manifests wait for this ADR; the rest of C-01 does not.
-- ADR-05 Option D is not viable until the region, quota and budget evidence recorded here exists; GPU capacity is no longer an input after the C17 record of 2026-11-26. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost.
+- Positive: AKS demonstrates Kubernetes directly, and the recorded node size and database tier are sized for the lightweight containers, Kafka and pgvector workload.
+- Negative: the cluster needs more setup than Container Apps, and the US$100/year budget needs active 50 %/80 % alerts to be effective.
+- ADR-05 no longer depends on GPU capacity in Azure after the C17 record; it still depends on the target evidence recorded here. OpenCode inference remains a prepaid cost, so the overall solution is not zero-cost.
+- C-01 Azure manifests wait for this ADR to be accepted; the rest of C-01 does not.
 - A blocked deployment still produces a manifest deliverable and a named R-06 record.
+- The Container Apps analysis is kept as Option A history and must not be cited as the current proposal.
 
 ## Risks and mitigations
 
-- **R-06 (access or quota):** deliver manifests first; if access is unavailable, T-24 records the blocker with its evidence.
-- **ADR-05 dependency:** record GPU support, region, quota and cost as evidence for ADR-05; do not infer support from documentation for another line. A negative result changes ADR-05, not this ADR automatically.
+- **R-06 (access or quota):** the Developer/User validation record is not a repository artifact. Deliver manifests first; if access is unavailable, T-24 records the blocker with its evidence.
+- **Budget overrun:** configure the 50 % and 80 % alerts on the Azure for Students subscription and verify them before the evaluation window; the US$100/year value is recorded, not monitored by this ADR.
+- **Regional/SKU availability:** `northcentralus`, `Standard_B4as_v2` and PostgreSQL Flexible `Standard_B1ms` are recorded as validated by the Developer/User; re-check availability before the Azure build rather than inferring it from another subscription.
+- **ADR-05 dependency:** record workload support, region and cost as evidence for ADR-05; do not infer support from documentation for another line. A negative result changes ADR-05, not this ADR automatically.
 - **CA-G-18 (version consistency):** verify the pinned Boot, Spring Cloud and Spring AI versions before the first Azure build under DEC-12.
 - **G-20 (deployment artifacts):** T-22 and T-23 produce the container image and manifests independently of R-06.
 - **NFR-09/NFR-10:** keep credentials in Secret resources and scan the image and repository for committed secrets.
@@ -54,8 +71,9 @@ Local delivery is independent: T-22 delivers Dockerfiles and docker-compose, and
 ## Verification
 
 - **T-24:** a deployment URL is available, or a blocker record explicitly names R-06 with the access, quota or region evidence.
-- **T-23:** Kubernetes manifests validate with a schema check.
+- **T-23:** Kubernetes manifests validate with a schema check and describe the `Standard_B4as_v2` node and `northcentralus` region.
 - **T-22:** `docker compose up` still starts both services locally with PostgreSQL, Kafka, Redis and the webhook mock.
+- **Budget alerts:** the 50 % and 80 % alerts are shown as configured on the Azure for Students subscription.
 - **NFR-14 evidence:** the deployed target is reachable through the documented endpoints.
-- **ADR-05 §4 evidence:** the chosen target is recorded as able or unable to host the model workload, including GPU where required, in the target region and within budget; the record is an input to ADR-05.
+- **ADR-05 evidence:** the chosen target is recorded as able or unable to host the model workload in the target region and within budget; the record is an input to ADR-05. Chat GPU capacity is not an input after the C17 record.
 - **Secret scan:** no credential appears in the repository or the image.

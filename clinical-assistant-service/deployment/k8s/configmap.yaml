@@ -1,0 +1,19 @@
+# Runtime and connection configuration of clinical-assistant-service. Secrets are created by
+# infra/azure/deploy.ps1 from the "azure" GitHub environment. __DB_HOST__ is the Azure PostgreSQL FQDN.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clinical-assistant-service-config
+data:
+  SERVER_PORT: "8082"
+  TRACING_SAMPLING_PROBABILITY: "1.0"
+  # Azure Database for PostgreSQL requires TLS. The password comes from clinical-assistant-service-secrets.
+  SPRING_DATASOURCE_URL: jdbc:postgresql://__DB_HOST__:5432/assistant?sslmode=require
+  SPRING_DATASOURCE_USERNAME: triage_admin
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  KAFKA_BOOTSTRAP_SERVERS: kafka-0.kafka:9092
+  PATIENT_EVENTS_TOPIC: triaje.eventos
+  URGENCY_CONSUMER_ENABLED: "true"
+  URGENCY_CONSUMER_GROUP: clinical-assistant-urgency-state
+  RAG_LLM_CHAIN: gemini,opencode

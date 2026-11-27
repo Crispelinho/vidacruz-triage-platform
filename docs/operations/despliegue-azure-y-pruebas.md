@@ -1,8 +1,10 @@
 # Despliegue en Kubernetes y registro de pruebas
 
-Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué se verificó el **26 de noviembre de 2026 (hora local)** y qué queda pendiente. El resultado inmediato es una URL HTTPS pública con los dos servicios y el Gateway operativos; el despliegue exitoso se logró con el commit `45a189a6` y **workarounds manuales** que ya están resueltos en el commit `f704877`, pero aún no desplegados.
+Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué se verificó el **26 de noviembre de 2026 (hora local)** y qué queda pendiente. El resultado inmediato es una URL HTTPS pública con los dos servicios y el Gateway operativos. La ejecución inicial necesitó **workarounds manuales**; los manifiestos y la IaC entregados en este repositorio ya incorporan las correcciones y conservan la topología validada.
 
-> **Alcance:** el despliegue y las pruebas se realizaron con los commits `45a189a6` y `f704877`, ambos presentes en este repositorio. Los IDs de run y las referencias a hallazgos corresponden a esa ejecución.
+> **Alcance:** el despliegue y las pruebas corresponden a la ejecución validada en AKS. Los IDs de run y las referencias a hallazgos registran esa ejecución; los SHA se sustituyen por etiquetas descriptivas porque pertenecen al historial de origen y no están presentes en este repositorio.
+>
+> **Adaptación de esta rama:** los manifiestos y la IaC entregados conservan la topología validada, pero usan el layout de módulos actual (`*/deployment/Dockerfile` apunta a `*/<servicio>/`), las sondas `/actuator/health/...` y las keys `GEMINI_API_KEY` / `OPENCODE_API_KEY`. El registro histórico siguiente describe la ejecución original, que usaba `/health/...` y una key de Anthropic.
 
 | Dato | Valor |
 |---|---|
@@ -10,8 +12,8 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 | Suscripción / región | Azure for Students / `northcentralus` |
 | Resource group | `vidacruz-rg` |
 | Cluster AKS | `vidacruz-aks` (1 nodo `Standard_B4as_v2`) |
-| Imagen desplegada | `45a189a6a9d6047fef50b3845c8d4c9ec495c080` |
-| Commit de corrección de hallazgos | `f704877c167dadb505753f545e491cec8c572862` (CI verde en `45936449205` y `45936449238`) |
+| Imagen desplegada | SHA de la ejecución original (registro histórico) |
+| Versión corregida | CI verde en los runs `45936449205` y `45936449238` (SHA histórico omitido) |
 | Run de deploy | `45927651547` → `failure` por timeout en Kafka |
 | Estado de los pods | Kafka `1/1`, Redis `1/1`, triaje `2/2`, asistente `1/1` (bajado a mano) |
 
@@ -19,10 +21,10 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 
 ## Ruta rápida
 
-1. `az login` → `git pull --ff-only origin main` → `az aks install-cli`.
+1. `az login` → `git pull --ff-only origin develop` → `az aks install-cli`.
 2. Revisar/rotar los secrets del environment `azure` (los tres que se pegaron en el chat están comprometidos).
 3. Re-corre `infra/azure/provision.ps1` con `-Location northcentralus -NodeVmSize Standard_B4as_v2`: ahora calcula el subject OIDC exacto, activa Entra ID sin cuentas locales, instala cert-manager con SHA-256 verificado y publica las rutas.
-4. Lanzar `deploy.yml` con el tag `f704877`: aplica solo los workloads del namespace `vidacruz`, con los requests bajos y **sin scale manual**.
+4. Lanzar `deploy.yml` con el SHA de este repositorio: aplica solo los workloads del namespace `vidacruz`, con los requests bajos y **sin scale manual**.
 5. Verificar: pods `2/2` en ambos servicios, Gateway `Programmed`, certificado `Ready`, `401 TRG-005` sin key y `200` en `/v3/api-docs`.
 6. Ejecutar la prueba E2E de RF-06 por SSE y cerrar los hallazgos de despliegue, OIDC y sizing.
 
@@ -32,8 +34,8 @@ Este documento deja constancia de **cómo se subió la plataforma a AKS**, qué 
 
 ### 1.1 Línea base
 
-- Auditoría read-only sobre `45a189a6`: RF-01…RF-05 y RN-01…RN-05 en PASS; RF-06 implementado pero sin verificación E2E.
-- CI en verde para ese SHA: `triage-service.yml` run `45916716225` y `clinical-assistant-service.yml` run `45916716209`.
+- Auditoría read-only sobre la versión desplegada inicialmente: RF-01…RF-05 y RN-01…RN-05 en PASS; RF-06 implementado pero sin verificación E2E.
+- CI en verde para esa versión: `triage-service.yml` run `45916716225` y `clinical-assistant-service.yml` run `45916716209`.
 - Hallazgos registrados: deploy/URL, seguridad, ArchUnit, RN-05 y subject OIDC.
 
 ### 1.2 Aprovisionamiento de Azure
@@ -47,7 +49,7 @@ $env:POSTGRES_PASSWORD = '<16+ caracteres>'
   -NodeVmSize Standard_B4as_v2
 ```
 
-- El primer intento con el default `Standard_B4ms` (`infra/azure/main.bicep:15` en `45a189a6`) falló: `The VM size of Standard_B4ms is not allowed in your subscription in location 'northcentralus'`.
+- El primer intento con el default `Standard_B4ms` (`infra/azure/main.bicep:15` en la versión original) falló: `The VM size of Standard_B4ms is not allowed in your subscription in location 'northcentralus'`.
 - Hubo un primer `az login` rechazado con `AADSTS50076 ... InteractionRequired` (MFA); se completó el challenge y el script terminó con éxito.
 - El script imprimió el host público y las variables/secrets que debía tener GitHub (`infra/azure/provision.ps1:44-51`):
 
@@ -63,14 +65,14 @@ AZURE_RESOURCE_GROUP  = vidacruz-rg
 ### 1.3 Configuración de GitHub
 
 - Variables en **Settings → Environments → azure → Variables**: las cuatro de arriba.
-- Secrets en el mismo environment: `TRIAGE_API_KEY`, `ASSISTANT_API_KEY`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` y `ANTHROPIC_API_KEY` (opcional; sin ella el asistente queda degradado, `application.yaml:34` y `ClaudeConfig.java:27-31`).
+- Secrets en el mismo environment: `TRIAGE_API_KEY`, `ASSISTANT_API_KEY`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` y `ANTHROPIC_API_KEY` (en la ejecución original; sin ella el asistente quedaba degradado). Los artefactos entregados usan `GEMINI_API_KEY` y `OPENCODE_API_KEY` en su lugar.
 - `.github/workflows/deploy.yml:21-39` es `workflow_dispatch`, usa OIDC (`id-token: write`) y pasa esos secrets como variables de entorno a `deploy.ps1`.
 
 ### 1.4 Subject OIDC
 
 - El primer run de `deploy.yml` (`45927651547`) falló en `azure/login` con `AADSTS700213: No matching federated identity record found for presented assertion subject`.
 - Se corrigió **a mano** en Azure con `az identity federated-credential update`, dejando el subject con el formato inmutable con IDs del dueño y del repositorio.
-- En `45a189a6` el Bicep todavía generaba el formato viejo (`main.bicep:251`, hallazgo de OIDC). `f704877` ya lo corrige: `githubSubject` calculado por `provision.ps1` desde la API de GitHub.
+- En la versión original el Bicep todavía generaba el formato viejo (`main.bicep:251`, hallazgo de OIDC). La versión corregida ya lo corrige: `githubSubject` calculado por `provision.ps1` desde la API de GitHub.
 
 ### 1.5 Ejecución del deploy y bloqueo de Kafka
 
@@ -99,7 +101,7 @@ httproute.gateway.networking.k8s.io/vidacruz-docs-triage created
 Waiting for 1 pods to be ready...
 ```
 
-- Los cuatro `Waiting...` eran reintentos del mismo `rollout status`, no un workload por línea. El orders de espera es kafka → redis → triaje → asistente (`infra/azure/deploy.ps1:139-141` en `45a189a6`).
+- Los cuatro `Waiting...` eran reintentos del mismo `rollout status`, no un workload por línea. El orders de espera es kafka → redis → triaje → asistente (`infra/azure/deploy.ps1:139-141` en la versión original).
 - `kubectl get pods -n vidacruz -o wide` mostró `kafka-0` en `Pending`; el resto estaba `Running`.
 - `kubectl describe pod -n vidacruz kafka-0`: `FailedScheduling: 0/1 nodes are available: 1 Insufficient cpu`. Kafka pedía `250m` y `1Gi` (`infra/k8s/kafka.yaml:93-98`).
 - `kubectl describe node aks-system-40351138-vmss000000`: `cpu 3727m (96%)`, `memory 8546Mi (72%)`.
@@ -126,13 +128,13 @@ Ambos devolvieron `condition met`.
 - `certificate/vidacruz-tls`: `Ready=True`, secret `vidacruz-tls`, emitido por Let's Encrypt.
 - En `vidacruz-edge` solo está `https-redirect`; las tres rutas de API/Swagger viven en `vidacruz` porque `infra/k8s/kustomization.yaml:7` fija ese namespace.
 - `kubectl -n vidacruz get httproute` → `vidacruz-api`, `vidacruz-docs-triage`, `vidacruz-docs-assistant`, todas con `Accepted=True` y `ResolvedRefs=True` para el hostname público.
-- En `45a189a6`, `/docs/triage/swagger-ui.html` daba 404: la regla `PathPrefix /docs/triage/swagger-ui` no cubre el sufijo `.html` y el redirect de springdoc perdía el prefijo. `f704877` agrega una regla `Exact` para ese path (`infra/k8s/routes/routes.yaml`).
+- En la versión original, `/docs/triage/swagger-ui.html` daba 404: la regla `PathPrefix /docs/triage/swagger-ui` no cubre el sufijo `.html` y el redirect de springdoc perdía el prefijo. La versión corregida agrega una regla `Exact` para ese path (`infra/k8s/routes/routes.yaml`).
 
-### 1.7 Procedimiento limpio con `f704877`
+### 1.7 Procedimiento limpio con los artefactos entregados
 
-`f704877` cierra los hallazgos del despliegue:
+Los artefactos entregados cierran los hallazgos del despliegue:
 
-| Cambio | Antes (`45a189a6`) | Después (`f704877`) |
+| Cambio | Antes (versión original) | Después (versión corregida) |
 |---|---|---|
 | Subject OIDC | formato viejo generado por Bicep | calculado por `provision.ps1` con los IDs del repo |
 | Acceso al cluster | `--admin`, Cluster Admin para el workflow | Entra ID + Azure RBAC, sin cuentas locales; workflow solo escribe en `vidacruz` |
@@ -144,7 +146,7 @@ Ambos devolvieron `condition met`.
 Secuencia recomendada:
 
 ```powershell
-git pull --ff-only origin main
+git pull --ff-only origin develop
 az aks install-cli          # kubectl + kubelogin
 az login
 az account set --subscription 99d92ffc-2661-426a-8229-c3c5f7b58da5
@@ -171,11 +173,11 @@ No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del a
 
 | Prueba | Resultado |
 |---|---|
-| Auditoría RF-01…RF-05, RN-01…RN-05 | PASS en `45a189a6`; RF-06 implementado sin E2E |
-| `triage-service.yml` @ `45a189a6` | `success`, run `45916716225` |
-| `clinical-assistant-service.yml` @ `45a189a6` | `success`, run `45916716209` |
+| Auditoría RF-01…RF-05, RN-01…RN-05 | PASS en la versión desplegada; RF-06 implementado sin E2E |
+| `triage-service.yml` @ versión desplegada | `success`, run `45916716225` |
+| `clinical-assistant-service.yml` @ versión desplegada | `success`, run `45916716209` |
 | Runs anteriores | `45913361321` y `45914065087`, ambos `success` |
-| CI @ `f704877` (fix de hallazgos) | `success`, runs `45936449205` y `45936449238` |
+| CI @ versión corregida (fix de hallazgos) | `success`, runs `45936449205` y `45936449238` |
 | Comprobación de proveedor LLM | Una key de Gemini en `ANTHROPIC_API_KEY` no funciona: el SDK es `com.anthropic:anthropic-java:3.8.0` (`claude-llm/build.gradle:8`), `base-url` fijo a `api.anthropic.com` (`application.yaml:35`) y un 401 se mapea a `ASSISTANT_UNAVAILABLE` (`ClaudeAnswerGenerator.java:60-61`) |
 
 ### 2.2 Infraestructura y despliegue
@@ -198,24 +200,24 @@ No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del a
 | `GET /triage/pacientes` sin key | `401`, `codigo: TRG-005`, `x-envoy-upstream-service-time: 4` | Llegó al servicio y se aplica `X-API-Key` |
 | `GET /docs/triage/v3/api-docs` | `200`, OpenAPI 3.1.0, 15720 bytes | Contrato publicado correctamente |
 | `GET /docs/triage/swagger-ui/index.html` | `200`, HTML de Swagger UI | UI accesible |
-| `GET /docs/triage/swagger-ui.html -L` | `404` de Envoy, sin header de upstream | `PathPrefix` no cubre `.html`; corregido en `f704877` |
-| `GET /health/readiness` (público) | `404` de `istio-envoy` | `/health` no se publica (`infra/k8s/routes.yaml:1-3` en `45a189a6`) |
+| `GET /docs/triage/swagger-ui.html -L` | `404` de Envoy, sin header de upstream | `PathPrefix` no cubre `.html`; corregido en la versión corregida |
+| `GET /health/readiness` (público) | `404` de `istio-envoy` | `/health` no se publica (`infra/k8s/routes/routes.yaml:1-3` en la versión original) |
 | `GET http://triage-service.vidacruz.svc.cluster.local/health/readiness` desde Postman | `getaddrinfo ENOTFOUND` | DNS de cluster solo resuelve dentro de AKS, además faltaba el puerto `8081` |
 
 La forma correcta de consultar la salud desde la PC es:
 
 ```powershell
 kubectl port-forward -n vidacruz svc/triage-service 8081:8081
-curl.exe -i http://127.0.0.1:8081/health/readiness
+curl.exe -i http://127.0.0.1:8081/actuator/health/readiness
 ```
 
-No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiKeySecurityConfig.java:35,55`).
+No requiere API key: `/actuator/health/**` y `/health/**` están en las rutas públicas del filtro de API key (`ApiKeyAuthenticationFilter.java`).
 
 ### 2.4 Observabilidad y costos
 
-- Se verificó que **no hay Grafana ni Jaeger en Azure**: la stack local está en `docker-compose.yml` y se documenta en `README.md`. En AKS no hay manifiestos de esa stack; las trazas no se exportan (`triage-service/deployment/k8s/configmap.yaml`) y el ADR lo deja como evolución (`docs/adr/0004-despliegue-en-azure.md`).
+- Se verificó que **no hay Grafana ni Jaeger en Azure**: la stack local está en `docker-compose.yml` y se documenta en `README.md`. En AKS no hay manifiestos de esa stack; las trazas no se exportan (`triage-service/deployment/k8s/configmap.yaml`) y el ADR lo deja como evolución (`docs/adr/ADR-12-aks-deployment.md`).
 - Métricas crudas disponibles dentro del cluster en `/prometheus` de cada servicio (`application.yaml:104`).
-- Revisión de costos: portal **Cost Management + Billing → Cost analysis**, filtro `Resource group = vidacruz-rg`; estimación del ADR: 140–150 USD/mes, con AKS y PostgreSQL detenibles cuando no se usan (`docs/adr/0004-despliegue-en-azure.md:62`).
+- Revisión de costos: portal **Cost Management + Billing → Cost analysis**, filtro `Resource group = vidacruz-rg`; estimación del ADR: 140–150 USD/mes, con AKS y PostgreSQL detenibles cuando no se usan (`docs/adr/ADR-12-aks-deployment.md:62`).
 
 ---
 
@@ -227,16 +229,16 @@ No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiK
 
 ### Para cerrar el despliegue reproducible
 
-- [ ] `git pull --ff-only origin main` para traer `f704877`.
+- [ ] Integrar en `develop` los manifiestos y la IaC entregados.
 - [ ] Re-corre `provision.ps1` con Entra ID/kubelogin: fija subject OIDC, RBAC, cert-manager verificado y rutas. Confirmar que el workflow ya no tiene Cluster Admin.
-- [ ] Re-lanzar `deploy.yml` con el tag `f704877` y verificar que **no hace falta** el `kubectl scale`: asistente `2/2` y triaje `2/2`.
+- [ ] Re-lanzar `deploy.yml` con el SHA de `develop` y verificar que **no hace falta** el `kubectl scale`: asistente `2/2` y triaje `2/2`.
 - [ ] Confirmar que `/docs/triage/swagger-ui.html` y `/docs/asistente/swagger-ui.html` responden con la nueva regla `Exact`.
 - [ ] Revisar `swagger-initializer.js` para que `configUrl` incluya `/docs/triage` (el HTML ya daba 200, pero faltaba confirmar que la UI carga el spec).
 - [ ] Cerrar los hallazgos de deploy, OIDC y sizing; revisar el de superficie pública y privilegios.
 
 ### Verificación funcional
 
-- [ ] `POST /asistente/consulta` con API key. Sin `ANTHROPIC_API_KEY`, esperado `503 AST-002` en modo degradado; con key válida de Anthropic, esperado `200`.
+- [ ] `POST /asistente/consulta` con API key. Sin proveedor LLM configurado, esperado `503 AST-002` en modo degradado; con `GEMINI_API_KEY` u `OPENCODE_API_KEY` válida, esperado `200`.
 - [ ] **RF-06 E2E por SSE**: registrar un paciente crítico, dejar vencer el SLA de RN-02, abrir `GET /triage/alertas/stream`, Confirmar el evento `alerta` con su `actualizadaEn`, reconocerlo con `POST /triage/alertas/{id}/reconocimiento` y verificar la transición a `RECONOCIDA`.
 - [ ] Verificar que el payload de la alerta **no incluya** nombre ni queja principal del paciente (regla registrada en el handoff de RF-06).
 - [ ] Swagger del asistente y del triaje con el botón **Authorize** usando la API key rotada.
@@ -253,4 +255,4 @@ No requiere API key: `/health/**` está en `PUBLIC_PATHS` con `permitAll` (`ApiK
 
 ## Next step
 
-El siguiente paso concreto es la rotación de secrets y el re-despliegue con `f704877`. Después de eso, la única prueba funcional que aún falta de verdad es **RF-06 por SSE**; es la que cierra el entregable y permite dar por terminado el hallazgo de despliegue.
+El siguiente paso concreto es la rotación de secrets y el re-despliegue con los artefactos entregados. Después de eso, la única prueba funcional que aún falta de verdad es **RF-06 por SSE**; es la que cierra el entregable y permite dar por terminado el hallazgo de despliegue.

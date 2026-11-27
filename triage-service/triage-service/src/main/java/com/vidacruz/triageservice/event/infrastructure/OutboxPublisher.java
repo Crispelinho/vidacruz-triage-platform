@@ -43,10 +43,10 @@ public class OutboxPublisher {
 
 	public OutboxPublisher(OutboxEventoRepository repository,
 			KafkaTemplate<String, String> kafkaTemplate,
-			@Value("${app.outbox.topic}") String topic,
-			@Value("${app.outbox.batch-size}") int batchSize,
-			@Value("${app.outbox.lease-seconds}") long leaseSeconds,
-			@Value("${app.outbox.publish-interval-ms}") long publishIntervalMs) {
+			@Value("${app.outbox.topic:${TRIAGE_EVENTS_TOPIC:triaje.eventos}}") String topic,
+			@Value("${app.outbox.batch-size:50}") int batchSize,
+			@Value("${app.outbox.lease-seconds:30}") long leaseSeconds,
+			@Value("${app.outbox.publish-interval-ms:5000}") long publishIntervalMs) {
 		this.repository = repository;
 		this.kafkaTemplate = kafkaTemplate;
 		this.topic = topic;
@@ -119,6 +119,7 @@ public class OutboxPublisher {
 						event.getEventId(),
 						error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(),
 						false)
+						.doOnSuccess(ignored -> log.error("Failed to publish outbox event {}", event.getEventId(), error))
 						.thenReturn(0));
 	}
 }
