@@ -1,0 +1,46 @@
+# Deployment to Azure, started by hand (Actions > deploy > Run workflow). Signs in to Azure with OIDC: the
+# identity created by infra/azure/main.bicep trusts only the jobs of this repository in the environment "azure",
+# so no Azure password is stored in GitHub. In the cluster it can only write the namespace vidacruz; everything else
+# is prepared by infra/azure/provision.ps1, which also lists the variables and secrets this job needs.
+name: deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: azure
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The cluster only accepts Microsoft Entra ID tokens: kubelogin turns the Azure session of the job into one
+      - uses: azure/use-kubelogin@v1.3
+        with:
+          kubelogin-version: v0.2.22
+
+      - name: Build, push and deploy
+        shell: pwsh
+        env:
+          TRIAGE_API_KEY: ${{ secrets.TRIAGE_API_KEY }}
+          ASSISTANT_API_KEY: ${{ secrets.ASSISTANT_API_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: ./infra/azure/deploy.ps1 -ResourceGroup '${{ vars.AZURE_RESOURCE_GROUP }}' -ImageTag '${{ github.sha }}'
