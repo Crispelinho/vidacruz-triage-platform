@@ -21,6 +21,7 @@ extra["springCloudVersion"] = "2025.0.3"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.springframework.kafka:spring-kafka")

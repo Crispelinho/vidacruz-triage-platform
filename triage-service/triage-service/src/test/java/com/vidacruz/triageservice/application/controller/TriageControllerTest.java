@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.RequestFingerprint;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
@@ -71,6 +72,9 @@ class TriageControllerTest {
 
 	@MockitoBean
 	private TransactionalOperator transactionalOperator;
+
+	@MockitoBean
+	private TriageMetrics metrics;
 
 	@Autowired
 	private WebTestClient client;

@@ -29,6 +29,7 @@ import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
@@ -57,13 +58,16 @@ class SlaEvaluatorTest {
 	@Mock
 	private TransactionalOperator transactionalOperator;
 
+	@Mock
+	private TriageMetrics metrics;
+
 	private SlaEvaluator evaluator;
 
 	@BeforeEach
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator);
+				transactionalOperator, metrics);
 		lenient().when(alertRepository.create(any(MedicalAlert.class))).thenReturn(Mono.empty());
 		lenient().when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
@@ -96,6 +100,7 @@ class SlaEvaluatorTest {
 				&& alert.status() == AlertStatus.PENDIENTE
 				&& alert.responsible() == null
 				&& alert.waitMinutes().compareTo(BigDecimal.valueOf(6.00)) >= 0));
+		verify(metrics).patientEscalated(TriageLevel.CRITICO);
 	}
 
 	@Test

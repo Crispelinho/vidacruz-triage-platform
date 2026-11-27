@@ -19,11 +19,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    # Fixed buckets let the dashboards compute a p95 per route (NFR-07).
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 app:
   sla:
     # Overridable for the local demo so RF-03 escalation can be observed in minutes.

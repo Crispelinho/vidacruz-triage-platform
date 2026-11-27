@@ -10,6 +10,7 @@ import com.vidacruz.triageservice.domain.exception.AlertNotFoundException;
 import com.vidacruz.triageservice.domain.exception.InvalidAlertRequestException;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.TriageMetrics;
 
 import reactor.core.publisher.Mono;
 
@@ -21,9 +22,11 @@ public class AcknowledgeAlertUseCase {
 	private static final int MAX_LENGTH = 100;
 
 	private final MedicalAlertRepository alertRepository;
+	private final TriageMetrics metrics;
 
-	public AcknowledgeAlertUseCase(MedicalAlertRepository alertRepository) {
+	public AcknowledgeAlertUseCase(MedicalAlertRepository alertRepository, TriageMetrics metrics) {
 		this.alertRepository = alertRepository;
+		this.metrics = metrics;
 	}
 
 	public Mono<MedicalAlert> acknowledge(UUID id, String responsible, Instant at) {
@@ -31,7 +34,8 @@ public class AcknowledgeAlertUseCase {
 		return alertRepository.acknowledge(id, name, at)
 				.flatMap(updated -> updated
 						? alertRepository.findById(id)
-						: explainFailure(id));
+						: explainFailure(id))
+				.doOnNext(alert -> metrics.alertAcknowledged(alert.level()));
 	}
 
 	private Mono<MedicalAlert> explainFailure(UUID id) {
