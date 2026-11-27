@@ -1,12 +1,14 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,8 +22,10 @@ import reactor.kafka.sender.SenderRecord;
 
 /** Publishes claimed outbox rows to triaje.eventos with lease protection and failure recording. */
 @Component
-@ConditionalOnProperty(prefix = "app.outbox", name = "publisher-enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "triage.outbox", name = "publisher-enabled", havingValue = "true")
 public class OutboxPublisher {
+
+	private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
 
 	private final OutboxEventoRepository repository;
 	private final KafkaSender<String, String> sender;
@@ -29,12 +33,13 @@ public class OutboxPublisher {
 	private final int batchSize;
 	private final long leaseSeconds;
 	private final String owner = UUID.randomUUID().toString();
+	private final AtomicBoolean running = new AtomicBoolean(false);
 
 	public OutboxPublisher(OutboxEventoRepository repository,
 			KafkaSender<String, String> sender,
-			@Value("${app.outbox.topic}") String topic,
-			@Value("${app.outbox.batch-size}") int batchSize,
-			@Value("${app.outbox.lease-seconds}") long leaseSeconds) {
+			@Value("${triage.outbox.topic:triaje.eventos}") String topic,
+			@Value("${triage.outbox.batch-size:50}") int batchSize,
+			@Value("${triage.outbox.lease-seconds:30}") long leaseSeconds) {
 		this.repository = repository;
 		this.sender = sender;
 		this.topic = topic;
@@ -42,9 +47,20 @@ public class OutboxPublisher {
 		this.leaseSeconds = leaseSeconds;
 	}
 
-	@Scheduled(fixedDelayString = "${app.outbox.publish-interval-ms}")
+	/**
+	 * fixedDelay already prevents overlap within one instance; the guard also covers a slow run that is
+	 * still subscribed, and the row lease covers multiple instances.
+	 */
+	@Scheduled(fixedDelayString = "${triage.outbox.publish-interval:5000}")
 	public void publishBatch() {
-		publish().block(Duration.ofSeconds(leaseSeconds));
+		if (!running.compareAndSet(false, true)) {
+			log.debug("Outbox publish skipped: previous run still in progress");
+			return;
+		}
+		publish()
+				.doFinally(signal -> running.set(false))
+				.subscribe(count -> log.info("Published {} events from outbox", count),
+						error -> log.error("Outbox publish run failed", error));
 	}
 
 	/** Returns the number of rows published by this run. */
@@ -73,6 +89,7 @@ public class OutboxPublisher {
 						event.getEventId(),
 						error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(),
 						false)
+						.doOnSuccess(ignored -> log.error("Failed to publish outbox event {}", event.getEventId(), error))
 						.thenReturn(0));
 	}
 }
