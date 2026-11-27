@@ -69,7 +69,8 @@ import reactor.core.publisher.Mono;
  */
 @Import({TriageTestContainers.class, OperationalReportsIntegrationTest.ClockConfig.class})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-		"triage.sla.evaluation-enabled=false", "triage.sla.evaluation-interval=PT24H" })
+		"triage.sla.evaluation-enabled=false", "triage.sla.evaluation-interval=PT24H",
+		"spring.main.allow-bean-definition-overriding=true" })
 @AutoConfigureWebTestClient
 @DisplayName("RF-05: operational SQL reports")
 class OperationalReportsIntegrationTest {
@@ -130,9 +131,9 @@ class OperationalReportsIntegrationTest {
 	@TestConfiguration
 	static class ClockConfig {
 
-		@Bean("clock")
+		@Bean
 		@Primary
-		Clock clock() {
+		MutableClock clock() {
 			return new MutableClock(HOUR_10);
 		}
 	}

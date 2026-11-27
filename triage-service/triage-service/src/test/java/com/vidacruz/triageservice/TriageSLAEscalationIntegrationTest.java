@@ -90,7 +90,8 @@ import reactor.core.publisher.Mono;
  */
 @Import({TriageTestContainers.class, TriageSLAEscalationIntegrationTest.ClockConfig.class})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-		properties = TriageSLAEscalationIntegrationTest.BACKGROUND_INTERVAL_PROPERTY)
+		properties = { TriageSLAEscalationIntegrationTest.BACKGROUND_INTERVAL_PROPERTY,
+				"spring.main.allow-bean-definition-overriding=true" })
 @AutoConfigureWebTestClient
 @DisplayName("RF-03: SLA evaluation and escalation (RN-03 idempotence and concurrency)")
 class TriageSLAEscalationIntegrationTest {
@@ -154,9 +155,9 @@ class TriageSLAEscalationIntegrationTest {
 	@TestConfiguration
 	static class ClockConfig {
 
-		@Bean("clock")
+		@Bean
 		@Primary
-		Clock clock() {
+		MutableClock clock() {
 			return new MutableClock(Instant.now());
 		}
 	}
