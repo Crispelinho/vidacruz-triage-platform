@@ -37,6 +37,9 @@ app:
     topic: ${TRIAGE_EVENTS_TOPIC:triaje.eventos}
   report:
     max-range: ${REPORT_MAX_RANGE:P90D}
+alerts:
+  stream:
+    heartbeat: ${ALERTS_HEARTBEAT_INTERVAL:15s}
 triage:
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}

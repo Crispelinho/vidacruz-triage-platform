@@ -40,6 +40,13 @@ public class PostgresMedicalAlertRepository implements MedicalAlertRepository {
 			 WHERE id = :id
 			""".formatted(MedicalAlertRowMapper.COLUMNS);
 
+	static final String SELECT_CHANGED_SINCE = """
+			SELECT %s
+			  FROM medical_alert
+			 WHERE actualizada_en >= :since
+			 ORDER BY actualizada_en, id
+			""".formatted(MedicalAlertRowMapper.COLUMNS);
+
 	static final String ACKNOWLEDGE = """
 			UPDATE medical_alert
 			   SET estado = 'RECONOCIDA', responsable = :responsible,
@@ -54,9 +61,11 @@ public class PostgresMedicalAlertRepository implements MedicalAlertRepository {
 			""";
 
 	private final DatabaseClient client;
+	private final AlertChangeListener listener;
 
-	public PostgresMedicalAlertRepository(DatabaseClient client) {
+	public PostgresMedicalAlertRepository(DatabaseClient client, AlertChangeListener listener) {
 		this.client = client;
+		this.listener = listener;
 	}
 
 	@Override
@@ -109,5 +118,18 @@ public class PostgresMedicalAlertRepository implements MedicalAlertRepository {
 				.fetch()
 				.rowsUpdated()
 				.map(updated -> updated > 0);
+	}
+
+	@Override
+	public Flux<MedicalAlert> changes() {
+		return listener.changes();
+	}
+
+	@Override
+	public Flux<MedicalAlert> changedSince(Instant since) {
+		return client.sql(SELECT_CHANGED_SINCE)
+				.bind("since", since)
+				.map(MedicalAlertRowMapper::map)
+				.all();
 	}
 }

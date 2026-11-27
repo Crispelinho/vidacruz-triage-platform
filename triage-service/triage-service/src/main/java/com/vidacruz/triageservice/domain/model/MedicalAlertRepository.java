@@ -25,4 +25,10 @@ public interface MedicalAlertRepository {
 
 	/** Resolves the active alert of a patient when they enter consultation or are discharged. */
 	Mono<Boolean> resolveForPatient(UUID patientId, Instant at);
+
+	/** Live changes of alerts, including acknowledged and resolved ones (RF-06 SSE). */
+	Flux<MedicalAlert> changes();
+
+	/** Alerts changed at or after {@code since}, used to catch up after a LISTEN connection is lost. */
+	Flux<MedicalAlert> changedSince(Instant since);
 }

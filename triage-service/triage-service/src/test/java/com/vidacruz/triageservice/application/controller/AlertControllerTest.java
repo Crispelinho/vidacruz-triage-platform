@@ -1,19 +1,24 @@
 package com.vidacruz.triageservice.application.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,12 +30,16 @@ import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.service.AcknowledgeAlertUseCase;
 import com.vidacruz.triageservice.domain.service.ListActiveAlertsUseCase;
+import com.vidacruz.triageservice.domain.service.WatchAlertsUseCase;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 @WebFluxTest(controllers = AlertController.class)
-@Import({ ListActiveAlertsUseCase.class, AcknowledgeAlertUseCase.class, AlertControllerTest.TestSecurity.class })
+@TestPropertySource(properties = "alerts.stream.heartbeat=100ms")
+@Import({ ListActiveAlertsUseCase.class, AcknowledgeAlertUseCase.class, WatchAlertsUseCase.class,
+		AlertControllerTest.TestSecurity.class })
 class AlertControllerTest {
 
 	private static final Instant NOW = Instant.parse("2026-11-26T10:00:00Z");
@@ -40,6 +49,32 @@ class AlertControllerTest {
 
 	@Autowired
 	private WebTestClient client;
+
+	@Autowired
+	private AlertController controller;
+
+	@Test
+	void streamsTheActiveSnapshotAndHeartbeats() {
+		when(repository.changes()).thenReturn(Flux.never());
+		when(repository.findActive()).thenReturn(Flux.just(alert(UUID.randomUUID(), AlertStatus.PENDIENTE)));
+
+		StepVerifier.withVirtualTime(controller::stream)
+				.expectSubscription()
+				.expectNextMatches(event -> "alerta".equals(event.event())
+						&& "CRITICO".equals(event.data().level()))
+				.thenAwait(Duration.ofMillis(100))
+				.expectNextMatches(event -> "latido".equals(event.comment()))
+				.thenCancel()
+				.verify();
+	}
+
+	@Test
+	void rejectsANonPositiveHeartbeat() {
+		assertThatThrownBy(() -> new AlertStreamProperties(Duration.ZERO))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("positive duration");
+		assertThat(new AlertStreamProperties(Duration.ofSeconds(15)).heartbeat()).isEqualTo(Duration.ofSeconds(15));
+	}
 
 	@Test
 	void listsActiveAlertsWithTheSpanishContractAndNoPersonalData() {
@@ -116,6 +151,7 @@ class AlertControllerTest {
 	}
 
 	@TestConfiguration
+	@EnableConfigurationProperties(AlertStreamProperties.class)
 	static class TestSecurity {
 
 		@Bean
