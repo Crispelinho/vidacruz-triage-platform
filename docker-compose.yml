@@ -69,6 +69,12 @@ services:
       timeout: 5s
       retries: 12
 
+  # NFR-16: local trace collector and UI. Both services export OTLP/HTTP here; no cloud backend.
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    ports:
+      - "${JAEGER_PORT:-16686}:16686"
+
   # NFR-07: local metrics UI. The scraper sends the demo API keys because both actuators are protected (ADR-07).
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -96,6 +102,7 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
+      - jaeger
 
   triage-service:
     build:
@@ -123,6 +130,8 @@ services:
       SLA_NO_URGENTE_MINUTES: ${SLA_NO_URGENTE_MINUTES:-5}
       SLA_NO_URGENTE_2_MINUTES: ${SLA_NO_URGENTE_2_MINUTES:-5}
       ALERTS_HEARTBEAT_INTERVAL: 15s
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1}
 
   clinical-assistant-service:
     build:
@@ -151,6 +160,8 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1}
 
   # Optional: real LLM/embeddings for RF-04. The model must be pulled explicitly;
   # without it the RAG endpoint demonstrates the 503 degraded-mode notice.

@@ -9,9 +9,10 @@ docker compose up -d --build
 docker compose ps
 curl -fsS http://localhost:8081/actuator/health
 curl -fsS http://localhost:8082/actuator/health
+curl -fsS -o /dev/null http://localhost:16686/
 ```
 
-Both health responses must be `{"status":"UP"}`. All business calls need `X-API-Key`: `test-triage-key` on port 8081, `test-assistant-key` on port 8082 (`docs/adr/ADR-07-authentication-api-key.md`).
+Both health responses must be `{"status":"UP"}` and the Jaeger UI must return `200`. All business calls need `X-API-Key`: `test-triage-key` on port 8081, `test-assistant-key` on port 8082 (`docs/adr/ADR-07-authentication-api-key.md`).
 
 Postman: import `postman/vidacruz-local.postman_environment.json` first, then `postman/vidacruz-local-demo.postman_collection.json`. The E1 request stores `patientId` and the alert list stores `alertId` as collection variables.
 
@@ -121,6 +122,22 @@ curl -sS http://localhost:8082/actuator/prometheus -H 'X-API-Key: test-assistant
 Expected series after the flows above: `triage_patients_classified_total{level=...}`, `triage_patients_escalated_total{level=...}`, `triage_alerts_acknowledged_total{level=...}`, `assistant_answers_total{outcome=...}`, `assistant_llm_latency_seconds_bucket{outcome=...}` and `assistant_urgency_events_total{result=...}`. Counters are pre-registered at zero, so a level or outcome with no events reads `0` instead of disappearing.
 
 Open `http://localhost:9090` to query Prometheus and `http://localhost:3000` for the provisioned **VidaCruz — NFR-07 flow and latency** dashboard (anonymous viewer). If `TRIAGE_API_KEY` or `ASSISTANT_API_KEY` was overridden in `.env`, update the matching `secrets` in `observability/prometheus/prometheus.yml` so the scrapes keep returning `200` instead of `401`.
+
+## 8. NFR-16 — one trace across both services
+
+Compose starts Jaeger 2.x and points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.
+
+```bash
+TRACE_ID=4bf92f3577b34da6a3ce929d0e0e4736
+SPAN_ID=00f067aa0ba902b7
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8081/triage/pacientes \
+  -H 'X-API-Key: test-triage-key' -H 'Content-Type: application/json' \
+  -H "traceparent: 00-$TRACE_ID-$SPAN_ID-01" \
+  -d '{"nombre_completo":"Paciente E1","edad":65,"frecuencia_cardiaca":130,"presion_sistolica":180,"presion_diastolica":110,"spo2":97,"temperatura":36.8,"dolor":8,"gcs":15,"queja_principal":"Dolor torácico"}'
+curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-assistant-key'
+```
+
+Open `http://localhost:16686/trace/$TRACE_ID`. The trace must contain spans from `triage-service` and `clinical-assistant-service`; the Grafana **Jaeger** datasource (uid `jaeger`) can query the same id from Explore. Trace context is carried only in the `traceparent` Kafka header, never in the event payload. No patient name, complaint, prompt or answer text is attached to spans. Log lines carry `traceId`/`spanId` through Spring Boot's default correlation pattern.
 
 ## Scope boundary
 
