@@ -47,6 +47,7 @@ class OutboxPublisherTest {
 		when(repository.findUnpublishedWithoutLease(10)).thenReturn(Flux.just(event));
 		when(repository.claimLeaseIfAvailable(any(UUID.class), any(OffsetDateTime.class), anyString()))
 				.thenReturn(Mono.just(1));
+		when(repository.countClaimedBy(any(UUID.class), anyString())).thenReturn(Mono.just(1L));
 		when(kafkaTemplate.send(any(ProducerRecord.class)))
 				.thenReturn(CompletableFuture.completedFuture(null));
 		when(repository.markPublished(any(UUID.class), any(OffsetDateTime.class))).thenReturn(Mono.empty());
@@ -80,6 +81,7 @@ class OutboxPublisherTest {
 		when(repository.findUnpublishedWithoutLease(10)).thenReturn(Flux.just(event));
 		when(repository.claimLeaseIfAvailable(any(UUID.class), any(OffsetDateTime.class), anyString()))
 				.thenReturn(Mono.just(1));
+		when(repository.countClaimedBy(any(UUID.class), anyString())).thenReturn(Mono.just(1L));
 		when(kafkaTemplate.send(any(ProducerRecord.class)))
 				.thenReturn(CompletableFuture.completedFuture(null));
 		when(repository.markPublished(any(UUID.class), any(OffsetDateTime.class))).thenReturn(Mono.empty());
@@ -104,6 +106,7 @@ class OutboxPublisherTest {
 		when(repository.findUnpublishedWithoutLease(10)).thenReturn(Flux.just(event));
 		when(repository.claimLeaseIfAvailable(any(UUID.class), any(OffsetDateTime.class), anyString()))
 				.thenReturn(Mono.just(0));
+		when(repository.countClaimedBy(any(UUID.class), anyString())).thenReturn(Mono.just(0L));
 
 		OutboxPublisher publisher = new OutboxPublisher(repository, kafkaTemplate, "triaje.eventos", 10, 30, 60000);
 

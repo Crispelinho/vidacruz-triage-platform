@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
@@ -29,6 +31,8 @@ import reactor.core.publisher.Mono;
  */
 @Service
 public class SlaEvaluator {
+
+	private static final Logger log = LoggerFactory.getLogger(SlaEvaluator.class);
 
 	public static final String ESCALATED_EVENT = "paciente_escalado";
 	public static final String ESCALATION_AUDIT = "ESCALAMIENTO";
@@ -72,15 +76,20 @@ public class SlaEvaluator {
 
 	private Mono<Integer> escalate(PatientEntity patient, Instant changedAt) {
 		TriageLevel level = TriageLevel.valueOf(patient.level());
+		Map<String, Object> payload = Map.of(
+				"nivel", patient.level(),
+				"slaMinutos", patient.slaMinutes(),
+				"fechaEscalamiento", changedAt.toString());
+
+		// In this stack a successful R2DBC @Query UPDATE completes empty; an explicit zero still means "no row won".
+		// Treating empty as one match keeps the audit, outbox and alert atomic with the state change.
 		Mono<Integer> atomicWrite = patientRepository.escalate(patient.id(), changedAt)
+				.map(updated -> updated == null || updated > 0 ? 1 : 0)
+				.defaultIfEmpty(1)
 				.flatMap(updated -> {
-					if (updated != 1) {
+					if (updated == 0) {
 						return Mono.just(0);
 					}
-					Map<String, Object> payload = Map.of(
-							"nivel", patient.level(),
-							"slaMinutos", patient.slaMinutes(),
-							"fechaEscalamiento", changedAt.toString());
 					return auditRepository.save(new AuditEntryEntity(
 							UUID.randomUUID(), patient.id(), changedAt,
 							PatientLifecycleService.REGISTERED,
@@ -90,9 +99,12 @@ public class SlaEvaluator {
 							.then(alertRepository.create(alert(patient, changedAt)))
 							.thenReturn(1);
 				});
+
 		return transactionalOperator.transactional(atomicWrite)
+				.defaultIfEmpty(0)
 				.doOnNext(count -> {
 					if (count == 1) {
+						log.debug("Escalated patient {} after its SLA expired", patient.id());
 						metrics.patientEscalated(level);
 					}
 				});

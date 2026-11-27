@@ -57,6 +57,8 @@ public class OutboxPublisher {
 
 	private Disposable startTimer() {
 		return Flux.interval(Duration.ofMillis(this.publishIntervalMs))
+				// interval has no backpressure support; dropping ticks while a cycle is in flight keeps the timer alive.
+				.onBackpressureDrop()
 				.concatMap(ignored -> publish()
 						.onErrorResume(error -> {
 							log.warn("Outbox publication cycle failed", error);
@@ -101,8 +103,9 @@ public class OutboxPublisher {
 		OffsetDateTime leaseUntil = OffsetDateTime.ofInstant(
 				Instant.now().plusSeconds(leaseSeconds), ZoneOffset.UTC);
 		return repository.claimLeaseIfAvailable(event.getEventId(), leaseUntil, owner)
+				.then(repository.countClaimedBy(event.getEventId(), owner).defaultIfEmpty(0L))
 				.flatMap(claimed -> {
-					if (claimed != 1) {
+					if (claimed != 1L) {
 						return Mono.just(0);
 					}
 					return Mono.defer(() -> Mono.fromFuture(

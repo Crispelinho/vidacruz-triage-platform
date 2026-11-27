@@ -21,11 +21,13 @@ import java.util.UUID;
 final class TriageEventParser {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    // The published envelope uses these wire names (see docs/requirements.md and the event-driven spec).
+    // The EVT-0x labels are documentation identifiers, not values carried by triaje.eventos.
     private static final Set<String> PATIENT_EVENTS = Set.of(
-            "EVT_01_PACIENTE_REGISTRADO",
-            "EVT_02_PACIENTE_ESCALADO",
-            "EVT_03_PACIENTE_EN_CONSULTA",
-            "EVT_04_PACIENTE_ALTA");
+            "paciente_registrado",
+            "paciente_escalado",
+            "paciente_en_consulta",
+            "paciente_alta");
 
     private TriageEventParser() {
     }
@@ -34,13 +36,14 @@ final class TriageEventParser {
     static Optional<PatientSnapshot> parse(String message, String recordKey) {
         try {
             var event = JSON.readTree(message == null ? "" : message);
-            if (event == null || !PATIENT_EVENTS.contains(event.path("eventType").asText())) {
+            var eventType = wireType(event == null ? "" : event.path("eventType").asText());
+            if (!PATIENT_EVENTS.contains(eventType)) {
                 return Optional.empty();
             }
             var patientId = text(event, "pacienteId", false)
                     .map(UUID::fromString)
                     .orElseGet(() -> UUID.fromString(requireKey(recordKey)));
-            var status = status(event.path("eventType").asText());
+            var status = status(eventType);
             var level = text(event, "nivel", status == PatientStatus.REGISTRADO)
                     .map(TriageLevel::fromCode);
             return Optional.of(new PatientSnapshot(
@@ -54,11 +57,22 @@ final class TriageEventParser {
         }
     }
 
+    /** Accepts the legacy EVT-0x codes so older topics and existing tests keep working. */
+    private static String wireType(String eventType) {
+        return switch (eventType) {
+            case "EVT_01_PACIENTE_REGISTRADO" -> "paciente_registrado";
+            case "EVT_02_PACIENTE_ESCALADO" -> "paciente_escalado";
+            case "EVT_03_PACIENTE_EN_CONSULTA" -> "paciente_en_consulta";
+            case "EVT_04_PACIENTE_ALTA" -> "paciente_alta";
+            default -> eventType;
+        };
+    }
+
     private static PatientStatus status(String eventType) {
         return switch (eventType) {
-            case "EVT_01_PACIENTE_REGISTRADO", "EVT_02_PACIENTE_ESCALADO" -> PatientStatus.REGISTRADO;
-            case "EVT_03_PACIENTE_EN_CONSULTA" -> PatientStatus.EN_CONSULTA;
-            case "EVT_04_PACIENTE_ALTA" -> PatientStatus.ALTA;
+            case "paciente_registrado", "paciente_escalado" -> PatientStatus.REGISTRADO;
+            case "paciente_en_consulta" -> PatientStatus.EN_CONSULTA;
+            case "paciente_alta" -> PatientStatus.ALTA;
             default -> throw new IllegalArgumentException("Unknown event type " + eventType);
         };
     }

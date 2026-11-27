@@ -51,6 +51,24 @@ class TriageEventParserTest {
     }
 
     @Test
+    void parsesTheWireNamesPublishedByTriage() {
+        var registration = TriageEventParser.parse("""
+                {"eventType":"paciente_registrado","pacienteId":"%s","pacienteSequence":1,
+                 "occurredAt":"2026-11-26T10:00:00Z","nivel":"CRITICO"}
+                """.formatted(PATIENT), PATIENT).orElseThrow();
+
+        assertThat(registration.status()).isEqualTo(PatientStatus.REGISTRADO);
+        assertThat(registration.level()).contains(TriageLevel.CRITICAL);
+
+        var discharge = TriageEventParser.parse("""
+                {"eventType":"paciente_alta","pacienteSequence":2,
+                 "occurredAt":"2026-11-26T10:30:00Z"}
+                """, PATIENT).orElseThrow();
+
+        assertThat(discharge.status()).isEqualTo(PatientStatus.ALTA);
+    }
+
+    @Test
     void skipsUnknownEventTypes() {
         assertThat(TriageEventParser.parse("""
                 {"eventType":"OTRO_EVENTO","pacienteId":"%s","pacienteSequence":1}

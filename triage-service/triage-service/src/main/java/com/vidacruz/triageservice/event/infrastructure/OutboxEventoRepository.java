@@ -28,6 +28,12 @@ public interface OutboxEventoRepository extends R2dbcRepository<OutboxEvento, UU
            "ORDER BY created_at ASC LIMIT :limit")
     Flux<OutboxEvento> findUnpublishedWithoutLease(@Param("limit") int limit);
 
+    // R2DBC @Query UPDATEs complete empty here, so the claim status is read back by owner instead of relying on
+    // the UPDATE's count. Without this check the publisher would send rows claimed by another instance.
+    @Query("SELECT COUNT(*) FROM outbox_evento WHERE event_id = :eventId " +
+           "AND lease_owner = :leaseOwner AND lease_until > CURRENT_TIMESTAMP AND publicado_en IS NULL")
+    Mono<Long> countClaimedBy(@Param("eventId") UUID eventId, @Param("leaseOwner") String leaseOwner);
+
     @Query("SELECT * FROM outbox_evento WHERE paciente_id = :pacienteId " +
            "ORDER BY paciente_sequence ASC")
     Flux<OutboxEvento> findByPacienteIdOrderBySequence(@Param("pacienteId") UUID pacienteId);

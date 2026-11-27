@@ -1,6 +1,6 @@
 # Local verification: E1–E6 → SLA → alerts → report → assistant
 
-This is the executable companion to the root `README.md`. Everything runs on `localhost` against `docker compose up -d --build`. No cloud credentials, public URL, k8s manifests or provider API keys are required except where noted.
+This is the executable companion to the root `README.md`. Everything runs on `localhost` against `docker compose up -d --build`. No cloud credentials, public URL or provider API keys are required except where noted. The same checks also run against the local Kubernetes overlay in [`k8s/local/README.md`](../../k8s/local/README.md), using `127.0.0.1` and the forward ports documented there.
 
 ## Before you start
 
@@ -79,11 +79,11 @@ Expected: initial snapshot events named `alerta`, then `latido` heartbeats every
 ```bash
 curl -sS -G http://localhost:8081/triage/reportes/operacion \
   -H 'X-API-Key: test-triage-key' \
-  --data-urlencode 'desde=2026-01-01T00:00:00Z' \
-  --data-urlencode 'hasta=2027-01-01T00:00:00Z'
+  --data-urlencode 'desde=2026-10-01T00:00:00Z' \
+  --data-urlencode 'hasta=2026-11-30T00:00:00Z'
 ```
 
-An offset or `Z` is mandatory. Missing or malformed parameters return `400 TRG-004` with a `field` hint.
+An offset or `Z` is mandatory and the range cannot exceed 90 days; a wider range returns `400 INVALID_REPORT_RANGE`. Missing or malformed parameters return `400 TRG-004` with a `field` hint.
 
 ## 5. RF-04 — assistant (provider-dependent)
 
@@ -139,6 +139,22 @@ curl -sS http://localhost:8082/asistente/estado-urgencias -H 'X-API-Key: test-as
 
 Open `http://localhost:16686/trace/$TRACE_ID`. The trace must contain spans from `triage-service` and `clinical-assistant-service`; the Grafana **Jaeger** datasource (uid `jaeger`) can query the same id from Explore. Trace context is carried only in the `traceparent` Kafka header, never in the event payload. No patient name, complaint, prompt or answer text is attached to spans. Log lines carry `traceId`/`spanId` through Spring Boot's default correlation pattern.
 
+## 9. Local Kubernetes overlay — verified evidence
+
+The `k8s/local` bundle was applied to Docker Desktop Kubernetes (`kubeadm v1.34.1`, context `docker-desktop`) with only local images and demo keys. All checks were made through `kubectl port-forward` on `127.0.0.1`:
+
+- E1–E6 classifications: `CRITICO`, `URGENTE`, `URGENTE_2`, `NO_URGENTE`, `NO_URGENTE_2`, `CRITICO`.
+- Lifecycle: `GET` patient `200`; `PATCH` to `EN_CONSULTA` and `ALTA` `200`.
+- SLA/RF-06: a `CRITICO` patient escalated after ~1 minute; `/triage/alertas` returned the alert, `medical_alert` and `paciente_escalado` outbox rows were present, `triage_patients_escalated_total{level="CRITICO"}` became `1.0`, and the SSE stream emitted `event: alerta` plus `:latido`.
+- Acknowledgement: `POST .../reconocimiento` returned `RECONOCIDA`; discharge removed the alert from the active list.
+- Outbox → Kafka: all 16 rows published with no failures and a `traceparent` header on the records.
+- RF-04B: after replaying `triaje.eventos`, `/asistente/estado-urgencias` reported 9 active patients, consumer lag `0`, no skipped events.
+- Report: `GET /triage/reportes/operacion` returned `200` with the hourly series.
+- NFR-16: Jaeger's `/api/traces/{traceID}` showed spans from both `triage-service` and `clinical-assistant-service`; `triaje.eventos receive` is a child of the triage request span.
+- `/rag` returned the documented `503 LLM_UNAVAILABLE` because no provider/Ollama is deployed in this overlay.
+
+Three production defects were found and fixed while running this overlay: `SlaEvaluator` skipped the alert/outbox/audit writes because an R2DBC `UPDATE` completes empty; `OutboxPublisher` stopped permanently on a `Flux.interval` backpressure overflow and then never sent because it trusted that same empty count; and `TriageEventParser` expected `EVT_0x_*` labels instead of the published wire names, so the assistant discarded every event. The fixes are covered by the unit suites (extended where needed) and were re-verified in the cluster.
+
 ## Scope boundary
 
-No Azure deployment, public URL, k8s/Helm manifests or webhook receiver exist. ADR-11 remains blocked by unverified subscription/quota (R-06) and must be recorded as a blocker, not worked around. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.
+No Azure deployment, public URL or webhook receiver is used here. The only Kubernetes manifests are the local-only `k8s/local` overlay, which never references Azure. ADR-11 remains blocked by unverified subscription/quota (R-06) and must be recorded as a blocker, not worked around. Full Testcontainers integration (including PostgreSQL LISTEN/NOTIFY) runs in CI; the local harness used for this demo has no usable Docker socket for it.
