@@ -9,7 +9,9 @@ import com.vidacruz.clinical.domain.exceptions.InvalidPromptException;
  * @param topK               how many evidence fragments to retrieve (1..{@value #MAX_TOP_K})
  * @param patientContext     optional free-text context, stripped; blank becomes {@code null}. Validated and carried,
  *                           but NOT forwarded to retrieval or the LLM: whether patient data may reach a model is an
- *                           ADR decision (CA-G-16)
+ *                           ADR decision (CA-G-16). It must NOT be forwarded to an external provider (Gemini,
+ *                           OpenCode) unless it first goes through {@code PiiRedactor}, as the question does (M-5);
+ *                           even then, prefer the in-cluster Ollama node for patient context
  * @param relevanceThreshold optional minimum relevance in [0, 1]. Validated and applied by {@code RAGService} as the
  *                           per-request relevance gate over the scores returned by the vector store (CA-G-02, ADR-05).
  */

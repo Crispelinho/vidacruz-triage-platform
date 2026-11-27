@@ -42,6 +42,7 @@ import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
@@ -114,14 +115,16 @@ class RAGConfiguration {
 		return new OllamaHttpLLMAdapter(builder, properties);
 	}
 
+	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
 	NamedLLMProvider geminiNode(WebClient.Builder builder, GeminiProperties properties) {
-		return new GeminiHttpLLMAdapter(builder, properties);
+		return new PiiRedactingLLMProvider(new GeminiHttpLLMAdapter(builder, properties));
 	}
 
+	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
 	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
-		return new OpenCodeHttpLLMAdapter(builder, properties);
+		return new PiiRedactingLLMProvider(new OpenCodeHttpLLMAdapter(builder, properties));
 	}
 
 	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */

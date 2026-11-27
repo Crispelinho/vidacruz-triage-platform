@@ -122,6 +122,27 @@ class CloudPromptPrivacyTest {
 				.contains("{\"role\":\"user\",\"content\":\"<pregunta>" + QUESTION + "</pregunta>");
 	}
 
+	@Test
+	void redactingDecoratorStripsIdentifiersBeforeTheQuestionReachesTheWire() {
+		// M-5: production wires gemini and opencode behind PiiRedactingLLMProvider.
+		GeminiProperties properties = new GeminiProperties(baseUrl(), "gemini-3.5-flash-lite", "test-key");
+		NamedLLMProvider node = new PiiRedactingLLMProvider(new GeminiHttpLLMAdapter(WebClient.builder(), properties));
+		String identifying = "Paciente Juan Pérez CC 79123456, tel 3101234567, crisis hipertensiva";
+		EvidenceFragment fragment = EvidenceFragment.create(UUID.randomUUID(), 0, "PROTO-001", "Medidas",
+				EVIDENCE_TEXT, QUERY_EMBEDDING);
+
+		node.generate(identifying, List.of(fragment)).block();
+
+		assertThat(capturedBody.get()).isNotNull()
+				.doesNotContain("Juan")
+				.doesNotContain("Pérez")
+				.doesNotContain("79123456")
+				.doesNotContain("3101234567")
+				.contains("Paciente [NOMBRE] CC [DOCUMENTO], tel [TELEFONO], crisis hipertensiva");
+		assertThat(node.key()).isEqualTo("gemini");
+		assertThat(node.model()).isEqualTo("gemini-3.5-flash-lite");
+	}
+
 	private String baseUrl() {
 		return "http://127.0.0.1:" + server.getAddress().getPort();
 	}
