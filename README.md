@@ -37,7 +37,7 @@ curl -s http://localhost:8081/triage/alertas \
   -H 'X-API-Key: test-triage-key'  # 200, []
 ```
 
-Missing or wrong keys return `401` with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}`. Keys come from `TRIAGE_API_KEY` / `ASSISTANT_API_KEY`; the values above are localhost-only defaults. See `docs/adr/ADR-07-authentication-api-key.md`.
+Missing or wrong keys return `401` with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}`. Keys come from `TRIAGE_API_KEY` / `ASSISTANT_API_KEY`. The values above are Docker Compose defaults for localhost only: the services themselves have no default and refuse to start without a key. See `docs/adr/ADR-07-authentication-api-key.md`.
 
 ## Local verification checklist
 
