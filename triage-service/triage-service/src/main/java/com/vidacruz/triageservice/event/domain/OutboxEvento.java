@@ -1,16 +1,21 @@
 package com.vidacruz.triageservice.event.domain;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Table("outbox_evento")
-public class OutboxEvento {
+public class OutboxEvento implements Persistable<UUID> {
     @Id
     @Column("event_id")
     private UUID eventId;
+
+    @Transient
+    private boolean isNew = true;
 
     @Column("event_type")
     private String eventType;
@@ -80,6 +85,12 @@ public class OutboxEvento {
     }
 
     // Getters and setters
+    @Override
+    public UUID getId() { return eventId; }
+
+    @Override
+    public boolean isNew() { return isNew; }
+
     public UUID getEventId() { return eventId; }
     public void setEventId(UUID eventId) { this.eventId = eventId; }
 
