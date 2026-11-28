@@ -2,6 +2,12 @@
 
 All notable changes to the Vida Cruz triage platform are documented in this file. The format follows Keep a Changelog and releases use semantic versioning.
 
+## [1.0.4] - 2026-11-28
+
+### Fixed
+
+- Azure PostgreSQL `azure.extensions` Bicep configuration now sets `source: user-override`, so a fresh `provision.ps1` succeeds without a manual parameter change.
+
 ## [1.0.3] - 2026-11-28
 
 ### Fixed

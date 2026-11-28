@@ -12,6 +12,14 @@ docker compose up -d --build  # first build downloads Gradle deps and both JDK i
 docker compose ps
 ```
 
+For a fast RF-03/RF-06 demo (SLA escalation/alerts without waiting the normal CRITICO SLA), use the demo override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+```
+
+`docker-compose.demo.yml` is optional and only changes `triage-service`: `SLA_CRITICO_MINUTES=1` and `TRIAGE_SLA_EVALUATION_INTERVAL_MS=5000`. Use the base command for normal/default behavior.
+
 | Service | URL | Auth |
 |---|---|---|
 | Triage API | `http://localhost:8081` | `X-API-Key: test-triage-key` |
@@ -46,7 +54,7 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - [ ] Both `/actuator/health` endpoints return `{"status":"UP"}`.
 - [ ] `POST /triage/pacientes` with E1…E6 returns `201` and the expected `nivel` (`CRITICO`, `URGENTE`, `URGENTE_2`, `NO_URGENTE`, `NO_URGENTE_2`, `CRITICO`).
 - [ ] `GET /triage/pacientes/{id}` and `PATCH /triage/pacientes/{id}/estado` with `{"estado":"EN_CONSULTA"}` then `{"estado":"ALTA"}`.
-- [ ] RF-03: wait for the short demo SLA, then `GET /triage/alertas` shows a `PENDIENTE` alert; changing state resolves it.
+- [ ] RF-03: with the demo override (`docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build`), wait for the short CRITICO SLA, then `GET /triage/alertas` shows a `PENDIENTE` alert; changing state resolves it.
 - [ ] `POST /triage/alertas/{id}/reconocimiento` with `{"responsable":"..."}` moves it to `RECONOCIDA`; a second call returns `TRG-009`.
 - [ ] `GET /triage/alertas/stream` pushes the initial snapshot and live changes (use `curl -N` or streaming `fetch`).
 - [ ] `GET /triage/reportes/operacion?desde=...&hasta=...` with ISO 8601 offsets (`2026-01-01T00:00:00Z`).
