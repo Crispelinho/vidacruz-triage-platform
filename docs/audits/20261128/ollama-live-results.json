@@ -1,0 +1,51 @@
+{
+  "generatedAt" : "2026-11-28T17:27:14.436421Z",
+  "provider" : "ollama",
+  "endpoint" : "http://127.0.0.1:11434/api/chat",
+  "configuredModel" : "llama3.1:8b",
+  "routerTimeout" : "300s (overridden for live probe; production default 15s)",
+  "runs" : 5,
+  "nodeClass" : "SpringAIChatAdapter",
+  "nodeModel" : "llama3.1:8b",
+  "warmup" : "one unmeasured call before the five runs",
+  "runResults" : [ {
+    "run" : 1,
+    "status" : "ok",
+    "provider" : "ollama",
+    "model" : "llama3.1:8b",
+    "answerChars" : 111,
+    "latencyMs" : 85516,
+    "checksPassed" : true
+  }, {
+    "run" : 2,
+    "status" : "ok",
+    "provider" : "ollama",
+    "model" : "llama3.1:8b",
+    "answerChars" : 111,
+    "latencyMs" : 221610,
+    "checksPassed" : true
+  }, {
+    "run" : 3,
+    "status" : "ok",
+    "provider" : "ollama",
+    "model" : "llama3.1:8b",
+    "answerChars" : 111,
+    "latencyMs" : 247540,
+    "checksPassed" : true
+  }, {
+    "run" : 4,
+    "status" : "failed",
+    "failureType" : "LLMUnavailableException",
+    "failureMessage" : "ollama/llama3.1:8b unavailable",
+    "latencyMs" : 300251
+  }, {
+    "run" : 5,
+    "status" : "ok",
+    "provider" : "ollama",
+    "model" : "llama3.1:8b",
+    "answerChars" : 111,
+    "latencyMs" : 274786,
+    "checksPassed" : true
+  } ],
+  "passed" : 4
+}
