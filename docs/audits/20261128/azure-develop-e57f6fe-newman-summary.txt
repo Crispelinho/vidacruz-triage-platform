@@ -1,0 +1,6 @@
+﻿Generated: 2026-11-28T12:12:14.2458359-05:00
+Target: Azure develop e57f6fe (deploy run 46163138392)
+Requests: total=31 failed=0 pending=0
+Assertions: total=70 failed=0 pending=0
+Result: PASS
+Raw Newman JSON stays in TEMP and is not committed; this summary contains no credentials.

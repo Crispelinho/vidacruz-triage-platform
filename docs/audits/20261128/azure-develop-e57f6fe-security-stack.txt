@@ -1,0 +1,32 @@
+﻿Generated: 2026-11-28T12:00:08.1377769-05:00
+Host: https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com
+Expected image SHA: e57f6fec0e439f76a4456ce183cb9177ff11baad
+
+PASS public /docs/triage/swagger-ui.html :: status=302
+PASS public /docs/triage/swagger-ui/index.html :: status=200
+PASS public /docs/triage/v3/api-docs :: status=200
+PASS public /docs/triage/v3/api-docs/swagger-config :: status=200
+PASS public /docs/asistente/swagger-ui.html :: status=302
+PASS public /docs/asistente/swagger-ui/index.html :: status=200
+PASS public /docs/asistente/v3/api-docs :: status=200
+PASS public /docs/asistente/v3/api-docs/swagger-config :: status=200
+PASS public /docs/triage/webjars/swagger-ui/index.css :: status=200
+PASS public /docs/triage/webjars/swagger-ui/swagger-ui-bundle.js :: status=200
+PASS public /docs/triage/webjars/swagger-ui/swagger-ui-standalone-preset.js :: status=200
+PASS public /docs/asistente/webjars/swagger-ui/index.css :: status=200
+PASS public /docs/asistente/webjars/swagger-ui/swagger-ui-bundle.js :: status=200
+PASS public /docs/asistente/webjars/swagger-ui/swagger-ui-standalone-preset.js :: status=200
+PASS public /ops/triage/health/readiness :: status=200
+PASS public /ops/asistente/health/readiness :: status=200
+PASS Public contract and health (16 URLs) :: 16/16
+PASS 401 without X-API-Key :: status=401 body=NFR-20
+PASS 401 with bogus X-API-Key :: status=401
+PASS 200 with owner X-API-Key :: status=200 patient=synthetic
+PASS PHI read audit line :: matching_lines=1 keyId=owner (value never logged)
+PASS NetworkPolicies present :: count=7 names=allow-dns-egress,clinical-assistant-service,default-deny-all,kafka,kafka-topic-init,redis,triage-service
+PASS Deployed image tag matches develop head :: clinical-assistant-service=vidacruzl7rsr6.azurecr.io/clinical-assistant-service:e57f6fec0e439f76a4456ce183cb9177ff11baad | triage-service=vidacruzl7rsr6.azurecr.io/triage-service:e57f6fec0e439f76a4456ce183cb9177ff11baad
+PASS reviewer key TRIAGE_REVIEWER_API_KEY :: configured=False (names only; 403 path untested when false)
+PASS reviewer key ASSISTANT_REVIEWER_API_KEY :: configured=False (names only; 403 path untested when false)
+
+TOTAL=25 PASS=25 FAIL=0
+Exposure: no API key, password, patient name or complaint appears in this report.
