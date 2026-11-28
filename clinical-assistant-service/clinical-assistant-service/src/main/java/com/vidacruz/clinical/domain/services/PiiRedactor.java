@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
  * and capitalised names after common cues ("paciente Juan Pérez", "Sra. Ana", "se llama Luis", "nombre: ...").
  *
  * <p>This is a heuristic. A name with no cue ("Juan Pérez llegó con dolor") is not detected, so this filter reduces
- * exposure but is not a guarantee: the production answer is an in-cluster model or a paid tier with a DPA.
+ * exposure but is not a guarantee: the production answer is an in-cluster model or a paid tier with a DPA. Unlabelled
+ * dotted numbers such as "2.400.000 UI" are also left intact to preserve doses, so an identifier written the same way
+ * would pass through; labelled documents are still redacted.
  */
 public final class PiiRedactor {
 

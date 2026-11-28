@@ -91,14 +91,14 @@ kubectl --context docker-desktop -n vidacruz rollout status deployment/jaeger
 kubectl --context docker-desktop -n vidacruz port-forward svc/triage-service 18086:8081
 kubectl --context docker-desktop -n vidacruz port-forward svc/clinical-assistant-service 18085:8082
 kubectl --context docker-desktop -n vidacruz port-forward svc/jaeger 18087:16686
-pwsh -NoProfile -File ./scripts/verify-local-k8s-e2e.ps1 -ReportPath ./local-e2e.txt
+pwsh -NoProfile -File ./scripts/verify-local-k8s.ps1 -ReportPath ./local-e2e.txt
 ```
 
 Usar siempre `127.0.0.1`, nunca `localhost` (`local-kubernetes-e2e.md:39-42`). Las dos implementaciones deben estar a `2/2`. El harness tarda unos dos minutos por la espera del SLA y del latido SSE.
 
 Resultado esperado: `TOTAL=33 PASS=33 FAIL=0`. Cobertura: salud (3), clasificación E1-E6 (6), ciclo de estados (5), RF-16/RF-04/RF-03 (3), SSE y reconocimientos (4), reportes (2), modo degradado (2), auth (2), métricas (2), outbox→Kafka (3), traza compartida en Jaeger (1).
 
-**Usar `scripts/verify-local-k8s-e2e.ps1`**, no el original `scripts/verify-local-k8s.ps1`. La versión corregida incorpora: fixtures españolas, lectura del `correlationId` desde el cuerpo JSON cuando no viene en headers, reintento de la consulta al outbox, consumo de hasta 600 mensajes de Kafka y timeout de 150 s para el camino degradado.
+**Usar el harness canónico `scripts/verify-local-k8s.ps1`**; `scripts/verify-local-k8s-e2e.ps1` se conserva solo como alias histórico. El script canónico incorpora: fixtures españolas, lectura del `correlationId` desde el cuerpo JSON cuando no viene en headers, reintento de la consulta al outbox, consumo de hasta 600 mensajes de Kafka, timeout de 150 s para el camino degradado y espera a la salida natural de `curl` antes de leer el SSE.
 
 ## 8. Etapa 5 — Verificación en vivo en Azure
 

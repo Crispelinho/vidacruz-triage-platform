@@ -81,7 +81,7 @@ clinical:
 rag:
   llm:
     # C17: ordered failover chain and one timeout per node. No retry against the same node.
-    # M-5: gemini and opencode are external; the question is PII-redacted (PiiRedactor) before it is sent to them.
+    # M-5: gemini, opencode and the opt-in openrouter node are external; PiiRedactor redacts the question before it is sent.
     # contexto_paciente is not forwarded to any model today and must not be enabled without the same redaction.
     chain: ${RAG_LLM_CHAIN:ollama,gemini,opencode}
     timeout: 15s
