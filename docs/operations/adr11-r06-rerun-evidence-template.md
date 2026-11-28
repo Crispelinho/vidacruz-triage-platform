@@ -48,7 +48,7 @@
 - [x] RAG chat: 5/5 `200` with `PROTO-001` and a non-empty answer; direct call reported `modelo_usado=gemini/gemini-3.5-flash-lite`.
 - [x] Outbox→Kafka: injected trace found in `triaje.eventos` headers from `kafka-0`.
 - [ ] End-to-end shared trace in Jaeger: not available in Azure; local-only evidence remains.
-- [ ] Row-level PostgreSQL check: direct `psql` times out from the verification host (firewall).
+- [x] Row-level PostgreSQL check: ran `psql` from a temporary pod inside AKS (firewall-allowed egress IP); patient, outbox `traceparent`, audit transitions and alert state matched the live R-06 run. See [`azure-db-rowlevel-verification.txt`](../audits/20261128/azure-db-rowlevel-verification.txt).
 
 ## R-06 gate checks
 

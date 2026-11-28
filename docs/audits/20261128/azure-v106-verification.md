@@ -64,7 +64,7 @@ Final run against `v1.0.6`: **13 PASS / 0 FAIL** (`verify-azure-r6.ps1`, tempora
 
 A direct grounded-chat call confirmed the real provider: `modelo_usado=gemini/gemini-3.5-flash-lite`, `fuentes=PROTO-001`, non-empty 204-character answer. The earlier chat five-run gate was partial, but the dedicated rerun below later covered all probes five times each. Cost and the other chain nodes are still not exercised.
 
-Limitations: direct `psql` to Azure PostgreSQL times out from the verification host (firewall), so no row-level DB check is attached; there is no Jaeger deployment in Azure, so the end-to-end shared trace is still local-only evidence.
+Direct `psql` from the verification host times out because the firewall only allows the fixed AKS egress IP; the row-level check below was instead run from a temporary pod inside the cluster. There is no Jaeger deployment in Azure, so the end-to-end shared trace is still local-only evidence.
 
 ### Verification-harness note
 
@@ -94,6 +94,12 @@ The first attempts exposed harness defects, not application findings: the `main`
 
 A dedicated harness called `/asistente/consulta` five times for each of seven probes against the public host at `38d9d77`, using the assistant API key read from the Kubernetes Secret and never printed. Result: **7 probes × 5/5 = 35/35 passing runs** (`azure-chat-five-runs.txt`, sanitized report outside the repository). Every positive run returned `200`, a non-empty answer, the expected protocol in `fuentes`, and `modelo_usado=gemini/gemini-3.5-flash-lite`. The negative diabetes query returned `200` five times with `fuentes=[]`, the fixed notice `no existe protocolo disponible` and `modelo_usado=none`. An earlier attempt had three transient `503` responses on the 6.5 % probe; the final run retried only `503` responses with bounded backoff and recorded the final status of each run. This closes the chat five-run gate for ADR-05; it does not measure cost or exercise the other chain nodes.
 
+### Azure PostgreSQL row-level check
+
+`psql` from the workstation is blocked by design: `infra/azure/main.bicep:261-268` allows only the fixed egress IP, which AKS uses for outbound traffic (`main.bicep:159-166`). A temporary pod in namespace `vidacruz` therefore used that allowed path. It ran under PodSecurity `restricted` (non-root, dropped capabilities, `RuntimeDefault` seccomp), read `PGUSER` from the ConfigMap and `PGPASSWORD` through a `secretKeyRef` without printing either, issued only `SELECT` statements, and was deleted afterwards. Sanitized output: [`azure-db-rowlevel-verification.txt`](azure-db-rowlevel-verification.txt).
+
+The check confirmed row-level state matching the live R-06 run: patient `16476d7d-1d50-4157-b406-9e9edc2958e5` is `CRITICO` / `EN_CONSULTA` with `sla_minutos=5`; `outbox_evento` holds `paciente_registrado` with `traceparent=00-7c2e9b41d8a64f30b5e7c1a9f2d6b845-...`, `paciente_escalado` with an empty `traceparent` (timer-originated, as documented) and `paciente_en_consulta` with its own trace; all three were published with `intentos=0` and `requiere_revision=false`. `auditoria_clinica` shows `REGISTRO → ESCALAMIENTO → ENTRADA_CONSULTA`, and `medical_alert` `9e86da05-aa83-48b2-875e-987918379aa2` is `RESUELTA` with `minutos_espera=5.03`. No outbox row required review. This closes the row-level gap in Azure; it does not add shared-trace evidence, since Jaeger is not deployed there.
+
 ## Scope boundary
 
-The clean reprovision/redeploy, the fresh budget export and the two end-to-end reruns close the reproducible-rerun, budget-alert and chat five-run gates. The following remain open: secret-rotation/image-scan confirmation, measured ADR-05 cost, the full runtime spike, and committing the harness robustness fixes. Direct `psql` to Azure PostgreSQL is firewall-blocked and Jaeger is absent in Azure, so row-level and shared-trace evidence remain local-only. ADR-11 and ADR-05 remain `Proposed`.
+The clean reprovision/redeploy, the fresh budget export, the row-level check and the two end-to-end reruns close the reproducible-rerun, budget-alert, row-level and chat five-run gates. The following remain open: secret-rotation/image-scan confirmation, measured ADR-05 cost, the full runtime spike, and committing the harness robustness fixes. Jaeger is absent in Azure, so shared-trace evidence remains local-only. ADR-11 and ADR-05 remain `Proposed`.
