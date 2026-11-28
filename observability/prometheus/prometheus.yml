@@ -4,6 +4,10 @@ global:
   scrape_interval: 5s
   evaluation_interval: 5s
 
+# Platform alerts (NFR-07). Local only: they appear on the Prometheus Alerts page and notify nobody.
+rule_files:
+  - alerts.yml
+
 scrape_configs:
   - job_name: triage-service
     metrics_path: /actuator/prometheus

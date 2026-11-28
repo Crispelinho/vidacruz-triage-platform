@@ -1,0 +1,70 @@
+# Local alert rules (NFR-07). They are evaluated by Prometheus and shown on its Alerts page; no Alertmanager or
+# notification channel is configured. Thresholds are demo defaults to be tuned with real traffic.
+# These are platform alerts for an operator. The SLA alerts of /triage/alertas are domain records for the medical team.
+groups:
+  - name: vidacruz
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is not being scraped"
+
+      # Probes are excluded. The minimum volume keeps one failure on an idle service from reading as 100 percent.
+      - alert: HttpServerErrorRatioHigh
+        expr: |
+          sum by (application) (rate(http_server_requests_seconds_count{status=~"5..", uri!~"/actuator.*"}[5m]))
+            / sum by (application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[5m])) > 0.05
+          and sum by (application) (increase(http_server_requests_seconds_count{uri!~"/actuator.*"}[5m])) >= 20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of the requests to {{ $labels.application }} end in a server error"
+
+      - alert: LlmUnavailableRatioHigh
+        expr: |
+          sum(rate(assistant_answers_total{outcome="unavailable"}[5m]))
+            / sum(rate(assistant_answers_total[5m])) > 0.5
+          and sum(increase(assistant_answers_total[5m])) >= 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Most clinical questions are ending as unavailable"
+
+      - alert: LlmCircuitBreakerOpen
+        expr: max by (name) (resilience4j_circuitbreaker_state{state="open"}) == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The circuit breaker of the LLM node {{ $labels.name }} is open"
+
+      # A stopped consumer reports no lag at all; TargetDown covers a stopped service.
+      - alert: UrgencyConsumerLagHigh
+        expr: max by (partition) (kafka_consumer_fetch_manager_records_lag{topic="triaje_eventos"}) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The urgency projection is behind on partition {{ $labels.partition }}"
+
+      # The publisher runs every few seconds, so an event two minutes old means publication is not progressing.
+      - alert: OutboxPublishingStalled
+        expr: triage_outbox_oldest_pending_age_seconds > 120
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The oldest unpublished outbox event is more than two minutes old"
+
+      - alert: OutboxEventsNeedReview
+        expr: triage_outbox_requires_review > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox events are flagged for operator review (ADR-03)"

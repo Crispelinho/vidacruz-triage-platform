@@ -1,0 +1,180 @@
+# promtool unit tests for alerts.yml: each rule is shown pending, firing and quiet.
+# Run: python -m unittest discover -s observability/tests
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: a healthy platform raises nothing
+    interval: 15s
+    input_series:
+      - series: 'up{job="triage-service"}'
+        values: "1x80"
+      - series: 'http_server_requests_seconds_count{application="triage-service",status="200",uri="/triage/pacientes"}'
+        values: "0+5x80"
+      - series: 'assistant_answers_total{outcome="answered"}'
+        values: "0+2x80"
+      - series: 'assistant_answers_total{outcome="unavailable"}'
+        values: "0x80"
+      - series: 'resilience4j_circuitbreaker_state{name="ollama",state="open"}'
+        values: "0x80"
+      - series: 'kafka_consumer_fetch_manager_records_lag{topic="triaje_eventos",partition="0"}'
+        values: "3x80"
+      - series: 'triage_outbox_oldest_pending_age_seconds'
+        values: "4x80"
+      - series: 'triage_outbox_requires_review'
+        values: "0x80"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 15m
+        exp_samples: []
+
+  - name: a target that stops answering is pending, then firing
+    interval: 15s
+    input_series:
+      - series: 'up{job="triage-service"}'
+        values: "0x40"
+      - series: 'up{job="clinical-assistant-service"}'
+        values: "1x40"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate, job) (ALERTS)
+        eval_time: 30s
+        exp_samples:
+          - labels: '{alertname="TargetDown", alertstate="pending", job="triage-service"}'
+            value: 1
+      - expr: count by (alertname, alertstate, job) (ALERTS)
+        eval_time: 2m
+        exp_samples:
+          - labels: '{alertname="TargetDown", alertstate="firing", job="triage-service"}'
+            value: 1
+
+  - name: server errors above five percent of real traffic fire
+    interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{application="triage-service",status="200",uri="/triage/pacientes"}'
+        values: "0+3x60"
+      - series: 'http_server_requests_seconds_count{application="triage-service",status="503",uri="/triage/pacientes"}'
+        values: "0+1x60"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate, application) (ALERTS)
+        eval_time: 10m
+        exp_samples:
+          - labels: '{alertname="HttpServerErrorRatioHigh", alertstate="firing", application="triage-service"}'
+            value: 1
+
+  - name: a few errors on very low traffic stay quiet, and so do failing health probes
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{application="triage-service",status="503",uri="/triage/pacientes"}'
+        values: "0+1x20"
+      - series: 'http_server_requests_seconds_count{application="clinical-assistant-service",status="503",uri="/actuator/health"}'
+        values: "0+60x20"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 15m
+        exp_samples: []
+
+  - name: most questions ending as unavailable fire
+    interval: 15s
+    input_series:
+      - series: 'assistant_answers_total{outcome="unavailable"}'
+        values: "0+3x60"
+      - series: 'assistant_answers_total{outcome="answered"}'
+        values: "0+1x60"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate) (ALERTS)
+        eval_time: 10m
+        exp_samples:
+          - labels: '{alertname="LlmUnavailableRatioHigh", alertstate="firing"}'
+            value: 1
+
+  - name: an occasional unavailable answer stays quiet
+    interval: 15s
+    input_series:
+      - series: 'assistant_answers_total{outcome="unavailable"}'
+        values: "0+1x60"
+      - series: 'assistant_answers_total{outcome="answered"}'
+        values: "0+4x60"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 10m
+        exp_samples: []
+
+  - name: an open circuit breaker is pending, then firing
+    interval: 15s
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{name="ollama",state="open"}'
+        values: "1x40"
+      - series: 'resilience4j_circuitbreaker_state{name="gemini",state="open"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate, name) (ALERTS)
+        eval_time: 30s
+        exp_samples:
+          - labels: '{alertname="LlmCircuitBreakerOpen", alertstate="pending", name="ollama"}'
+            value: 1
+      - expr: count by (alertname, alertstate, name) (ALERTS)
+        eval_time: 2m
+        exp_samples:
+          - labels: '{alertname="LlmCircuitBreakerOpen", alertstate="firing", name="ollama"}'
+            value: 1
+
+  - name: sustained consumer lag is pending, then firing
+    interval: 15s
+    input_series:
+      - series: 'kafka_consumer_fetch_manager_records_lag{topic="triaje_eventos",partition="1"}'
+        values: "500x40"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate, partition) (ALERTS)
+        eval_time: 1m
+        exp_samples:
+          - labels: '{alertname="UrgencyConsumerLagHigh", alertstate="pending", partition="1"}'
+            value: 1
+      - expr: count by (alertname, alertstate, partition) (ALERTS)
+        eval_time: 6m
+        exp_samples:
+          - labels: '{alertname="UrgencyConsumerLagHigh", alertstate="firing", partition="1"}'
+            value: 1
+
+  - name: an outbox that stops publishing is pending, then firing
+    interval: 15s
+    input_series:
+      - series: 'triage_outbox_oldest_pending_age_seconds'
+        values: "0+15x40"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 2m
+        exp_samples: []
+      - expr: count by (alertname, alertstate) (ALERTS)
+        eval_time: 2m30s
+        exp_samples:
+          - labels: '{alertname="OutboxPublishingStalled", alertstate="pending"}'
+            value: 1
+      - expr: count by (alertname, alertstate) (ALERTS)
+        eval_time: 4m
+        exp_samples:
+          - labels: '{alertname="OutboxPublishingStalled", alertstate="firing"}'
+            value: 1
+
+  - name: an unknown backlog (NaN) does not fire
+    interval: 15s
+    input_series:
+      - series: 'triage_outbox_oldest_pending_age_seconds'
+        values: "NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 2m30s
+        exp_samples: []
+
+  - name: events flagged for review fire
+    interval: 15s
+    input_series:
+      - series: 'triage_outbox_requires_review'
+        values: "2x20"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate) (ALERTS)
+        eval_time: 2m
+        exp_samples:
+          - labels: '{alertname="OutboxEventsNeedReview", alertstate="firing"}'
+            value: 1
