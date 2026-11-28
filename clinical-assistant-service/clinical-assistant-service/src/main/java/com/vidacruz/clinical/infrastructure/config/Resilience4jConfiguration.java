@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Primary;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
+import io.micrometer.core.instrument.binder.MeterBinder;
 
 /**
  * Circuit breaker foundation for the LLM (ADR-09, C17). One registry supplies an independent breaker per chain node;
@@ -36,6 +38,13 @@ class Resilience4jConfiguration {
 				.automaticTransitionFromOpenToHalfOpenEnabled(true)
 				.build();
 		return CircuitBreakerRegistry.of(config);
+	}
+
+	// resilience4j_circuitbreaker_state and its companions, for every breaker of the registry (NFR-07). Tags are the
+	// breaker name and the state: both bounded.
+	@Bean
+	MeterBinder llmCircuitBreakerMetrics(CircuitBreakerRegistry llmCircuitBreakerRegistry) {
+		return TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(llmCircuitBreakerRegistry);
 	}
 
 	@Bean

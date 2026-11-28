@@ -110,6 +110,19 @@ class ResilientLLMRouterTest {
 				.verify(Duration.ofSeconds(2));
 	}
 
+	/** Otherwise a node nobody has called yet has no breaker state to publish or alert on. */
+	@Test
+	void createsTheBreakerOfEveryNodeBeforeTheFirstCall() {
+		CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+		NamedLLMProvider first = provider("ollama", "llama3.1:8b", question -> Mono.just("respuesta [1]"));
+		NamedLLMProvider second = provider("gemini", "gemini-2.5-flash", question -> Mono.just("respuesta [1]"));
+
+		new ResilientLLMRouter(List.of(first, second), registry, Duration.ofSeconds(1), metrics);
+
+		assertThat(registry.find("ollama")).isPresent();
+		assertThat(registry.find("gemini")).isPresent();
+	}
+
 	@Test
 	void anEmptyChainFailsWithLLMUnavailable() {
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(), CircuitBreakerRegistry.ofDefaults(),

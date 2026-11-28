@@ -50,6 +50,8 @@ public final class ResilientLLMRouter implements LLMRouter {
 		if (timeout.isZero() || timeout.isNegative()) {
 			throw new IllegalArgumentException("LLM timeout must be positive");
 		}
+		// Create each node's breaker now, so its state is published before the node is first called (NFR-07).
+		this.providers.forEach(provider -> registry.circuitBreaker(provider.key()));
 	}
 
 	@Override

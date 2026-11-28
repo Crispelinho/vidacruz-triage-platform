@@ -10,6 +10,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class Resilience4jConfigurationTest {
 
@@ -49,6 +53,27 @@ class Resilience4jConfigurationTest {
 					assertThat(config.getSlidingWindowSize()).isEqualTo(8);
 					assertThat(config.getMinimumNumberOfCalls()).isEqualTo(4);
 				});
+	}
+
+	@Test
+	void publishesTheStateOfEveryBreakerIncludingThoseCreatedLater() {
+		runner.run(context -> {
+			SimpleMeterRegistry meters = new SimpleMeterRegistry();
+			context.getBeansOfType(MeterBinder.class).values().forEach(binder -> binder.bindTo(meters));
+
+			CircuitBreaker node = context.getBean(CircuitBreakerRegistry.class).circuitBreaker("ollama");
+
+			assertThat(state(meters, "ollama", "closed")).isEqualTo(1);
+			node.transitionToOpenState();
+			assertThat(state(meters, "ollama", "open")).isEqualTo(1);
+			assertThat(state(meters, "ollama", "closed")).isZero();
+		});
+	}
+
+	private static double state(SimpleMeterRegistry meters, String breaker, String state) {
+		Gauge gauge = meters.find("resilience4j.circuitbreaker.state").tags("name", breaker, "state", state).gauge();
+		assertThat(gauge).as("state gauge of %s", breaker).isNotNull();
+		return gauge.value();
 	}
 
 	@Test
