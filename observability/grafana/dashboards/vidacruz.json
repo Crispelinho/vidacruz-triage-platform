@@ -57,7 +57,7 @@
       "title": "Clasificación y escalado por nivel",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "refId": "A", "expr": "sum by (level) (rate(triage_patients_classified_total[1m]))", "legendFormat": "clasificados {{level}}" },
@@ -69,7 +69,7 @@
       "title": "Alertas reconocidas por nivel",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "refId": "A", "expr": "sum by (level) (rate(triage_alerts_acknowledged_total[1m]))", "legendFormat": "{{level}}" }
@@ -107,7 +107,7 @@
       "title": "Desenlace de consultas",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "refId": "A", "expr": "sum by (outcome) (rate(assistant_answers_total[1m]))", "legendFormat": "{{outcome}}" }
@@ -138,7 +138,7 @@
       "title": "Eventos de urgencia procesados",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "refId": "A", "expr": "sum by (result) (rate(assistant_urgency_events_total[1m]))", "legendFormat": "{{result}}" }
@@ -160,13 +160,14 @@
     {
       "type": "timeseries",
       "title": "Respuestas HTTP 4xx/5xx por servicio",
+      "description": "Error responses during the previous minute, including the first one of a new status or route.",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [{
         "refId": "A",
-        "expr": "sum by (application, status) (rate(http_server_requests_seconds_count{status=~\"4..|5..\"}[1m]))",
+        "expr": "sum by (application, status) (clamp_min(http_server_requests_seconds_count{status=~\"4..|5..\"} - http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m, 0) or (http_server_requests_seconds_count{status=~\"4..|5..\"} unless http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m))",
         "legendFormat": "{{application}} {{status}}"
       }]
     },
@@ -227,14 +228,18 @@
     {
       "type": "timeseries",
       "title": "PostgreSQL pool connections by service",
+      "description": "R2DBC pools plus the JDBC (Hikari) pool the assistant uses for pgvector.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
-        { "refId": "A", "expr": "sum by (application) (r2dbc_pool_acquired_connections)", "legendFormat": "{{application}} acquired" },
-        { "refId": "B", "expr": "sum by (application) (r2dbc_pool_idle_connections)", "legendFormat": "{{application}} idle" },
-        { "refId": "C", "expr": "sum by (application) (r2dbc_pool_pending_connections)", "legendFormat": "{{application}} pending" }
+        { "refId": "A", "expr": "sum by (application) (r2dbc_pool_acquired_connections)", "legendFormat": "{{application}} r2dbc acquired" },
+        { "refId": "B", "expr": "sum by (application) (r2dbc_pool_idle_connections)", "legendFormat": "{{application}} r2dbc idle" },
+        { "refId": "C", "expr": "sum by (application) (r2dbc_pool_pending_connections)", "legendFormat": "{{application}} r2dbc pending" },
+        { "refId": "D", "expr": "sum by (application) (hikaricp_connections_active)", "legendFormat": "{{application}} jdbc active" },
+        { "refId": "E", "expr": "sum by (application) (hikaricp_connections_idle)", "legendFormat": "{{application}} jdbc idle" },
+        { "refId": "F", "expr": "sum by (application) (hikaricp_connections_pending)", "legendFormat": "{{application}} jdbc pending" }
       ]
     },
     {
@@ -246,7 +251,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [{
         "refId": "A",
-        "expr": "sum(rate(lettuce_command_completion_seconds_sum[1m])) / clamp_min(sum(rate(lettuce_command_completion_seconds_count[1m])), 1)",
+        "expr": "sum(rate(lettuce_command_completion_seconds_sum[1m])) / (sum(rate(lettuce_command_completion_seconds_count[1m])) > 0)",
         "legendFormat": "average command"
       }]
     },
@@ -269,7 +274,7 @@
       "title": "Escalations and acknowledgements (per minute)",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 72 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "refId": "A", "expr": "sum(increase(triage_patients_escalated_total[1m]))", "legendFormat": "escalated" },
