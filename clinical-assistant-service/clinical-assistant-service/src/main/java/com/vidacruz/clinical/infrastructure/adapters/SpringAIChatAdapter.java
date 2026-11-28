@@ -67,7 +67,7 @@ public final class SpringAIChatAdapter implements NamedLLMProvider {
 
 	@Override
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
-		// No user params are passed, so ChatClient sends the text as-is: the JSON braces are not template syntax.
+		// M-1: trusted instruction in system role, delimited/escaped untrusted data in user message.
 		Mono<String> answer = Mono.defer(() -> chatClient.prompt()
 				.system(GroundedPrompt.systemInstruction())
 				.user(GroundedPrompt.userContent(question, evidence))
