@@ -4,9 +4,94 @@
 - **Commit under test:** `87cf99a` (`origin/develop`).
 - **Scope:** local Docker Compose only. No Azure and no Kubernetes namespace was touched. No application code or
   observability configuration was changed.
-- **Verdict:** metrics collection and cross-service tracing work, and no sensitive text was found in spans. **Four
-  checks fail** (Grafana Jaeger datasource, two dashboard panels with wrong numbers, one wrong unit), failed requests
-  are not marked as errors in most spans, and **there are no alert rules at all**.
+- **Audit verdict (before remediation):** metrics collection and cross-service tracing work, and no sensitive text
+  was found in spans. **Four checks fail** (Grafana Jaeger datasource, two dashboard panels with wrong numbers, one
+  wrong unit), failed requests are not marked as errors in most spans, and **there are no alert rules at all**.
+- **After remediation (section 0):** everything above is fixed and verified except **F-1, the Grafana Jaeger
+  datasource, which is still open**.
+
+## 0. Remediation and verification (same day)
+
+Sections 1–9 describe the audit of `87cf99a` and are kept as the "before" state. The fixes are separate commits on top
+of it.
+
+### 0.1 Status per finding
+
+| Id | Status | Change | Before → after |
+|---|---|---|---|
+| F-1 | **Open** | Not applied: Jaeger 2.21 removed the v1 query API that Grafana 12.1.1 uses, and pinning `2.20.0` needs an image download that is not yet confirmed. | Unchanged: health check and search fail |
+| F-2 | Fixed | Histogram steps at 1.5, 2.5, 3, 4, 7.5, 12.5, 15.5, 16 and 20 s | Timeouts p50/p95 22.5 / 29.3 s → **15.25 / 15.48 s** (real max 15.01 s). Success p95 up to 4.85 s (max 2.28) → at most 2.98 s (max 2.53) |
+| F-3 | Fixed | Redis query divides by the real rate and has no sample while idle | 0.022 ms shown for 1.24 ms → real average (promtool test; panel reads 1–3.6 ms) |
+| F-4 | Fixed, with one limit | Handled `5xx` answers mark the server span; one `llm attempt <node>` span per provider attempt is failed on error, timeout or cancellation | 0 error spans of 1013 → `HTTP 503` and `LLM provider call failed: timeout` errors. **Limit:** Spring AI still closes its `chat` span as successful on a timeout; the parent attempt span carries the error |
+| F-5 | Fixed | The error panel counts responses of the previous minute, including the first one of a new series | Isolated errors read 0 → counted (promtool test) |
+| F-6 | Partly fixed | `triaje.eventos publish` producer span, child of the stored `traceparent`; the Kafka header is unchanged | 6 spans with an unexplained gap → 7 spans. PostgreSQL, pgvector and Redis spans were **not** added |
+| F-7 | Fixed | Hikari series added to the pool panel | JDBC pool invisible → shown |
+| F-8 | Fixed | Outbox gauges, circuit-breaker metrics and seven alert rules | No rules → see 0.2 |
+| F-9 | Documented | `k8s/local/README.md` states that monitoring exists only in Compose | No overlay added |
+| F-10 | **Not changed** | A `metrics:read` key for the scraper would need a second default key in Compose, that is, one more credential accepted by the local stack. That is an owner decision. | Owner keys still used locally |
+| Panel 22 and event rates | Fixed | `short` for per-minute counts, `ops/s` for event rates | `req/s` |
+| New: counter colours | Fixed | Stat panels turned red above 80 (Grafana default thresholds), seen once there was more traffic | Green at any volume |
+| Documentation (section 7) | Fixed in current documents | Meter names in the compliance matrix and the service document; implementation note in ADR-09; alerts and `promtool` tests in `local-verification.md` | `docs/analysis.md` keeps its planned names as a historical analysis. `local-verification.md` §8 stays inaccurate for search until F-1 |
+
+### 0.2 Alerts
+
+Rules: [`alerts.yml`](../../../observability/prometheus/alerts.yml); tests:
+[`alerts.test.yml`](../../../observability/prometheus/alerts.test.yml). No Alertmanager and no notification channel.
+Thresholds are demo defaults.
+
+Live run on the isolated full stack, UTC ([timeline](observability/after/alert-timeline.json)): its Kafka broker was
+stopped and the LLM stub was made to time out and fail.
+
+| Alert | pending | firing | Quiet / recovery | Live | promtool |
+|---|---|---|---|---|---|
+| `LlmCircuitBreakerOpen` | 16:52:59 | 16:53:59 | cleared after successful calls closed the breaker | yes | yes |
+| `LlmUnavailableRatioHigh` | 16:52:59 | 16:54:57 | quiet during normal traffic; cleared by 17:03:41 | yes | yes |
+| `OutboxPublishingStalled` | 16:54:35 | 16:55:34 | backlog 0 and alert cleared by 17:00:52 after the broker returned | yes | yes |
+| `HttpServerErrorRatioHigh` | 16:53:59 | 16:56:00 | also fired in the normal run, where injected failures were 5 of about 58 assistant requests | yes | yes |
+| `TargetDown` | seen while the services started | not fired | stayed quiet with both targets up | pending only | yes |
+| `UrgencyConsumerLagHigh` | – | – | stayed quiet (lag 0) | quiet only | yes |
+| `OutboxEventsNeedReview` | – | – | stayed quiet (no flagged rows) | quiet only | yes |
+
+The live run exposed a defect in the first version of the breaker rule: an open breaker turns half-open after 30 s,
+which would have reset its one-minute pending period. The rule now matches `open` or `half_open`, with a test.
+Consequence: with no traffic a half-open breaker keeps the alert until a call closes it.
+
+Screenshots: [one firing, six quiet](observability/after/02-prometheus-alerts-one-firing.png),
+[provoked](observability/after/05-prometheus-alerts-provoked.png),
+[recovered](observability/after/07-prometheus-alerts-recovered.png).
+
+### 0.3 Verification
+
+| Check | Result |
+|---|---|
+| `triage-service` Gradle suite | **188 tests, 0 failures, 0 errors, 0 skipped** |
+| `clinical-assistant-service` Gradle suite | **341 tests, 0 failures, 0 errors, 3 skipped** (`GeminiChatVerificationTest`, `GeminiEmbeddingVerificationTest`, `OpenRouterChatVerificationTest`: they need real provider keys) |
+| `python -m unittest discover -s observability/tests` | **12 tests, OK**: dashboard queries, units, colours and alert rules with `promtool` |
+| Full isolated stack built from this branch, synthetic traffic | 22 panels without query errors ([dashboard](observability/after/01-grafana-dashboard.png), [results](observability/after/evidence-after.json)) |
+| Span hygiene | **5200 spans, 1288 traces: no canary, corpus word, prompt delimiter or API key**; no hit in the logs of both services. Canaries now cover triage names, complaints and the acknowledging user, closing that gap of section 8 |
+| Traces | [publish span](observability/after/03-jaeger-trace-with-publish-span.png), [provider error](observability/after/04-jaeger-failed-attempt.png), [timeout](observability/after/06-jaeger-timed-out-attempt.png) |
+
+The Gradle suites ran from a copy in an ASCII-only path: on this Windows host the test worker cannot load classes from
+a path with accented characters. BlockHound is active in both suites, including its negative control; the new outbox
+gauges read values refreshed by a non-blocking R2DBC query, never during a scrape.
+
+### 0.4 Behaviour that changes, and what remains
+
+- New metric families: `triage_outbox_*`, `resilience4j_circuitbreaker_*`, `assistant_llm_attempt_seconds*`.
+- HTTP server series of handled `5xx` answers should now carry the marker class in their `exception`/`error` labels
+  instead of `none` (framework behaviour; not checked on a live scrape).
+- The scheduled backlog read adds one short trace every 15 s.
+- **Still reaching spans unchanged:** exception messages of failures that escape the controllers, and of unhandled
+  `4xx` such as an unreadable body (Spring marks those itself), and Spring AI's `chat` error message with the provider
+  URL. No sensitive text was seen, but none of it is sanitized. Changing it means replacing framework tracing
+  handlers.
+- The application never sets `requiere_revision`, retries rows already flagged and writes `FALSE` back on the next
+  failure, unlike ADR-03. `OutboxEventsNeedReview` can only react to a manual flag. Not changed.
+- Cancellation of a provider call is covered by a unit test only. Real LLM providers were still not exercised, and
+  `gemini` and `opencode` emit no Spring AI `chat` span (only the new attempt span).
+- Reproduce the alert run: with the full stack of section 9 running, `docker compose -p vidacruz-obs stop kafka`, then
+  run [`provoke_alerts.py`](observability/tools/provoke_alerts.py) from its folder with `python` (without `-I`, it
+  imports the traffic script), and start Kafka again.
 
 ## 1. Where the evidence comes from
 
@@ -179,7 +264,7 @@ T=docs/audits/20261128/observability/tools
 python -I $T/llm_stub.py &     # loopback stub on 127.0.0.1:21434, not a real model
 ```
 
-**Full stack** (recommended on a machine with free memory; not executed in this audit):
+**Full stack** (not executed in the first audit; used for the verification in section 0):
 
 ```bash
 docker compose -p vidacruz-obs --env-file $T/obs.env -f docker-compose.yml -f docker-compose.demo.yml \

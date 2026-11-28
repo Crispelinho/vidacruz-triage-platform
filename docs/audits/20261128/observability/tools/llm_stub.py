@@ -29,7 +29,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         prompt = "\n".join(m.get("content", "") for m in body.get("messages", []) if m.get("role") == "user")
-        time.sleep(random.uniform(0.2, 2.5))
+        # SIMULAR-LENTO answers after the assistant's 15 s node timeout.
+        time.sleep(17 if "SIMULAR-LENTO" in prompt else random.uniform(0.2, 2.5))
         match = EVIDENCE.search(prompt)
         if "SIMULAR-FALLO" in prompt or match is None:
             self.send_error(500, "simulated provider failure")

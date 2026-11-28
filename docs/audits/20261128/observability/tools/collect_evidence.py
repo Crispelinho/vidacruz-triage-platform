@@ -19,6 +19,11 @@ CUSTOM_METRICS = [
     "assistant_answers_total",
     "assistant_llm_latency_seconds_count",
     "assistant_urgency_events_total",
+    "triage_outbox_pending",
+    "triage_outbox_failing",
+    "triage_outbox_requires_review",
+    "triage_outbox_oldest_pending_age_seconds",
+    "resilience4j_circuitbreaker_state",
 ]
 SERVICES = ["triage-service", "clinical-assistant-service"]
 # Text that must never reach spans, metric labels or logs. Canaries come from generate_traffic.py.
@@ -66,12 +71,16 @@ def prometheus_checks(base):
         {"job": t["labels"]["job"], "health": t["health"], "lastError": t["lastError"]} for t in targets
     ]
     out["ruleGroups"] = as_json(http(base + "/api/v1/rules")[1])["data"]["groups"]
+    out["alerts"] = [
+        {"labels": a["labels"], "state": a["state"]}
+        for a in as_json(http(base + "/api/v1/alerts")[1])["data"]["alerts"]
+    ]
     out["alertmanagers"] = as_json(http(base + "/api/v1/alertmanagers")[1])["data"]["activeAlertmanagers"]
     out["metrics"] = {}
     for name in CUSTOM_METRICS:
         result = as_json(http(base + "/api/v1/query?query=" + urllib.parse.quote(name))[1])["data"]["result"]
         out["metrics"][name] = [
-            {"labels": {k: v for k, v in s["metric"].items() if k in ("level", "outcome", "result", "application")},
+            {"labels": {k: v for k, v in s["metric"].items() if k in ("level", "outcome", "result", "application", "name", "state")},
              "value": float(s["value"][1])} for s in result
         ]
     names = as_json(http(base + "/api/v1/label/__name__/values")[1])["data"]
@@ -186,6 +195,14 @@ def jaeger_checks(base, traffic, minutes):
     out["spanNames"] = {s: sorted(n) for s, n in names.items()}
     out["spanAttributes"] = {k: {"distinct": len(v), "samples": sorted(v)[:4]} for k, v in sorted(keys.items())}
     out["eventAttributeKeys"] = sorted(events)
+    failed = {}
+    for service, span in spans.values():
+        status = span.get("status") or {}
+        if status.get("code") in (2, "STATUS_CODE_ERROR"):
+            entry = failed.setdefault(f"{service} :: {span['name']}", {"count": 0, "messages": set()})
+            entry["count"] += 1
+            entry["messages"].add(status.get("message", ""))
+    out["errorSpans"] = {k: {"count": v["count"], "messages": sorted(v["messages"])[:3]} for k, v in failed.items()}
     forbidden = FORBIDDEN + [os.environ["OBS_TRIAGE_KEY"], os.environ["OBS_ASSISTANT_KEY"]]
     labels = FORBIDDEN + ["<triage api key>", "<assistant api key>"]
     out["forbiddenHitsInSpans"] = {label: raw.lower().count(text.lower()) for label, text in zip(labels, forbidden)}
