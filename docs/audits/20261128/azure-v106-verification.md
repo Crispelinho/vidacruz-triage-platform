@@ -50,7 +50,7 @@ Final run against `v1.0.6`: **13 PASS / 0 FAIL** (`verify-azure-r6.ps1`, tempora
 | Check | Result |
 |---|---|
 | Health via `/ops/{triage,asistente}` | `200` / `200` |
-| Critical registration with injected `traceparent` | `201`, `nivel=CRITICO`, trace `7c2e9b41d8a64f30b5e7c1a9f2d6b845`, patient `16476d7d-1d50-4157-b406-9e9edc2958e5` |
+| Critical registration with injected `traceparent` | `201`, `nivel=CRITICO`, trace `7c2e9b41d8a64f30b5e7c1a9f2d6b845`, patient `16476d7d-1d50-4157-b406-9e9edc2958e5` (synthetic test id) |
 | RF-03 SLA escalation | `PENDIENTE`, `slaMinutos=5`, alert `9e86da05-aa83-48b2-875e-987918379aa2`; SSE payload recorded `minutosEsperaAlEscalar=5.03` |
 | RF-06 acknowledgement flow | invalid `400`/`TRG-004`, valid `200`/`RECONOCIDA`, duplicate `409`/`TRG-009` |
 | RF-06 SSE snapshot + heartbeat | `event:alerta` snapshot present, `:latido` heartbeat present, 12,150 bytes |
@@ -67,6 +67,8 @@ Limitations: direct `psql` to Azure PostgreSQL times out from the verification h
 ### Verification-harness note
 
 The first harness run reported `400` for every authenticated POST. This was a harness defect, not an application finding: Windows PowerShell 5.1 passed the inline JSON to `curl.exe --data-binary` with mangled encoding. A diagnostic POST with the same payload and key returned `HTTP/1.1 201 Created` with `nivel=CRITICO`, `slaMinutos=5`. The harness was changed to write UTF-8-without-BOM JSON to a temporary file and pass it with `--data-binary @file`; the rerun uses a fresh trace id so it cannot match pre-existing Kafka events.
+
+All patient ids in this record are synthetic: the harness posts an `Azure R6 <suffix>` registration and `TriageRegistrationService` assigns `UUID.randomUUID()` (`TriageRegistrationService.java:140`). They do not correspond to real patient records.
 
 The Kafka excerpt from the earlier run also shows `traceparent` on `paciente_registrado`, `paciente_en_consulta` and `paciente_alta` outbox events, while scheduler-emitted `paciente_escalado` events have no inbound trace context and are logged as `NO_HEADERS`. That is expected for a timer-originated event and is not presented as propagated-trace evidence.
 
