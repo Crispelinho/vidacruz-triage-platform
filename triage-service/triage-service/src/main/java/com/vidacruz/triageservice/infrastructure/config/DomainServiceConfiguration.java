@@ -4,12 +4,17 @@ import java.time.Clock;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
+import com.vidacruz.triageservice.domain.port.AuditStore;
+import com.vidacruz.triageservice.domain.port.IdempotencyStore;
+import com.vidacruz.triageservice.domain.port.OutboxWriter;
+import com.vidacruz.triageservice.domain.port.PatientStore;
+import com.vidacruz.triageservice.domain.port.RegistrationResponseCodec;
+import com.vidacruz.triageservice.domain.port.ReportQueryRepository;
+import com.vidacruz.triageservice.domain.port.SlaPolicy;
+import com.vidacruz.triageservice.domain.port.TransactionalExecutor;
 import com.vidacruz.triageservice.domain.report.OperationReportRepository;
 import com.vidacruz.triageservice.domain.report.ReportPolicy;
 import com.vidacruz.triageservice.domain.service.AcknowledgeAlertUseCase;
@@ -21,14 +26,10 @@ import com.vidacruz.triageservice.domain.service.SlaEvaluator;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.domain.service.WatchAlertsUseCase;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 /**
- * Explicit wiring for the domain services. Keeping the beans here lets the use cases stay free of Spring DI
- * annotations; the constructors and every transaction boundary remain unchanged.
+ * Explicit wiring for the domain services. The use cases depend only on domain ports; Spring adapters implement
+ * those ports in the infrastructure layer.
  */
 @Configuration
 public class DomainServiceConfiguration {
@@ -61,45 +62,44 @@ public class DomainServiceConfiguration {
 	}
 
 	@Bean
-	public SlaEvaluator slaEvaluator(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public SlaEvaluator slaEvaluator(PatientStore patientStore,
+			AuditStore auditStore,
+			OutboxWriter outboxWriter,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionalExecutor transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		return new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, clock, metrics);
+		return new SlaEvaluator(patientStore, auditStore, outboxWriter, alertRepository, transactions, clock, metrics);
 	}
 
 	@Bean
-	public TriageRegistrationService triageRegistrationService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
-			IdempotencyKeyRepository idempotencyRepository,
-			ObjectMapper objectMapper,
+	public TriageRegistrationService triageRegistrationService(PatientStore patientStore,
+			AuditStore auditStore,
+			OutboxWriter outboxWriter,
+			IdempotencyStore idempotencyStore,
+			RegistrationResponseCodec responseCodec,
 			TriageClassifier classifier,
-			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator,
+			SlaPolicy slaPolicy,
+			TransactionalExecutor transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		return new TriageRegistrationService(patientRepository, auditRepository, eventWriter, idempotencyRepository,
-				objectMapper, classifier, slaProperties, transactionalOperator, clock, metrics);
+		return new TriageRegistrationService(patientStore, auditStore, outboxWriter, idempotencyStore,
+				responseCodec, classifier, slaPolicy, transactions, clock, metrics);
 	}
 
 	@Bean
-	public PatientLifecycleService patientLifecycleService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public PatientLifecycleService patientLifecycleService(PatientStore patientStore,
+			AuditStore auditStore,
+			OutboxWriter outboxWriter,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionalExecutor transactions,
 			Clock clock) {
-		return new PatientLifecycleService(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, clock);
+		return new PatientLifecycleService(patientStore, auditStore, outboxWriter, alertRepository,
+				transactions, clock);
 	}
 
 	@Bean
-	public ReportService reportService(DatabaseClient databaseClient) {
-		return new ReportService(databaseClient);
+	public ReportService reportService(ReportQueryRepository reportQueryRepository) {
+		return new ReportService(reportQueryRepository);
 	}
 }

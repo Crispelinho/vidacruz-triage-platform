@@ -1,6 +1,5 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;

@@ -7,14 +7,10 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.domain.model.PatientRegistration;
 
 /** SHA-256 of the canonical, validated request body: sorted wire keys and normalized values (DEC-15, ADR-12). */
 public final class RequestFingerprint {
-
-	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private RequestFingerprint() {
 	}
@@ -31,12 +27,19 @@ public final class RequestFingerprint {
 		canonical.put("queja_principal", registration.complaint().trim());
 		canonical.put("spo2", registration.spo2());
 		canonical.put("temperatura", registration.temperature());
-		try {
-			byte[] bytes = MAPPER.writeValueAsBytes(canonical);
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-		} catch (JsonProcessingException | NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("Cannot build canonical request digest", exception);
+		StringBuilder json = new StringBuilder("{");
+		boolean first = true;
+		for (Map.Entry<String, Object> entry : canonical.entrySet()) {
+			if (!first) {
+				json.append(',');
+			}
+			first = false;
+			appendString(json, entry.getKey());
+			json.append(':');
+			appendValue(json, entry.getValue());
 		}
+		json.append('}');
+		return of(json.toString());
 	}
 
 	public static String of(String canonicalJson) {
@@ -46,5 +49,41 @@ public final class RequestFingerprint {
 		} catch (NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("SHA-256 digest is not available", exception);
 		}
+	}
+
+	private static void appendValue(StringBuilder json, Object value) {
+		if (value == null) {
+			json.append("null");
+		} else if (value instanceof String text) {
+			appendString(json, text);
+		} else if (value instanceof Number number) {
+			json.append(number);
+		} else {
+			throw new IllegalStateException("Unsupported canonical value: " + value.getClass().getName());
+		}
+	}
+
+	private static void appendString(StringBuilder json, String value) {
+		json.append('"');
+		for (int i = 0; i < value.length(); i++) {
+			char c = value.charAt(i);
+			switch (c) {
+				case '"' -> json.append("\\\"");
+				case '\\' -> json.append("\\\\");
+				case '\b' -> json.append("\\b");
+				case '\f' -> json.append("\\f");
+				case '\n' -> json.append("\\n");
+				case '\r' -> json.append("\\r");
+				case '\t' -> json.append("\\t");
+				default -> {
+					if (c < 0x20) {
+						json.append(String.format("\\u%04x", (int) c));
+					} else {
+						json.append(c);
+					}
+				}
+			}
+		}
+		json.append('"');
 	}
 }

@@ -16,7 +16,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

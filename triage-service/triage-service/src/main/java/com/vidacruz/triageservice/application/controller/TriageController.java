@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.dto.PatientDetailResponse;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationRequest;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.application.dto.StateChangeRequest;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
