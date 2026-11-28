@@ -1,7 +1,5 @@
 package com.vidacruz.triageservice.event.domain;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -12,18 +10,17 @@ public class PacienteRegistrado extends TriageEvent {
     private final String estado;
     private final ZonedDateTime fechaRegistro;
 
-    @JsonCreator
     public PacienteRegistrado(
-            @JsonProperty("eventId") UUID eventId,
-            @JsonProperty("schemaVersion") int schemaVersion,
-            @JsonProperty("pacienteId") UUID pacienteId,
-            @JsonProperty("pacienteSequence") long pacienteSequence,
-            @JsonProperty("occurredAt") ZonedDateTime occurredAt,
-            @JsonProperty("correlationId") String correlationId,
-            @JsonProperty("nivel") String nivel,
-            @JsonProperty("slaMinutos") int slaMinutos,
-            @JsonProperty("estado") String estado,
-            @JsonProperty("fechaRegistro") ZonedDateTime fechaRegistro) {
+            UUID eventId,
+            int schemaVersion,
+            UUID pacienteId,
+            long pacienteSequence,
+            ZonedDateTime occurredAt,
+            String correlationId,
+            String nivel,
+            int slaMinutos,
+            String estado,
+            ZonedDateTime fechaRegistro) {
 
         super(eventId, EventType.EVT_01_PACIENTE_REGISTRADO, schemaVersion, pacienteId,
               pacienteSequence, occurredAt, correlationId);
@@ -44,22 +41,18 @@ public class PacienteRegistrado extends TriageEvent {
         this.fechaRegistro = fechaRegistro;
     }
 
-    @JsonProperty("nivel")
     public String getNivel() {
         return nivel;
     }
 
-    @JsonProperty("slaMinutos")
     public int getSlaMinutos() {
         return slaMinutos;
     }
 
-    @JsonProperty("estado")
     public String getEstado() {
         return estado;
     }
 
-    @JsonProperty("fechaRegistro")
     public ZonedDateTime getFechaRegistro() {
         return fechaRegistro;
     }

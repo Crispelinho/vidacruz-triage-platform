@@ -1,7 +1,5 @@
 package com.vidacruz.triageservice.event.domain;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -10,16 +8,15 @@ public class PacienteAlta extends TriageEvent {
     private final String estadoAnterior;
     private final ZonedDateTime fechaAlta;
 
-    @JsonCreator
     public PacienteAlta(
-            @JsonProperty("eventId") UUID eventId,
-            @JsonProperty("schemaVersion") int schemaVersion,
-            @JsonProperty("pacienteId") UUID pacienteId,
-            @JsonProperty("pacienteSequence") long pacienteSequence,
-            @JsonProperty("occurredAt") ZonedDateTime occurredAt,
-            @JsonProperty("correlationId") String correlationId,
-            @JsonProperty("estadoAnterior") String estadoAnterior,
-            @JsonProperty("fechaAlta") ZonedDateTime fechaAlta) {
+            UUID eventId,
+            int schemaVersion,
+            UUID pacienteId,
+            long pacienteSequence,
+            ZonedDateTime occurredAt,
+            String correlationId,
+            String estadoAnterior,
+            ZonedDateTime fechaAlta) {
 
         super(eventId, EventType.EVT_04_PACIENTE_ALTA, schemaVersion, pacienteId,
               pacienteSequence, occurredAt, correlationId);
@@ -35,12 +32,10 @@ public class PacienteAlta extends TriageEvent {
         this.fechaAlta = fechaAlta;
     }
 
-    @JsonProperty("estadoAnterior")
     public String getEstadoAnterior() {
         return estadoAnterior;
     }
 
-    @JsonProperty("fechaAlta")
     public ZonedDateTime getFechaAlta() {
         return fechaAlta;
     }

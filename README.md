@@ -78,6 +78,20 @@ For the technical-test review, start here:
 | Kubernetes / Azure IaC | `infra/k8s/`, `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/`, `infra/azure/` |
 | Azure deployment evidence | [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) |
 
+### Verifying the Azure deployment from any machine
+
+When the Azure environment is up, health, readiness and metrics are reachable from any IP under `/ops` on the public host (no IP allow-list). Health needs no key and shows only the status; `/prometheus` needs `X-API-Key`. Evaluators get a separate, revocable reviewer key through a secure channel.
+
+```bash
+HOST=<public host printed by deploy.ps1>
+curl -s https://$HOST/ops/triage/health/readiness
+curl -s https://$HOST/ops/asistente/health/liveness
+curl -s -H "X-API-Key: $REVIEWER_KEY" https://$HOST/ops/triage/prometheus | head
+curl -s -H "X-API-Key: $REVIEWER_KEY" https://$HOST/ops/asistente/prometheus | head
+```
+
+The route table and the manual GitHub settings (protected environments `azure`, `gemini-verification` and `openrouter-verification`, optional `*_REVIEWER_API_KEY` secrets) are in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 1.8 and 1.9).
+
 ## Known limits
 
 - **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target is recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md). No credentials are stored here, and local traces still go to the Jaeger container.

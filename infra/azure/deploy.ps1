@@ -9,7 +9,8 @@
     the namespace (cert-manager, the Gateway, the public routes), which this script is not allowed to touch. It signs
     in to the cluster with Microsoft Entra ID (kubelogin, no admin credentials) and only writes in vidacruz. The
     secrets come only from the environment and are never printed: TRIAGE_API_KEY, ASSISTANT_API_KEY,
-    POSTGRES_PASSWORD, REDIS_PASSWORD, GEMINI_API_KEY and OPENCODE_API_KEY.
+    POSTGRES_PASSWORD, REDIS_PASSWORD, GEMINI_API_KEY and OPENCODE_API_KEY, plus the optional reviewer keys
+    TRIAGE_REVIEWER_API_KEY and ASSISTANT_REVIEWER_API_KEY (left out of the Kubernetes Secrets when not set).
 
 .EXAMPLE
     ./infra/azure/deploy.ps1 -ResourceGroup vidacruz-rg -ImageTag v1
@@ -48,6 +49,13 @@ function Set-Secret([string] $Name, [hashtable] $Values) {
     }
 }
 
+# Optional secrets (the evaluators' reviewer keys): added to the Kubernetes Secret only when set, so a missing one
+# does not fail the deployment. Removing the GitHub secret and deploying again revokes the key.
+function Add-OptionalSecret([hashtable] $Values, [string] $Name) {
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if (-not [string]::IsNullOrWhiteSpace($value)) { $Values[$Name] = $value }
+}
+
 $secrets = @{
     TRIAGE_API_KEY    = Get-RequiredSecret 'TRIAGE_API_KEY'
     ASSISTANT_API_KEY = Get-RequiredSecret 'ASSISTANT_API_KEY'
@@ -84,13 +92,13 @@ $tokens = @{
 }
 # The secrets first, so they exist before the pods that read them
 Set-Secret 'redis-auth' @{ REDIS_PASSWORD = $secrets.REDIS_PASSWORD }
-Set-Secret 'triage-service-secrets' @{
+$triageSecrets = @{
     TRIAGE_API_KEY             = $secrets.TRIAGE_API_KEY
     TRIAGE_DB_PASSWORD         = $secrets.POSTGRES_PASSWORD
     SPRING_DATASOURCE_PASSWORD = $secrets.POSTGRES_PASSWORD
     SPRING_R2DBC_PASSWORD      = $secrets.POSTGRES_PASSWORD
 }
-Set-Secret 'clinical-assistant-service-secrets' @{
+$assistantSecrets = @{
     ASSISTANT_API_KEY          = $secrets.ASSISTANT_API_KEY
     ASSISTANT_DB_PASSWORD      = $secrets.POSTGRES_PASSWORD
     SPRING_DATASOURCE_PASSWORD = $secrets.POSTGRES_PASSWORD
@@ -98,6 +106,10 @@ Set-Secret 'clinical-assistant-service-secrets' @{
     GEMINI_API_KEY             = $secrets.GEMINI_API_KEY
     OPENCODE_API_KEY           = $secrets.OPENCODE_API_KEY
 }
+Add-OptionalSecret $triageSecrets 'TRIAGE_REVIEWER_API_KEY'
+Add-OptionalSecret $assistantSecrets 'ASSISTANT_REVIEWER_API_KEY'
+Set-Secret 'triage-service-secrets' $triageSecrets
+Set-Secret 'clinical-assistant-service-secrets' $assistantSecrets
 
 Send-Manifest (Get-RenderedManifests (Join-Path $repositoryRoot 'infra/k8s') $tokens)
 # The topic must exist before the services' init containers can finish
@@ -111,3 +123,5 @@ $publicHost = $outputs.publicHost.value
 Write-Host "Deployed $ImageTag."
 Write-Host "  Triage:     https://$publicHost/triage/pacientes   (Swagger: https://$publicHost/docs/triage/swagger-ui.html)"
 Write-Host "  Assistant:  https://$publicHost/asistente/consulta (Swagger: https://$publicHost/docs/asistente/swagger-ui.html)"
+Write-Host "  Health:     https://$publicHost/ops/triage/health  https://$publicHost/ops/asistente/health"
+Write-Host "  Metrics:    https://$publicHost/ops/triage/prometheus  https://$publicHost/ops/asistente/prometheus (X-API-Key)"

@@ -4,12 +4,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,57 +23,60 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.application.config.JacksonConfiguration;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationRequest;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.model.AuditEntry;
+import com.vidacruz.triageservice.domain.model.IdempotencyKey;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.PatientSnapshot;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
+import com.vidacruz.triageservice.domain.port.AuditStore;
+import com.vidacruz.triageservice.domain.port.IdempotencyStore;
+import com.vidacruz.triageservice.domain.port.OutboxWriter;
+import com.vidacruz.triageservice.domain.port.PatientStore;
+import com.vidacruz.triageservice.domain.port.RegistrationResponseCodec;
+import com.vidacruz.triageservice.domain.port.TransactionalExecutor;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.RequestFingerprint;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.config.ClockConfig;
+import com.vidacruz.triageservice.infrastructure.config.JacksonRegistrationResponseCodec;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(controllers = TriageController.class)
 @Import({ TriageRegistrationService.class, PatientLifecycleService.class, TriageClassifier.class,
-		SlaProperties.class, ClockConfig.class, TriageControllerTest.TestSecurity.class })
+		SlaProperties.class, ClockConfig.class, JacksonConfiguration.class,
+		JacksonRegistrationResponseCodec.class, TriageControllerTest.TestSecurity.class })
 class TriageControllerTest {
 
-	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+	@MockitoBean
+	private PatientStore patientStore;
 
 	@MockitoBean
-	private PatientRepository patientRepository;
+	private AuditStore auditStore;
 
 	@MockitoBean
-	private AuditEntryRepository auditRepository;
-
-	@MockitoBean
-	private OutboxEventWriter eventWriter;
+	private OutboxWriter outboxWriter;
 
 	@MockitoBean
 	private MedicalAlertRepository alertRepository;
 
 	@MockitoBean
-	private IdempotencyKeyRepository idempotencyRepository;
+	private IdempotencyStore idempotencyStore;
 
 	@MockitoBean
-	private TransactionalOperator transactionalOperator;
+	private TransactionalExecutor transactionalExecutor;
 
 	@MockitoBean
 	private TriageMetrics metrics;
+
+	@Autowired
+	private RegistrationResponseCodec responseCodec;
 
 	@Autowired
 	private WebTestClient client;
@@ -83,18 +84,16 @@ class TriageControllerTest {
 	@BeforeEach
 	@SuppressWarnings("unchecked")
 	void setUp() {
-		when(patientRepository.save(any(PatientEntity.class)))
+		when(patientStore.save(any(PatientSnapshot.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(auditRepository.save(any(AuditEntryEntity.class)))
-				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_registrado", "{}",
-						UUID.randomUUID(), 1, OffsetDateTime.now(), UUID.randomUUID())));
-		when(transactionalOperator.transactional(any(Mono.class)))
+		when(auditStore.append(any(AuditEntry.class))).thenReturn(Mono.empty());
+		when(outboxWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.empty());
+		when(transactionalExecutor.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
-		when(idempotencyRepository.insertPending(anyString(), anyString(), any(Instant.class),
+		when(idempotencyStore.insertPending(anyString(), anyString(), any(Instant.class),
 				any(Instant.class))).thenReturn(Mono.just(1));
-		when(idempotencyRepository.complete(anyString(), any(UUID.class), anyInt(), anyString()))
+		when(idempotencyStore.complete(anyString(), any(UUID.class), anyInt(), anyString()))
 				.thenReturn(Mono.just(1));
 	}
 
@@ -159,10 +158,10 @@ class TriageControllerTest {
 		Instant registeredAt = Instant.now();
 		PatientRegistrationResponse original = new PatientRegistrationResponse(patientId, "CRITICO", 5,
 				"REGISTRADO", registeredAt);
-		IdempotencyKeyEntity stored = new IdempotencyKeyEntity("idem-1",
+		IdempotencyKey stored = new IdempotencyKey("idem-1",
 				RequestFingerprint.of(registration("Paciente de prueba", 130).toDomain()), patientId, 201,
-				writeJson(original), registeredAt, registeredAt);
-		when(idempotencyRepository.findById("idem-1")).thenReturn(Mono.just(stored));
+				responseCodec.encode(original), registeredAt, registeredAt);
+		when(idempotencyStore.findById("idem-1")).thenReturn(Mono.just(stored));
 
 		client.post().uri("/triage/pacientes")
 				.header("Idempotency-Key", "idem-1")
@@ -180,10 +179,10 @@ class TriageControllerTest {
 		Instant now = Instant.now();
 		PatientRegistrationResponse original = new PatientRegistrationResponse(UUID.randomUUID(), "CRITICO", 5,
 				"REGISTRADO", now);
-		IdempotencyKeyEntity stored = new IdempotencyKeyEntity("idem-2",
+		IdempotencyKey stored = new IdempotencyKey("idem-2",
 				RequestFingerprint.of(registration("Otro paciente", 130).toDomain()), original.id(), 201,
-				writeJson(original), now, now);
-		when(idempotencyRepository.findById("idem-2")).thenReturn(Mono.just(stored));
+				responseCodec.encode(original), now, now);
+		when(idempotencyStore.findById("idem-2")).thenReturn(Mono.just(stored));
 
 		client.post().uri("/triage/pacientes")
 				.header("Idempotency-Key", "idem-2")
@@ -194,14 +193,6 @@ class TriageControllerTest {
 				.expectBody()
 				.jsonPath("$.code").isEqualTo("IDEMPOTENCY_KEY_REUSED")
 				.jsonPath("$.correlationId").exists();
-	}
-
-	private String writeJson(Object value) {
-		try {
-			return mapper.writeValueAsString(value);
-		} catch (Exception exception) {
-			throw new IllegalStateException(exception);
-		}
 	}
 
 	private static PatientRegistrationRequest registration(String name, int heartRate) {
