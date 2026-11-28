@@ -167,6 +167,52 @@ gh run watch
 
 No hace falta el `kubectl scale`: con 850m pedidos caben las dos réplicas del asistente en el mismo nodo.
 
+### 1.8 Configuración manual de GitHub (no vive en el código)
+
+Estos ajustes se hacen en la interfaz de GitHub (o con `gh api`) y son la frontera real del hallazgo A-5: el `if` de cada job es solo defensa en profundidad, porque un workflow en otra rama puede editarse para quitarlo.
+
+1. **Environment `azure`** (Settings → Environments → azure):
+   - *Deployment branches and tags* → **Selected branches and tags** → `develop` y `main`. Se permiten las dos porque los despliegues salen de `develop` y `main` es la rama por defecto del repositorio.
+   - *Required reviewers*: al menos un mantenedor (y, si se quiere, *Prevent self-review*).
+   - Secrets requeridos: `TRIAGE_API_KEY`, `ASSISTANT_API_KEY`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`. Opcionales: `GEMINI_API_KEY`, `OPENCODE_API_KEY`.
+   - Secrets opcionales nuevos: `TRIAGE_REVIEWER_API_KEY` y `ASSISTANT_REVIEWER_API_KEY` (mínimo 16 caracteres, distintos de las claves principales). Es la clave que se entrega a los evaluadores. `deploy.ps1` solo la incluye en `triage-service-secrets` / `clinical-assistant-service-secrets` cuando existe y nunca la imprime. Para revocarla: borrar el secret y volver a desplegar (el pod la toma al reiniciarse; si la imagen no cambia, `kubectl -n vidacruz rollout restart deployment/triage-service deployment/clinical-assistant-service`). La aplicación la acepta cuando incluye la lectura de esas variables (cambio de la rama de *medium-fixes*).
+2. **Environment nuevo `gemini-verification`**: mismas *deployment branches* (`develop`, `main`) y *required reviewers*. Crear ahí el secret `GEMINI_API_KEY` y **borrar el `GEMINI_API_KEY` de nivel repositorio** si existe: un secret de repositorio lo puede leer cualquier rama que edite un workflow, uno de environment solo los jobs que pasan sus reglas.
+3. Comprobación rápida con la CLI:
+
+```powershell
+gh api repos/{owner}/{repo}/environments --jq '.environments[] | {name, protection_rules: [.protection_rules[].type], deployment_branch_policy}'
+gh secret list
+gh secret list --env azure
+gh secret list --env gemini-verification
+```
+
+`gh secret list` (nivel repositorio) no debería mostrar `GEMINI_API_KEY`.
+
+Las acciones de `deploy.yml` y `gemini-embedding-verification.yml` están fijadas por SHA completo, con el tag como comentario. Se resolvieron con `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (desreferenciando los tags anotados con `git/tags/<sha>`) y se confirmó la versión exacta comparando contra `git/matching-refs/tags/`. Para actualizar una acción hay que repetir ese procedimiento.
+
+### 1.9 Health y métricas desde fuera del clúster
+
+La ruta `vidacruz-ops` (`infra/k8s/routes/routes.yaml`) publica solo estos endpoints del actuator, desde cualquier IP. La aplica `provision.ps1` (las rutas son decisión del administrador; `deploy.ps1` no puede tocarlas), así que hay que volver a ejecutarlo tras este cambio.
+
+| URL pública | Destino | Clave |
+|---|---|---|
+| `/ops/triage/health`, `/ops/triage/health/liveness`, `/ops/triage/health/readiness` | `triage-service:8081/actuator/health[/…]` | no (riesgo aceptado; solo muestra el estado) |
+| `/ops/asistente/health`, `/ops/asistente/health/liveness`, `/ops/asistente/health/readiness` | `clinical-assistant-service:8082/actuator/health[/…]` | no |
+| `/ops/triage/prometheus` | `triage-service:8081/actuator/prometheus` | `X-API-Key` |
+| `/ops/asistente/prometheus` | `clinical-assistant-service:8082/actuator/prometheus` | `X-API-Key` |
+
+Ejemplos que un evaluador puede correr desde cualquier máquina (`HOST` es el host público que imprime `deploy.ps1`; la clave es la de revisor recibida por un canal seguro):
+
+```bash
+HOST=vidacruz-xxxxxx.northcentralus.cloudapp.azure.com
+curl -s https://$HOST/ops/triage/health
+curl -s https://$HOST/ops/triage/health/readiness
+curl -s https://$HOST/ops/asistente/health/liveness
+curl -s -o /dev/null -w '%{http_code}\n' https://$HOST/ops/triage/prometheus   # 401 sin clave
+curl -s -H "X-API-Key: $TRIAGE_REVIEWER_API_KEY" https://$HOST/ops/triage/prometheus | head
+curl -s -H "X-API-Key: $ASSISTANT_REVIEWER_API_KEY" https://$HOST/ops/asistente/prometheus | head
+```
+
 ---
 
 ## 2. Pruebas realizadas el 26 de noviembre (hora local)
