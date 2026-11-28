@@ -117,7 +117,7 @@ The route table and the manual GitHub settings (a single protected environment `
 
 ## Security decisions
 
-Owner decisions from the 2026-11-27 security review that are **not in `main` yet** (open PRs or GitHub settings). Guiding rule: the evaluators must be able to test every scenario from any machine, so access is controlled by API keys and never by IP allow-lists.
+Owner decisions from the [2026-11-27 security review](docs/audits/20261127/security-review.md) that are **not in `main` yet** (merged into `develop`, open PRs or GitHub settings). Guiding rule: the evaluators must be able to test every scenario from any machine, so access is controlled by API keys and never by IP allow-lists.
 
 **Accepted risks (kept on purpose for testability)**
 
@@ -130,14 +130,14 @@ Owner decisions from the 2026-11-27 security review that are **not in `main` yet
 | Public Swagger and OpenAPI paths | Evaluators can explore the contract | The contract is public, but every operation still needs the key |
 | AKS API server without authorized IP ranges (B-8) | Authorized ranges would block GitHub-hosted runners | Entra ID + Azure RBAC and `disableLocalAccounts` |
 
-**Pending merge**
+**Status (2026-11-28)**
 
 | Item | Where | Status |
 |---|---|---|
-| M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Merged into `develop`; its README section *Security improvements (backlog)* lists the residual items |
-| A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Merged into `develop`; partial by design |
-| One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Merged into `develop`. GitHub side applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
-| Remove the repository-level copies of the seven secrets, then the empty `gemini-verification` and `openrouter-verification` environments | GitHub settings | Pending owner confirmation. No workflow references the old scopes; the seven names were confirmed present in `azure` |
+| M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Merged into `develop`; not released to `main` yet. *Security improvements (backlog)* lists what each item leaves for later |
+| A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Merged into `develop`; not released to `main` yet |
+| One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Merged into `develop`; not released to `main` yet. GitHub side applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
+| M-5 gap: PII redaction also for the optional OpenRouter node | PR #189 | Merged into `develop`; not released to `main` yet |
 
 **Deferred improvements**
 
@@ -152,6 +152,7 @@ Owner decisions from the 2026-11-27 security review that are **not in `main` yet
 | B-4 | Size and rate limits on corpus ingestion to cap embedding costs |
 | B-5 | Remove Azure identifiers and personal data from versioned documentation |
 | B-6 | Remove dead scaffolding that can be mistaken for the real code |
+| CI/CD secrets | After the next `develop` → `main` release, delete the repository-level copies of the seven secrets (already inside `azure`) and the empty `gemini-verification` and `openrouter-verification` environments. Not done earlier on purpose: on `main`, `deploy.yml` already reads them from `azure`, but the two real-provider verifications still use the old environments and would lose `GEMINI_API_KEY` / `OPENROUTER_API_KEY` |
 
 ## Known limits
 
