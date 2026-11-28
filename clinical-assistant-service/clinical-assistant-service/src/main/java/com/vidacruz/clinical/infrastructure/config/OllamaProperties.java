@@ -6,8 +6,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Ollama settings for the first node of the C17 chain. {@code url} binds from {@code OLLAMA_BASE_URL}. The fixture
- * latency is retained for tests that must not call the network.
+ * Ollama settings for the first node of the C17 chain. {@code url} binds from {@code OLLAMA_BASE_URL}; {@code url} and
+ * {@code model} are forwarded to Spring AI as {@code spring.ai.ollama.base-url} and
+ * {@code spring.ai.ollama.chat.options.model} in {@code application.yaml} (ADR-05). The fixture latency is retained
+ * for tests that must not call the network.
  *
  * @param timeout hard limit for one LLM call; exceeding it is an {@code LLMUnavailableException} (ADR-09)
  */
