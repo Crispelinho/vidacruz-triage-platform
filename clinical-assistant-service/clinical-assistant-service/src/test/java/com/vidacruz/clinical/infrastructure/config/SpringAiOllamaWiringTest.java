@@ -11,9 +11,12 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
@@ -21,7 +24,7 @@ import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
-import com.vidacruz.clinical.infrastructure.adapters.SpringAiOllamaChatAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -91,11 +94,15 @@ class SpringAiOllamaWiringTest {
 
 		runner().run(context -> {
 			assertThat(context).hasNotFailed();
-			assertThat(context).hasSingleBean(ChatModel.class).hasSingleBean(OllamaChatModel.class);
+			// Three heterogeneous ChatModels coexist; three qualified ChatClients are built from them.
+			assertThat(context.getBeansOfType(ChatModel.class)).hasSize(3);
+			assertThat(context).hasSingleBean(OllamaChatModel.class).hasSingleBean(GoogleGenAiChatModel.class)
+					.hasSingleBean(OpenAiChatModel.class);
+			assertThat(context.getBeansOfType(ChatClient.class)).hasSize(3);
 			assertThat(context.getBeansOfType(EmbeddingModel.class)).isEmpty();
 
 			NamedLLMProvider node = context.getBean("ollamaNode", NamedLLMProvider.class);
-			assertThat(node).isInstanceOf(SpringAiOllamaChatAdapter.class);
+			assertThat(node).isInstanceOf(SpringAIChatAdapter.class);
 			assertThat(node.model()).isEqualTo("llama3.1:8b");
 		});
 	}

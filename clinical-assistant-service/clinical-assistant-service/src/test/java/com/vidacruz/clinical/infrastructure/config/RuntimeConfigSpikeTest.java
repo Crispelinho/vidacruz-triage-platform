@@ -13,12 +13,10 @@ import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
-import com.vidacruz.clinical.infrastructure.adapters.SpringAiOllamaChatAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -68,9 +66,9 @@ class RuntimeConfigSpikeTest {
             assertThat(openRouter.apiKey()).isEmpty();
             assertThat(openRouter.dataCollection()).isEqualTo("deny");
 
-            assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAiOllamaChatAdapter.class);
-            assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(GeminiHttpLLMAdapter.class);
-            assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(OpenCodeHttpLLMAdapter.class);
+            assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAIChatAdapter.class);
+            assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(SpringAIChatAdapter.class);
+            assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(SpringAIChatAdapter.class);
             assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(OpenRouterHttpLLMAdapter.class);
             assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 

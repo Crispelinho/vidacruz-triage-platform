@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -30,10 +31,10 @@ import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 /**
- * Spring AI ollama node with a fake {@link ChatModel}: no network. Subscriptions run on {@code parallel()} so the
+ * Spring AI chat nodes with a fake {@link ChatModel}: no network. Subscriptions run on {@code parallel()} so the
  * BlockHound agent installed for the test JVM (TST-RXN) fails the test if the ChatClient path blocks.
  */
-class SpringAiOllamaChatAdapterTest {
+class SpringAIChatAdapterTest {
 
 	private static final List<EvidenceFragment> EVIDENCE = List.of(EvidenceFragment.create(UUID.randomUUID(), 0,
 			"PROTO-001", "Medidas iniciales", "Aplicar presión directa.", new float[] { 1f }));
@@ -51,7 +52,7 @@ class SpringAiOllamaChatAdapterTest {
 
 		@Override
 		public ChatResponse call(Prompt prompt) {
-			throw new AssertionError("the ollama node must use stream(), not the blocking call()");
+			throw new AssertionError("chat nodes must use stream(), not the blocking call()");
 		}
 
 		@Override
@@ -70,7 +71,7 @@ class SpringAiOllamaChatAdapterTest {
 	void joinsStreamedChunksIntoOneAnswerWithoutBlocking() {
 		StreamingChatModel chatModel = new StreamingChatModel(
 				Flux.just(chunk("{\"respuesta\":\"Presión "), chunk("directa [1]\","), chunk("\"fuentes\":[]}")));
-		SpringAiOllamaChatAdapter adapter = new SpringAiOllamaChatAdapter(chatModel, "llama3.1:8b");
+		SpringAIChatAdapter adapter = adapter("ollama", chatModel, "llama3.1:8b");
 
 		StepVerifier.create(adapter.generate("¿Cómo controlo un sangrado?", EVIDENCE)
 				.subscribeOn(Schedulers.parallel()))
@@ -82,9 +83,18 @@ class SpringAiOllamaChatAdapterTest {
 	}
 
 	@Test
+	void oneAdapterClassServesAllThreeChainKeys() {
+		for (String key : List.of("ollama", "gemini", "opencode")) {
+			SpringAIChatAdapter node = adapter(key, new StreamingChatModel(Flux.just(chunk("ok"))), key + "-model");
+			assertThat(node.key()).isEqualTo(key);
+			assertThat(node.model()).isEqualTo(key + "-model");
+		}
+	}
+
+	@Test
 	void sendsTheSharedGroundedPromptVerbatim() {
 		StreamingChatModel chatModel = new StreamingChatModel(Flux.just(chunk("ok")));
-		SpringAiOllamaChatAdapter adapter = new SpringAiOllamaChatAdapter(chatModel, "llama3.1:8b");
+		SpringAIChatAdapter adapter = adapter("ollama", chatModel, "llama3.1:8b");
 
 		adapter.generate("¿Cómo controlo un sangrado?", EVIDENCE).block(Duration.ofSeconds(5));
 
@@ -97,7 +107,7 @@ class SpringAiOllamaChatAdapterTest {
 	void mapsServerErrorsToTheFailoverTrigger() {
 		StreamingChatModel chatModel = new StreamingChatModel(Flux.error(WebClientResponseException
 				.create(HttpStatus.SERVICE_UNAVAILABLE.value(), "Service Unavailable", null, null, null)));
-		SpringAiOllamaChatAdapter adapter = new SpringAiOllamaChatAdapter(chatModel, "llama3.1:8b");
+		SpringAIChatAdapter adapter = adapter("ollama", chatModel, "llama3.1:8b");
 
 		StepVerifier.create(adapter.generate("q", EVIDENCE))
 				.expectErrorSatisfies(error -> assertThat(error).isInstanceOf(LLMUnavailableException.class)
@@ -108,7 +118,7 @@ class SpringAiOllamaChatAdapterTest {
 	@Test
 	void mapsTransportErrorsToTheFailoverTrigger() {
 		StreamingChatModel chatModel = new StreamingChatModel(Flux.error(new IllegalStateException("connection refused")));
-		SpringAiOllamaChatAdapter adapter = new SpringAiOllamaChatAdapter(chatModel, "llama3.1:8b");
+		SpringAIChatAdapter adapter = adapter("ollama", chatModel, "llama3.1:8b");
 
 		StepVerifier.create(adapter.generate("q", EVIDENCE))
 				.expectErrorSatisfies(error -> assertThat(error).isInstanceOf(LLMUnavailableException.class)
@@ -118,10 +128,10 @@ class SpringAiOllamaChatAdapterTest {
 
 	@Test
 	void routerFailsOverFromTheSpringAiNodeToTheNextNode() {
-		SpringAiOllamaChatAdapter ollama = new SpringAiOllamaChatAdapter(
+		SpringAIChatAdapter ollama = adapter("ollama",
 				new StreamingChatModel(Flux.error(new IllegalStateException("down"))), "llama3.1:8b");
-		SpringAiOllamaChatAdapter backup = new SpringAiOllamaChatAdapter(
-				new StreamingChatModel(Flux.just(chunk("respuesta"))), "backup-model");
+		SpringAIChatAdapter backup = adapter("gemini", new StreamingChatModel(Flux.just(chunk("respuesta"))),
+				"backup-model");
 		ResilientLLMRouter router = new ResilientLLMRouter(List.of(ollama, renamed(backup, "gemini")),
 				CircuitBreakerRegistry.ofDefaults(), Duration.ofSeconds(2),
 				new LlmCallMetrics(new SimpleMeterRegistry()));
@@ -134,9 +144,18 @@ class SpringAiOllamaChatAdapterTest {
 
 	@Test
 	void rejectsMissingCollaborators() {
-		assertThatThrownBy(() -> new SpringAiOllamaChatAdapter(null, "m")).isInstanceOf(NullPointerException.class);
-		assertThatThrownBy(() -> new SpringAiOllamaChatAdapter(new StreamingChatModel(Flux.empty()), " "))
+		assertThatThrownBy(() -> new SpringAIChatAdapter("ollama", null, "m"))
+				.isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> new SpringAIChatAdapter(" ", ChatClient.create(new StreamingChatModel(Flux.empty())), "m"))
 				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new SpringAIChatAdapter("ollama",
+				ChatClient.create(new StreamingChatModel(Flux.empty())), "m", null))
+				.isInstanceOf(NullPointerException.class);
+	}
+
+	/** One adapter class, one chain key per provider; all three C17 nodes use this exact path. */
+	private static SpringAIChatAdapter adapter(String key, ChatModel model, String name) {
+		return new SpringAIChatAdapter(key, ChatClient.create(model), name);
 	}
 
 	/** Same Spring AI adapter class under another chain key, to exercise failover between two nodes. */

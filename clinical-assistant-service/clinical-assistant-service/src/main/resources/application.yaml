@@ -17,9 +17,14 @@ spring:
   autoconfigure:
     exclude: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   ai:
+    chat:
+      client:
+        # ADR-05 experiment: three qualified ChatClient beans are defined explicitly. The default auto-configuration
+        # would require a single ChatModel and fails with heterogeneous providers.
+        enabled: false
     model:
-      # ADR-05: Spring AI provides only the ollama ChatModel. No Spring AI EmbeddingModel: retrieval embeddings stay on
-      # the EmbeddingProvider port (lexical by default) so the V4/V6 seed vectors remain valid.
+      # ADR-05: no Spring AI EmbeddingModel. Retrieval embeddings stay on the EmbeddingProvider port (lexical by
+      # default) so the V4/V6 seed vectors remain valid.
       embedding: none
     ollama:
       # Single source of truth stays in ollama.* (OLLAMA_BASE_URL); Spring AI reads it from here.

@@ -19,7 +19,7 @@ import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
-import com.vidacruz.clinical.infrastructure.adapters.SpringAiOllamaChatAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -39,7 +39,7 @@ class RAGConfigurationTest {
 		runner.run(context -> {
 			assertThat(context).hasNotFailed();
 			assertThat(context.getBeansOfType(NamedLLMProvider.class)).hasSize(4);
-			assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAiOllamaChatAdapter.class);
+			assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAIChatAdapter.class);
 			assertThat(context.getBean("openRouterNode", NamedLLMProvider.class))
 					.isInstanceOf(OpenRouterHttpLLMAdapter.class);
 			assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
