@@ -1,6 +1,7 @@
 # Real-provider TST-RAG against Gemini, started by hand. GEMINI_API_KEY lives only in the environment
-# "gemini-verification" (not as a repository secret), so a job can read it only after the environment's protection
-# rules pass: deployment branches develop/main and its required reviewers (docs/operations/despliegue-azure-y-pruebas.md).
+# "azure" (not as a repository secret), so a job can read it only after the environment's protection rules pass:
+# deployment branches develop/main and its required reviewers (docs/operations/despliegue-azure-y-pruebas.md). The job
+# requests no id-token permission, so it cannot obtain the Azure OIDC token that the same environment allows.
 # The job-level `if` is defence in depth for the same branch rule. Actions are pinned to full commit SHAs.
 name: Gemini embedding verification
 
@@ -15,7 +16,7 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: gemini-verification
+    environment: azure
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
