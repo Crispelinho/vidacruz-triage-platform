@@ -1,4 +1,4 @@
-package com.vidacruz.triageservice.event.domain;
+package com.vidacruz.triageservice.event.infrastructure;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;

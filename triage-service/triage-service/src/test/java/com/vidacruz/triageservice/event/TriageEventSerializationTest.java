@@ -1,6 +1,7 @@
 package com.vidacruz.triageservice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vidacruz.triageservice.application.config.TriageWireModule;
 import com.vidacruz.triageservice.event.domain.EventType;
 import com.vidacruz.triageservice.event.domain.PacienteAlta;
 import com.vidacruz.triageservice.event.domain.PacienteEscalado;
@@ -25,6 +26,7 @@ class TriageEventSerializationTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new TriageWireModule());
         objectMapper.findAndRegisterModules();
         pacienteId = UUID.randomUUID();
         correlationId = UUID.randomUUID().toString();

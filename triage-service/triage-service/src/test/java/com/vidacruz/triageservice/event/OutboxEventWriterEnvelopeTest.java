@@ -2,7 +2,7 @@ package com.vidacruz.triageservice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.event.infrastructure.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventoRepository;
 import org.junit.jupiter.api.Test;

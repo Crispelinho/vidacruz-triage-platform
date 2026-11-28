@@ -22,19 +22,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
+import com.vidacruz.triageservice.domain.model.AuditEntry;
 import com.vidacruz.triageservice.domain.model.AlertStatus;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.PatientSnapshot;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
+import com.vidacruz.triageservice.domain.port.AuditStore;
+import com.vidacruz.triageservice.domain.port.OutboxWriter;
+import com.vidacruz.triageservice.domain.port.PatientStore;
+import com.vidacruz.triageservice.domain.port.TransactionalExecutor;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -44,19 +43,19 @@ import reactor.test.StepVerifier;
 class SlaEvaluatorTest {
 
 	@Mock
-	private PatientRepository patientRepository;
+	private PatientStore patientStore;
 
 	@Mock
-	private AuditEntryRepository auditRepository;
+	private AuditStore auditStore;
 
 	@Mock
-	private OutboxEventWriter eventWriter;
+	private OutboxWriter outboxWriter;
 
 	@Mock
 	private MedicalAlertRepository alertRepository;
 
 	@Mock
-	private TransactionalOperator transactionalOperator;
+	private TransactionalExecutor transactionalExecutor;
 
 	@Mock
 	private TriageMetrics metrics;
@@ -66,10 +65,13 @@ class SlaEvaluatorTest {
 	@BeforeEach
 	@SuppressWarnings("unchecked")
 	void setUp() {
-		evaluator = new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC), metrics);
+		evaluator = new SlaEvaluator(patientStore, auditStore, outboxWriter, alertRepository,
+				transactionalExecutor, Clock.fixed(Instant.parse("2026-03-10T10:00:00Z"), ZoneOffset.UTC), metrics);
 		lenient().when(alertRepository.create(any(MedicalAlert.class))).thenReturn(Mono.empty());
-		lenient().when(transactionalOperator.transactional(any(Mono.class)))
+		lenient().when(auditStore.append(any(AuditEntry.class))).thenReturn(Mono.empty());
+		lenient().when(outboxWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.empty());
+		lenient().when(transactionalExecutor.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
@@ -77,22 +79,21 @@ class SlaEvaluatorTest {
 	void escalatesOverduePatientOnce() {
 		UUID patientId = UUID.randomUUID();
 		Instant registeredAt = Instant.parse("2026-03-10T09:54:00Z");
-		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
-		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(1));
-		when(auditRepository.save(any(AuditEntryEntity.class)))
-				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_escalado", "{}", patientId, 1, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), UUID.randomUUID())));
+		when(patientStore.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
+		when(patientStore.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(1));
+		when(auditStore.append(any(AuditEntry.class))).thenReturn(Mono.empty());
+		when(outboxWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.empty());
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isEqualTo(1))
 				.verifyComplete();
 
-		verify(auditRepository).save(argThat(entry ->
+		verify(auditStore).append(argThat(entry ->
 				SlaEvaluator.ESCALATION_AUDIT.equals(entry.eventType())
 						&& PatientLifecycleService.REGISTERED.equals(entry.previousStatus())
 						&& PatientLifecycleService.REGISTERED.equals(entry.nextStatus())));
-		verify(eventWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
+		verify(outboxWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
 				any(Instant.class));
 		verify(alertRepository).create(argThat(alert -> alert.patientId().equals(patientId)
 				&& alert.level() == TriageLevel.CRITICO
@@ -106,21 +107,18 @@ class SlaEvaluatorTest {
 	void escalatesWhenTheConditionalUpdateCompletesEmpty() {
 		UUID patientId = UUID.randomUUID();
 		Instant registeredAt = Instant.parse("2026-03-10T09:54:00Z");
-		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
-		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.empty());
-		when(auditRepository.save(any(AuditEntryEntity.class)))
-				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), SlaEvaluator.ESCALATED_EVENT, "{}",
-						patientId, 1, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
-						UUID.randomUUID())));
+		when(patientStore.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
+		when(patientStore.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.empty());
+		when(auditStore.append(any(AuditEntry.class))).thenReturn(Mono.empty());
+		when(outboxWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.empty());
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isEqualTo(1))
 				.verifyComplete();
 
-		verify(auditRepository).save(any(AuditEntryEntity.class));
-		verify(eventWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
+		verify(auditStore).append(any(AuditEntry.class));
+		verify(outboxWriter).write(eq(patientId), eq(SlaEvaluator.ESCALATED_EVENT), anyMap(),
 				any(Instant.class));
 		verify(alertRepository).create(any(MedicalAlert.class));
 		verify(metrics).patientEscalated(TriageLevel.CRITICO);
@@ -129,16 +127,16 @@ class SlaEvaluatorTest {
 	@Test
 	void doesNotEscalateBeforeTheSlaBoundary() {
 		UUID patientId = UUID.randomUUID();
-		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId,
+		when(patientStore.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId,
 				Instant.parse("2026-03-10T09:56:00Z"))));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isZero())
 				.verifyComplete();
 
-		verify(patientRepository, never()).escalate(any(UUID.class), any(Instant.class));
-		verify(auditRepository, never()).save(any(AuditEntryEntity.class));
-		verify(eventWriter, never()).write(any(UUID.class), anyString(), anyMap(), any(Instant.class));
+		verify(patientStore, never()).escalate(any(UUID.class), any(Instant.class));
+		verify(auditStore, never()).append(any(AuditEntry.class));
+		verify(outboxWriter, never()).write(any(UUID.class), anyString(), anyMap(), any(Instant.class));
 		verify(alertRepository, never()).create(any(MedicalAlert.class));
 		verify(metrics, never()).patientEscalated(any(TriageLevel.class));
 	}
@@ -147,21 +145,21 @@ class SlaEvaluatorTest {
 	void doesNotWriteSideEffectsWhenConditionalUpdateLosesRace() {
 		UUID patientId = UUID.randomUUID();
 		Instant registeredAt = Instant.parse("2026-03-10T09:54:00Z");
-		when(patientRepository.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
-		when(patientRepository.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(0));
+		when(patientStore.findEscalationCandidates()).thenReturn(Flux.just(patient(patientId, registeredAt)));
+		when(patientStore.escalate(eq(patientId), any(Instant.class))).thenReturn(Mono.just(0));
 
 		StepVerifier.create(evaluator.evaluateOnce())
 				.assertNext(count -> assertThat(count).isZero())
 				.verifyComplete();
 
-		verify(auditRepository, never()).save(any(AuditEntryEntity.class));
-		verify(eventWriter, never()).write(any(UUID.class), anyString(), anyMap(), any(Instant.class));
+		verify(auditStore, never()).append(any(AuditEntry.class));
+		verify(outboxWriter, never()).write(any(UUID.class), anyString(), anyMap(), any(Instant.class));
 		verify(alertRepository, never()).create(any(MedicalAlert.class));
 		verify(metrics, never()).patientEscalated(any(TriageLevel.class));
 	}
 
-	private static PatientEntity patient(UUID id, Instant registeredAt) {
-		return new PatientEntity(id, "Paciente de prueba", 40, 80, 120, 80, 98,
+	private static PatientSnapshot patient(UUID id, Instant registeredAt) {
+		return new PatientSnapshot(id, "Paciente de prueba", 40, 80, 120, 80, 98,
 				BigDecimal.valueOf(36.5), 2, 15, "Control", "CRITICO", 5,
 				PatientLifecycleService.REGISTERED, false, registeredAt, registeredAt, registeredAt);
 	}
