@@ -117,7 +117,7 @@ The route table and the manual GitHub settings (a single protected environment `
 
 ## Security decisions
 
-Owner decisions from the 2026-11-27 security review that are **not in `main` yet** (merged into `develop`, open PRs or GitHub settings). Guiding rule: the evaluators must be able to test every scenario from any machine, so access is controlled by API keys and never by IP allow-lists.
+Owner decisions from the [2026-11-27 security review](docs/audits/20261127/security-review.md) that are **not in `main` yet** (merged into `develop`, open PRs or GitHub settings). Guiding rule: the evaluators must be able to test every scenario from any machine, so access is controlled by API keys and never by IP allow-lists.
 
 **Accepted risks (kept on purpose for testability)**
 
