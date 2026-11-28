@@ -54,7 +54,9 @@ stopped and the LLM stub was made to time out and fail.
 
 The live run exposed a defect in the first version of the breaker rule: an open breaker turns half-open after 30 s,
 which would have reset its one-minute pending period. The rule now matches `open` or `half_open`, with a test.
-Consequence: with no traffic a half-open breaker keeps the alert until a call closes it.
+A later review showed that this kept an idle node, such as a fallback no longer called, alerting for ever: the rule
+now also needs an `open` state in the previous two minutes (section 0.6). **That final expression is verified with
+`promtool` only**, not in a live run.
 
 Screenshots: [one firing, six quiet](observability/after/02-prometheus-alerts-one-firing.png),
 [provoked](observability/after/05-prometheus-alerts-provoked.png),
@@ -135,6 +137,24 @@ the pinned image stops serving the endpoints Grafana uses.
 | Local overlay | `kubectl kustomize k8s/local` renders the pinned image and group. **Not applied to a cluster** |
 
 Screenshots and results under `observability/after/` (section 0.3) were taken before this pin, with Jaeger `2.23.0`.
+
+### 0.6 Independent review before the pull request
+
+One fresh-context, read-only review of the code diff. No critical finding and no sensitive-data leak found.
+
+| Finding | Action |
+|---|---|
+| A hanging outbox read had no timeout, could pile up on the connection pool and kept the last healthy values | Fixed: 10 s timeout, Spring waits for the read; tests |
+| `promtool` tests would fail on Linux: private temporary directory, unprivileged user in the image | Permissions set explicitly. **Not run on Linux**; these tests are not part of CI |
+| An idle half-open breaker alerted for ever | Fixed in the rule; `promtool` test |
+| A cancelled publication produced a successful span | Fixed; test |
+| The error panel showed lifetime totals after one failed scrape | Fixed in the query; `promtool` test. A series appearing while its target was not scraped a minute earlier is now left out |
+| No test proved the publisher calls the tracing wrapper | Test added and seen failing without the call |
+| A cancellation test raced the node timeout | Fixed |
+| The backlog query has no supporting index and published rows are never purged | **Not changed**: it needs a migration; the publisher already runs the same filter every 5 s |
+
+After these changes: outbox and architecture tests in `triage-service` 30/0, `LlmAttemptTracingTest` 5/0,
+`observability/tests` 16/0. The full Gradle suites were not repeated locally; the pull request workflows run them.
 
 ## 1. Where the evidence comes from
 
