@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.flywaydb.core.Flyway;
 
@@ -24,11 +25,13 @@ import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
+import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.config.VectorStoreProperties;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
@@ -135,6 +138,67 @@ class SeededCorpusRn05Test {
 		assertThat(response.answer()).isEqualTo(RAGResponse.NO_PROTOCOL_NOTICE);
 		assertThat(response.sources()).isEmpty();
 		assertThat(llmCalled).isFalse();
+	}
+
+	/**
+	 * M-1/M-5 guardrail: the three spec queries keep their outcome when the question goes through the PII-redacting
+	 * decorator of the external nodes and the answer through the default grounding post-check. The answers are
+	 * markerless paraphrases of the seeded protocols, the shape a real provider may return.
+	 */
+	@Test
+	void specQueriesKeepTheirOutcomeThroughRedactionAndTheGroundingPostCheck() {
+		assertThat(throughGuardrails("¿Cuáles son las medidas iniciales ante una crisis hipertensiva?",
+				"Repetir la presión arterial tras 5 minutos de reposo, no reducir la PA más del 25% en la primera "
+						+ "hora y monitorizar signos de encefalopatía."))
+				.extracting(EvidenceFragment::protocol).containsExactly("PROTO-001");
+		assertThat(throughGuardrails("¿Cuándo se administra el primer antibiótico en sepsis?",
+				"El antibiótico de amplio espectro se administra en la primera hora, después de tomar lactato y "
+						+ "hemocultivos."))
+				.extracting(EvidenceFragment::protocol).containsExactly("PROTO-002");
+		assertThat(throughGuardrails("¿Cuál es el tratamiento de primera línea para la diabetes tipo 2?", "unused"))
+				.isEmpty();
+	}
+
+	/** @return the cited sources; asserts the question reached the provider unchanged by the redactor */
+	private List<EvidenceFragment> throughGuardrails(String question, String markerlessAnswer) {
+		AtomicReference<String> sentQuestion = new AtomicReference<>();
+		NamedLLMProvider provider = new NamedLLMProvider() {
+			@Override
+			public String key() {
+				return "gemini";
+			}
+
+			@Override
+			public String model() {
+				return "stub";
+			}
+
+			@Override
+			public Mono<String> generate(String q, List<EvidenceFragment> evidence) {
+				sentQuestion.set(q);
+				ObjectMapper mapper = new ObjectMapper();
+				var root = mapper.createObjectNode();
+				root.put("respuesta", markerlessAnswer);
+				root.putArray("fuentes").addObject().put("protocolo", evidence.get(0).protocol())
+						.put("seccion", evidence.get(0).section());
+				return Mono.just(root.toString());
+			}
+		};
+		NamedLLMProvider external = new PiiRedactingLLMProvider(provider);
+		LLMRouter router = (q, evidence) -> external.generate(q, evidence)
+				.map(text -> new LLMCompletion(external.key(), external.model(), text));
+
+		RAGResponse response = service(router).answer(new PromptRequest(question, PromptRequest.DEFAULT_TOP_K))
+				.block();
+
+		if (response.sources().isEmpty()) {
+			assertThat(response.answer()).isEqualTo(RAGResponse.NO_PROTOCOL_NOTICE);
+		}
+		else {
+			assertThat(sentQuestion.get()).isEqualTo(question);
+			assertThat(response.answer()).isEqualTo(markerlessAnswer);
+		}
+		return response.sources();
 	}
 
 	private List<ScoredEvidenceFragment> retrieve(String question) {

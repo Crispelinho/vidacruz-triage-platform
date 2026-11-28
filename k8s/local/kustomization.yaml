@@ -11,6 +11,8 @@ resources:
   - local-db.yaml
   - local-jaeger.yaml
   - local-secrets.yaml
+  # Allow rules for the local-only PostgreSQL and Jaeger on top of the base default-deny (M-6).
+  - local-network-policies.yaml
 configMapGenerator:
   - name: local-db-init
     files:

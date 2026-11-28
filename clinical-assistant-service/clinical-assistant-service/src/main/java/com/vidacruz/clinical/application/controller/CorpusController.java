@@ -17,7 +17,10 @@ import com.vidacruz.clinical.domain.services.RagRetrievalService;
 
 import reactor.core.publisher.Mono;
 
-/** RF-04A corpus endpoints. No authentication yet: pending ADR-07. */
+/**
+ * RF-04A corpus endpoints. Behind the ADR-07 API key: ingestion needs scope {@code corpus:admin}, retrieval needs
+ * {@code assistant:query} (M-2, see SecurityConfiguration).
+ */
 @RestController
 @RequestMapping("/clinical/corpus")
 public class CorpusController {

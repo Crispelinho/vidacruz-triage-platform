@@ -22,7 +22,7 @@ import reactor.core.publisher.Mono;
  * RAG use case: embed the question, retrieve evidence, generate a grounded answer.
  *
  * <p>Pipeline: validate -> embed -> retrieve top-K -> relevance gate -> generate -> parse G-04 JSON -> validate citations
- * against the corpus index and the retrieved set. The LLM is called only when at least one fragment passes the gate.
+ * against the corpus index and the retrieved set -> grounding post-check on the answer text (M-1). The LLM is called only when at least one fragment passes the gate.
  */
 public class RAGService {
 
@@ -41,6 +41,8 @@ public class RAGService {
 
 	private final double relevanceThreshold;
 
+	private final GroundingCheck groundingCheck;
+
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
 			GroundedAnswerDecoder answerDecoder) {
 		this(embeddingProvider, vectorStore, llmRouter, answerDecoder, new CorpusIndex(), DEFAULT_RELEVANCE_THRESHOLD);
@@ -53,6 +55,14 @@ public class RAGService {
 
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
 			GroundedAnswerDecoder answerDecoder, CorpusIndex corpusIndex, double relevanceThreshold) {
+		this(embeddingProvider, vectorStore, llmRouter, answerDecoder, corpusIndex, relevanceThreshold,
+				new GroundingCheck(GroundingCheck.Policy.defaults()));
+	}
+
+	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
+			GroundedAnswerDecoder answerDecoder, CorpusIndex corpusIndex, double relevanceThreshold,
+			GroundingCheck groundingCheck) {
+		this.groundingCheck = Objects.requireNonNull(groundingCheck, "groundingCheck");
 		this.embeddingProvider = Objects.requireNonNull(embeddingProvider, "embeddingProvider");
 		this.vectorStore = Objects.requireNonNull(vectorStore, "vectorStore");
 		this.llmRouter = Objects.requireNonNull(llmRouter, "llmRouter");
@@ -113,6 +123,8 @@ public class RAGService {
 								var answer = answerDecoder.decode(completion.answer());
 								// G-03: corpus index AND retrieved set; no DocumentoClinico read per request.
 								List<Citation> citations = CitationValidator.resolve(answer, relevant, corpusIndex);
+								// M-1: the answer text must be tied to the cited evidence, not only cite a real source.
+								groundingCheck.verify(answer, citations, relevant);
 								List<EvidenceFragment> cited = citations.stream()
 										.map(citation -> relevant.get(citation.position() - 1))
 										.toList();

@@ -35,7 +35,10 @@ public final class OllamaHttpLLMAdapter implements NamedLLMProvider {
 	@Override
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
 		ChatRequest body = new ChatRequest(model,
-				List.of(new Message("user", GroundedPrompt.build(question, evidence))), false);
+				// M-1: the trusted instruction is the system message; only delimited data goes in the user message.
+				List.of(new Message("system", GroundedPrompt.systemInstruction()),
+						new Message("user", GroundedPrompt.userContent(question, evidence))),
+				false);
 		Mono<String> answer = client.post()
 				.uri("/api/chat")
 				.bodyValue(body)

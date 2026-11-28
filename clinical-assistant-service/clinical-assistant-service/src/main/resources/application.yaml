@@ -66,8 +66,21 @@ clinical:
 rag:
   llm:
     # C17: ordered failover chain and one timeout per node. No retry against the same node.
+    # M-5: gemini and opencode are external; the question is PII-redacted (PiiRedactor) before it is sent to them.
+    # contexto_paciente is not forwarded to any model today and must not be enabled without the same redaction.
     chain: ${RAG_LLM_CHAIN:ollama,gemini,opencode}
     timeout: 15s
+  # M-1 post-check on the answer text. CitationValidator proves the source exists; this ties the text to it.
+  grounding:
+    # Default: an answer needs an [n] marker, or without one at least this share of evidence vocabulary.
+    markerless-min-overlap: ${RAG_GROUNDING_MARKERLESS_MIN_OVERLAP:0.2}
+    # Opt-in: reject every answer without an [n] marker (providers do not always emit them).
+    require-markers: ${RAG_GROUNDING_REQUIRE_MARKERS:false}
+    # Opt-in: share of content words that must appear in the cited fragments (0 disables). The Ollama fixture
+    # answer cannot pass it, so enable it (suggested 0.3) only with a real provider.
+    min-lexical-overlap: ${RAG_GROUNDING_MIN_LEXICAL_OVERLAP:0.0}
+    # Opt-in: every number (dose, range, time) in the answer must appear in a cited fragment.
+    numbers-must-appear-in-evidence: ${RAG_GROUNDING_NUMBERS_IN_EVIDENCE:false}
 
 ollama:
   url: ${OLLAMA_BASE_URL:http://localhost:11434}
@@ -108,6 +121,13 @@ assistant:
   # Required (ADR-07): no default, so a missing ASSISTANT_API_KEY stops startup instead of accepting a public key.
   # Docker Compose and the local K8s overlay supply their own local-only values.
   api-key: ${ASSISTANT_API_KEY:}
+  # M-2: the api-key above is the owner key and always keeps every scope. The settings below are optional and add
+  # keys next to it. Scopes: assistant:query, corpus:admin, metrics:read.
+  # Revocable evaluator key with assistant:query only (no corpus:admin); unset it to revoke.
+  reviewer-api-key: ${ASSISTANT_REVIEWER_API_KEY:}
+  # Extra scoped keys, "id|scope,scope|key" entries separated by ";".
+  # Example: ASSISTANT_API_KEYS="frontend|assistant:query|<key-1>;curator|corpus:admin|<key-2>"
+  api-keys: ${ASSISTANT_API_KEYS:}
 
 logging:
   # Structured JSON logs (ECS) with traceId, spanId and correlationId from the MDC (NFR-20).
