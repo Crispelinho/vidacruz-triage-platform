@@ -12,6 +12,12 @@ curl -fsS http://localhost:8082/actuator/health
 curl -fsS -o /dev/null http://localhost:16686/
 ```
 
+For the RF-03/RF-06 escalation demo, start with the override so CRITICO escalates in ~1 minute:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+```
+
 Both health responses must be `{"status":"UP"}` and the Jaeger UI must return `200`. All business calls need `X-API-Key`: `test-triage-key` on port 8081, `test-assistant-key` on port 8082 (`docs/adr/ADR-07-authentication-api-key.md`).
 
 Postman: import `postman/vidacruz-local.postman_environment.json` first, then `postman/vidacruz-local-demo.postman_collection.json`. The E1 request stores `patientId` and the alert list stores `alertId` as collection variables.
