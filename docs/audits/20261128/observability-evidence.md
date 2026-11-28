@@ -71,6 +71,18 @@ Screenshots: [one firing, six quiet](observability/after/02-prometheus-alerts-on
 | Span hygiene | **5200 spans, 1288 traces: no canary, corpus word, prompt delimiter or API key**; no hit in the logs of both services. Canaries now cover triage names, complaints and the acknowledging user, closing that gap of section 8 |
 | Traces | [publish span](observability/after/03-jaeger-trace-with-publish-span.png), [provider error](observability/after/04-jaeger-failed-attempt.png), [timeout](observability/after/06-jaeger-timed-out-attempt.png) |
 
+**After integrating the newer `origin/develop` (`e57f6fe`, merge `ada3650`).** It changed assistant code comments,
+scripts and documents, and nothing under `triage-service`, so only the assistant suite was repeated. **No single full
+run on the merged commit was green**, with the host at 100 % CPU from other builds and stacks:
+
+| Run | Result | Cause |
+|---|---|---|
+| Full suite, first | 336 tests, 1 failure, 3 skipped | `PgvectorVectorStoreContractTest`: its PostgreSQL container did not become ready in time |
+| Full suite, second | 341 tests, 7 failures, 3 skipped | all in `CorpusIngestionIntegrationTest`: its Kafka container failed to start, so the context did not load |
+| The two affected classes plus `PiiRedactorTest` | **41 tests, 0 failures** | – |
+
+Every non-skipped assistant test therefore passed on the merged commit in at least one run.
+
 The Gradle suites ran from a copy in an ASCII-only path: on this Windows host the test worker cannot load classes from
 a path with accented characters. BlockHound is active in both suites, including its negative control; the new outbox
 gauges read values refreshed by a non-blocking R2DBC query, never during a scrape.
