@@ -1,6 +1,7 @@
 package com.vidacruz.clinical.infrastructure.adapters;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -11,12 +12,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
-
+import com.google.genai.Client;
+import com.google.genai.types.HttpOptions;
 import com.sun.net.httpserver.HttpServer;
+import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
 import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
@@ -29,15 +28,26 @@ import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
-import com.vidacruz.clinical.infrastructure.config.GeminiProperties;
-import com.vidacruz.clinical.infrastructure.config.OpenCodeProperties;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * OD-16: {@code contexto_paciente} is validated by {@link PromptRequest} but must never reach a cloud LLM payload. The
- * RAG use case runs against a real HTTP adapter and a local stub, so the assertion is on the JSON body actually sent
- * over the wire, not on a mocked adapter. No real provider, API key or clinical data is used.
+ * RAG use case runs through the real Spring AI streaming adapters against a local stub, so the assertions are on the
+ * JSON body and auth headers actually sent over the wire, plus the HTTP failure mapping. No real provider, API key or
+ * clinical data is used.
  */
 class CloudPromptPrivacyTest {
 
@@ -59,20 +69,39 @@ class CloudPromptPrivacyTest {
 
 	private final AtomicReference<String> capturedBody = new AtomicReference<>();
 
+	private final AtomicReference<String> capturedPath = new AtomicReference<>();
+
+	private final AtomicReference<String> capturedApiKey = new AtomicReference<>();
+
+	private final AtomicReference<String> capturedAuthorization = new AtomicReference<>();
+
+	private int responseStatus = 200;
+
 	@BeforeEach
 	void startStubServer() throws IOException {
 		capturedBody.set(null);
+		capturedPath.set(null);
+		capturedApiKey.set(null);
+		capturedAuthorization.set(null);
+		responseStatus = 200;
 		server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 		server.createContext("/", exchange -> {
 			capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-			String path = exchange.getRequestURI().getPath();
-			String escapedJson = GROUNDED_JSON.replace("\\", "\\\\").replace("\"", "\\\"");
-			String responseJson = path.endsWith(":generateContent")
-					? "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"" + escapedJson + "\"}]}}]}"
-					: "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"" + escapedJson + "\"}}]}";
-			byte[] response = responseJson.getBytes(StandardCharsets.UTF_8);
-			exchange.getResponseHeaders().add("Content-Type", "application/json");
-			exchange.sendResponseHeaders(200, response.length);
+			capturedPath.set(exchange.getRequestURI().toString());
+			capturedApiKey.set(exchange.getRequestHeaders().getFirst("x-goog-api-key"));
+			capturedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+			String escaped = GROUNDED_JSON.replace("\\", "\\\\").replace("\"", "\\\"");
+			String payload = responseStatus == 200
+					? (exchange.getRequestURI().getPath().toLowerCase().contains("generatecontent")
+							? "data: {\"modelVersion\":\"gemini-3.5-flash-lite\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\""
+									+ escaped + "\"}],\"role\":\"model\"},\"finishReason\":\"STOP\"}]}\n\n"
+							: "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"" + escaped
+									+ "\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n")
+					: "{\"error\":\"overloaded\"}";
+			byte[] response = payload.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().add("Content-Type",
+					responseStatus == 200 ? "text/event-stream" : "application/json");
+			exchange.sendResponseHeaders(responseStatus, response.length);
 			try (var output = exchange.getResponseBody()) {
 				output.write(response);
 			}
@@ -89,28 +118,23 @@ class CloudPromptPrivacyTest {
 
 	@Test
 	void geminiPayloadContainsOnlyTheQuestionAndRetrievedEvidence() {
-		GeminiProperties properties = new GeminiProperties(baseUrl(), "gemini-3.5-flash-lite", "test-key");
-		NamedLLMProvider node = new GeminiHttpLLMAdapter(WebClient.builder(), properties);
-
-		RAGResponse response = answerThrough(node);
+		RAGResponse response = answerThrough(geminiNode());
 
 		assertThat(response.answer()).isEqualTo(ANSWER);
 		assertThat(capturedBody.get()).isNotNull()
 				.contains(QUESTION)
 				.contains(EVIDENCE_TEXT)
 				.doesNotContain(PATIENT_CONTEXT)
-				// M-1: the instruction travels in systemInstruction, the question inside its delimiter.
-				.contains("\"systemInstruction\":{\"parts\":[{\"text\":\"You are a clinical protocol assistant")
+				// M-1: the instruction travels in the system role, the question inside its delimiter.
+				.contains("You are a clinical protocol assistant")
 				.contains("<pregunta>" + QUESTION + "</pregunta>");
+		assertThat(capturedPath.get()).contains(":streamGenerateContent");
+		assertThat(capturedApiKey.get()).isEqualTo("test-key");
 	}
 
 	@Test
 	void opencodePayloadContainsOnlyTheQuestionAndRetrievedEvidence() {
-		OpenCodeProperties properties = new OpenCodeProperties(baseUrl() + "/v1/chat/completions", "glm-5.3",
-				"test-key");
-		NamedLLMProvider node = new OpenCodeHttpLLMAdapter(WebClient.builder(), properties);
-
-		RAGResponse response = answerThrough(node);
+		RAGResponse response = answerThrough(opencodeNode());
 
 		assertThat(response.answer()).isEqualTo(ANSWER);
 		assertThat(capturedBody.get()).isNotNull()
@@ -118,15 +142,52 @@ class CloudPromptPrivacyTest {
 				.contains(EVIDENCE_TEXT)
 				.doesNotContain(PATIENT_CONTEXT)
 				// M-1: system message first, then the delimited data as the user message.
-				.contains("{\"role\":\"system\",\"content\":\"You are a clinical protocol assistant")
-				.contains("{\"role\":\"user\",\"content\":\"<pregunta>" + QUESTION + "</pregunta>");
+				.contains("\"role\":\"system\"")
+				.contains("You are a clinical protocol assistant")
+				.contains("<pregunta>" + QUESTION + "</pregunta>");
+		assertThat(capturedPath.get()).endsWith("/v1/chat/completions");
+		assertThat(capturedAuthorization.get()).isEqualTo("Bearer test-key");
+	}
+
+	@Test
+	void httpFailuresMapToTheSharedFailoverTrigger() {
+		responseStatus = 503;
+
+		assertThatThrownBy(() -> answerThrough(geminiNode()))
+				.isInstanceOf(LLMUnavailableException.class)
+				.hasMessageContaining("gemini/gemini-3.5-flash-lite");
+		assertThatThrownBy(() -> answerThrough(opencodeNode()))
+				.isInstanceOf(LLMUnavailableException.class)
+				.hasMessageContaining("opencode/glm-5.3");
+	}
+
+	private NamedLLMProvider geminiNode() {
+		Client client = Client.builder()
+				.apiKey("test-key")
+				.httpOptions(HttpOptions.builder().baseUrl(baseUrl()).build())
+				.build();
+		ChatModel model = GoogleGenAiChatModel.builder()
+				.genAiClient(client)
+				.defaultOptions(GoogleGenAiChatOptions.builder().model("gemini-3.5-flash-lite").build())
+				.build();
+		// Google GenAI exposes a blocking Iterable; production wires boundedElastic for this node (TST-RXN).
+		return new SpringAIChatAdapter("gemini", ChatClient.create(model), "gemini-3.5-flash-lite",
+				Schedulers.boundedElastic());
+	}
+
+	private NamedLLMProvider opencodeNode() {
+		OpenAiApi api = OpenAiApi.builder().baseUrl(baseUrl() + "/v1").apiKey("test-key").build();
+		ChatModel model = OpenAiChatModel.builder()
+				.openAiApi(api)
+				.defaultOptions(OpenAiChatOptions.builder().model("glm-5.3").build())
+				.build();
+		return new SpringAIChatAdapter("opencode", ChatClient.create(model), "glm-5.3");
 	}
 
 	@Test
 	void redactingDecoratorStripsIdentifiersBeforeTheQuestionReachesTheWire() {
 		// M-5: production wires gemini and opencode behind PiiRedactingLLMProvider.
-		GeminiProperties properties = new GeminiProperties(baseUrl(), "gemini-3.5-flash-lite", "test-key");
-		NamedLLMProvider node = new PiiRedactingLLMProvider(new GeminiHttpLLMAdapter(WebClient.builder(), properties));
+		NamedLLMProvider node = new PiiRedactingLLMProvider(geminiNode());
 		String identifying = "Paciente Juan Pérez CC 79123456, tel 3101234567, crisis hipertensiva";
 		EvidenceFragment fragment = EvidenceFragment.create(UUID.randomUUID(), 0, "PROTO-001", "Medidas",
 				EVIDENCE_TEXT, QUERY_EMBEDDING);
@@ -147,7 +208,7 @@ class CloudPromptPrivacyTest {
 		return "http://127.0.0.1:" + server.getAddress().getPort();
 	}
 
-	/** Real service, real adapter, stubbed retrieval: only the patient context is deliberately not forwarded. */
+	/** Real service, real Spring AI adapters, stubbed retrieval: only the patient context is not forwarded. */
 	private RAGResponse answerThrough(NamedLLMProvider node) {
 		EmbeddingProvider embeddings = mock(EmbeddingProvider.class);
 		VectorStore vectorStore = mock(VectorStore.class);
@@ -164,8 +225,8 @@ class CloudPromptPrivacyTest {
 		RAGService service = new RAGService(embeddings, vectorStore, router, new JacksonGroundedAnswerDecoder(), corpusIndex,
 				RAGService.DEFAULT_RELEVANCE_THRESHOLD);
 		PromptRequest request = new PromptRequest(QUESTION, 1, PATIENT_CONTEXT, null);
-
-		return service.answer(request).block();
+		// TST-RXN: the whole RAG call runs on a non-blocking reactor thread; BlockHound fails on any blocking SDK read.
+		return service.answer(request).subscribeOn(Schedulers.parallel()).block();
 	}
 
 }

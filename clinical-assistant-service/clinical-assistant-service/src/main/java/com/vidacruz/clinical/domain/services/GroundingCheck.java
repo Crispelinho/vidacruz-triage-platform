@@ -73,9 +73,9 @@ public final class GroundingCheck {
 				}
 			}
 		}
-		// A markerless answer must at least share vocabulary with what it cites; an answer with markers is held to
-		// the stricter, opt-in minLexicalOverlap only.
-		double required = Math.max(policy.minLexicalOverlap(), hasMarker ? 0.0d : policy.markerlessMinOverlap());
+		// Every answer must share vocabulary with what it cites, marker or not. minLexicalOverlap can raise the bar;
+		// markerlessMinOverlap keeps its config name for compatibility but is now the baseline for both roles.
+		double required = Math.max(policy.minLexicalOverlap(), policy.markerlessMinOverlap());
 		if (required > 0.0d) {
 			Set<String> answerTokens = tokens(claims);
 			if (answerTokens.isEmpty()) {
@@ -122,14 +122,15 @@ public final class GroundingCheck {
 		return decomposed.replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
 	}
 
-	/** Default share of content words a markerless answer must share with the cited evidence. */
+	/** Baseline share of content words every answer must share with the cited evidence. */
 	public static final double DEFAULT_MARKERLESS_MIN_OVERLAP = 0.2d;
 
 	/**
 	 * @param requireMarkers              the answer must carry at least one {@code [n]} marker; {@link CitationValidator}
 	 *                                    already checks that every marker points to a validated source
-	 * @param markerlessMinOverlap        share of content words, in [0, 1], that an answer WITHOUT markers must share
-	 *                                    with the cited fragments; {@code 0} accepts markerless answers unchecked
+	 * @param markerlessMinOverlap        baseline share of content words, in [0, 1], that EVERY answer must share with
+	 *                                    the cited fragments; the name is kept for config compatibility, and {@code 0}
+	 *                                    disables the baseline check
 	 * @param minLexicalOverlap           share of content words, in [0, 1], that EVERY answer must share with the
 	 *                                    cited fragments; {@code 0} disables the check
 	 * @param numbersMustAppearInEvidence every number in the answer (doses, ranges, times) must appear in a cited
