@@ -20,7 +20,9 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: jaeger
-          image: jaegertracing/jaeger:2.23.0
+          # Pinned below 2.23.0 on purpose, same image as docker-compose.yml: 2.21 removed the v1 query API that
+          # Grafana 12.1.1 uses. It lacks the 2.21-2.23 hardening; the upgrade condition is written there.
+          image: jaegertracing/jaeger:2.20.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: ui
@@ -52,6 +54,8 @@ spec:
                 - ALL
             runAsNonRoot: true
             runAsUser: 10001
+            # This image declares no group; without it the process would run in the root group.
+            runAsGroup: 10001
             seccompProfile:
               type: RuntimeDefault
 ---

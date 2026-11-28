@@ -139,7 +139,7 @@ python -m unittest discover -s observability/tests -v
 
 ## 8. NFR-16 — one trace across both services
 
-Compose starts Jaeger 2.x and points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.
+Compose starts Jaeger `2.20.0`. It is pinned below `2.23.0` on purpose: 2.21 removed the v1 query API that the Jaeger datasource of Grafana 12.1.1 uses, so with a newer release the datasource health check and the Explore search fail. The pin gives up the 2.21–2.23 hardening (among it, panic recovery in query handlers, input escaping and checks, an Apache Thrift update and a non-root group in the image; the group is set explicitly in Compose and in `k8s/local`), so keep the UI local. Upgrade when Grafana's datasource uses Jaeger's `/api/v3` ([grafana-jaeger-datasource#87](https://github.com/grafana/grafana-jaeger-datasource/issues/87)) and `observability/tests/test_jaeger.py` is updated with it. Compose points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.
 
 ```bash
 TRACE_ID=4bf92f3577b34da6a3ce929d0e0e4736
