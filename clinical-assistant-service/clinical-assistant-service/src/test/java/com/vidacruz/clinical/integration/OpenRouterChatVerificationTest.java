@@ -41,9 +41,9 @@ import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
-import com.vidacruz.clinical.infrastructure.config.OpenCodeProperties;
+import com.vidacruz.clinical.infrastructure.config.OpenRouterProperties;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
 import reactor.core.publisher.Mono;
@@ -51,14 +51,14 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 /**
- * Opt-in chat verification with the real OpenCode model. Reads OPENCODE_API_KEY from the environment; the
+ * Opt-in chat verification with the real OpenRouter model. Reads OPENROUTER_API_KEY from the environment; the
  * workflow_dispatch job injects it from the Actions Secret. Retrieval stays local and deterministic, so the only
  * external variable is the chat answer. Evidence records counts, timings and protocol IDs only: no prompt text,
  * answer text, patient data or credential value is persisted.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@EnabledIfEnvironmentVariable(named = "OPENCODE_API_KEY", matches = ".+")
-class OpenCodeChatVerificationTest {
+@EnabledIfEnvironmentVariable(named = "OPENROUTER_API_KEY", matches = ".+")
+class OpenRouterChatVerificationTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -72,9 +72,9 @@ class OpenCodeChatVerificationTest {
 
 	private static final double RELEVANCE_THRESHOLD = 0.20d;
 
-	private static final String URL = "https://opencode.ai/inference/openai/v1/chat/completions";
+	private static final String BASE_URL = "https://openrouter.ai/api/v1";
 
-	private static final String MODEL = System.getenv().getOrDefault("OPENCODE_MODEL", "glm-5.3");
+	private static final String MODEL = System.getenv().getOrDefault("OPENROUTER_MODEL", "openrouter/free");
 
 	private static final List<Probe> PROBES = List.of(
 			new Probe("PROTO-001", "medidas-iniciales", "¿Cuáles son las medidas iniciales ante una crisis hipertensiva?"),
@@ -106,13 +106,13 @@ class OpenCodeChatVerificationTest {
 		DriverManagerDataSource dataSource = new DriverManagerDataSource(POSTGRES.getJdbcUrl(),
 				POSTGRES.getUsername(), POSTGRES.getPassword());
 		Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
-		scheduler = Schedulers.newBoundedElastic(2, 10, "opencode-chat-verification");
+		scheduler = Schedulers.newBoundedElastic(2, 10, "openrouter-chat-verification");
 		store = new PgvectorVectorStoreAdapter(new VectorRepository(JdbcClient.create(dataSource), DIMENSIONS), scheduler);
 		seedCorpus();
 		corpusIndex = new CorpusIndex();
 		corpusIndex.refresh(store.protocolSections().block());
-		NamedLLMProvider adapter = new OpenCodeHttpLLMAdapter(WebClient.builder(),
-				new OpenCodeProperties(URL, MODEL, System.getenv("OPENCODE_API_KEY")));
+		NamedLLMProvider adapter = new OpenRouterHttpLLMAdapter(WebClient.builder(),
+				new OpenRouterProperties(BASE_URL, MODEL, System.getenv("OPENROUTER_API_KEY"), "deny"));
 		router = new CountingRouter(adapter);
 	}
 
@@ -126,9 +126,11 @@ class OpenCodeChatVerificationTest {
 		ObjectNode evidence = MAPPER.createObjectNode();
 		try {
 			evidence.put("generatedAt", Instant.now().toString());
-			evidence.put("provider", "opencode");
+			evidence.put("provider", "openrouter");
 			evidence.put("model", MODEL);
-			evidence.put("endpoint", URL);
+			evidence.put("endpoint", BASE_URL + "/chat/completions");
+			evidence.put("dataCollection", "deny");
+			evidence.put("priceCeiling", 0);
 			evidence.put("runsPerProbe", RUNS_PER_PROBE);
 			evidence.put("topK", TOP_K);
 			evidence.put("relevanceThreshold", RELEVANCE_THRESHOLD);
@@ -165,7 +167,7 @@ class OpenCodeChatVerificationTest {
 					}
 					long latencyMs = (System.nanoTime() - start) / 1_000_000L;
 					boolean passed = failureType == null && citationsValid
-							&& ("opencode/" + MODEL).equals(usedModel);
+							&& ("openrouter/" + MODEL).equals(usedModel);
 					ObjectNode runNode = runsNode.addObject();
 					runNode.put("run", run);
 					runNode.put("passed", passed);
@@ -223,7 +225,7 @@ class OpenCodeChatVerificationTest {
 
 			evidence.put("llmCalls", router.calls.get());
 			ObjectNode cost = evidence.putObject("cost");
-			cost.put("basis", "Not measured: OpenCode is prepaid and no billing API was queried");
+			cost.put("basis", "Not measured: zero price ceiling and no billing API was queried");
 
 			assertThat(allProbesPassed).as("five runs per positive probe").isTrue();
 			assertThat(rejection).isInstanceOf(InvalidCitationException.class);
@@ -278,7 +280,7 @@ class OpenCodeChatVerificationTest {
 
 	private static void writeEvidence(ObjectNode evidence) {
 		try {
-			Path directory = Path.of("build", "reports", "opencode-chat-verification");
+			Path directory = Path.of("build", "reports", "openrouter-chat-verification");
 			Files.createDirectories(directory);
 			Files.writeString(directory.resolve("results.json"),
 					MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(evidence), StandardCharsets.UTF_8);

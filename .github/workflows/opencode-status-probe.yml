@@ -1,4 +1,4 @@
-name: OpenCode chat verification
+name: OpenRouter chat verification
 
 on:
   workflow_dispatch:
@@ -20,24 +20,24 @@ jobs:
           cache: gradle
           cache-dependency-path: clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Require the OpenCode Secret
+      - name: Require the OpenRouter Secret
         shell: bash
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: test -n "$OPENCODE_API_KEY"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: test -n "$OPENROUTER_API_KEY"
 
       - name: Run real-provider chat gates
         shell: bash
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL || 'glm-5.3' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openrouter/free' }}
         working-directory: clinical-assistant-service/clinical-assistant-service
-        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.OpenCodeChatVerificationTest'
+        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.OpenRouterChatVerificationTest'
 
       - name: Upload chat verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: opencode-chat-verification
-          path: clinical-assistant-service/clinical-assistant-service/build/reports/opencode-chat-verification/results.json
+          name: openrouter-chat-verification
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/openrouter-chat-verification/results.json
           if-no-files-found: warn
