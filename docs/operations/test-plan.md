@@ -172,7 +172,7 @@ Los reportes se sanitizan antes de commitear: sin valores de API key, contraseñ
 
 1. No hay Jaeger en Azure: la traza compartida entre servicios solo se verificó en local.
 2. El firewall de PostgreSQL solo admite la IP de salida fija de AKS (`infra/azure/main.bicep:261-268`); la verificación row-level se hace desde un pod dentro del clúster, no desde la estación de trabajo.
-3. El harness commiteado `scripts/verify-local-k8s.ps1` necesita cuatro correcciones de robustez; la versión corregida se entrega como `scripts/verify-local-k8s-e2e.ps1`.
+3. El harness canónico `scripts/verify-local-k8s.ps1` ya incorpora las correcciones de robustez (fixtures en español, `correlationId` desde el cuerpo JSON, reintento del outbox, 600 mensajes de Kafka, timeout de 150 s y salida natural de `curl` para el SSE); `scripts/verify-local-k8s-e2e.ps1` se conserva como alias histórico.
 4. Tres respuestas `503` transitorias del proveedor en la sonda PROTO-003 del 6,5 % se gestionaron con reintento acotado; quedaron registradas, no ocultas.
 5. RF-16 es una etiqueta del harness, no un requisito canónico del enunciado.
 

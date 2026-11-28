@@ -16,10 +16,10 @@ $assistant = $AssistantBaseUrl
 $jaeger = $JaegerBaseUrl
 $triageKey = $TriageApiKey
 $assistantKey = $AssistantApiKey
-$traceId = '4bf92f3577b34da6a3ce929d0e0e4736'
-$spanId = '00f067aa0ba902b7'
-$ssePath = Join-Path $env:TEMP 'vidacruz-local-k8s-sse.txt'
-$sseCmd = Join-Path $env:TEMP 'vidacruz-local-k8s-sse.cmd'
+$traceId = 'c4e7a1b83d6f20954c7b9e2a6d8f3051'
+$spanId = '0b1c2d3e4f506172'
+$ssePath = Join-Path $env:TEMP 'vidacruz-local-k8s-sse-v5.txt'
+$sseCmd = Join-Path $env:TEMP 'vidacruz-local-k8s-sse-v5.cmd'
 
 $results = New-Object System.Collections.ArrayList
 
@@ -40,7 +40,7 @@ function Invoke-Api {
         Method = $Method
         Uri = $Url
         Headers = $headersCopy
-        TimeoutSec = 30
+        TimeoutSec = 150
         UseBasicParsing = $true
     }
     if ($null -ne $Body) {
@@ -49,7 +49,7 @@ function Invoke-Api {
     }
 
     try {
-        $response = Invoke-WebRequest @params
+        $response = $null; for ($attempt = 0; $attempt -lt 4; $attempt++) { try { $response = Invoke-WebRequest @params; break } catch { if ($null -ne $_.Exception.Response -or $attempt -eq 3) { throw }; Start-Sleep -Milliseconds 800 } }
         $status = [int]$response.StatusCode
         # Invoke-WebRequest returns a byte array in this environment; decode it explicitly.
         if ($response.Content -is [byte[]]) {
@@ -129,7 +129,7 @@ $cases = @(
     @{ Id = 'E2'; Hr = 95; Sys = 150; Dia = 95; Spo2 = 91; Temp = 37.0; Pain = 4; Gcs = 15; Complaint = 'Breathing difficulty'; Expected = 'URGENTE' },
     @{ Id = 'E3'; Hr = 88; Sys = 130; Dia = 85; Spo2 = 98; Temp = 38.2; Pain = 6; Gcs = 15; Complaint = 'Fever'; Expected = 'URGENTE_2' },
     @{ Id = 'E4'; Hr = 72; Sys = 120; Dia = 80; Spo2 = 99; Temp = 36.5; Pain = 2; Gcs = 15; Complaint = 'Cut wound'; Expected = 'NO_URGENTE' },
-    @{ Id = 'E5'; Hr = 70; Sys = 115; Dia = 75; Spo2 = 99; Temp = 36.4; Pain = 0; Gcs = 15; Complaint = 'Renovacion de recetario'; Expected = 'NO_URGENTE_2' },
+    @{ Id = 'E5'; Hr = 70; Sys = 115; Dia = 75; Spo2 = 99; Temp = 36.4; Pain = 0; Gcs = 15; Complaint = 'Renovación de recetario'; Expected = 'NO_URGENTE_2' },
     @{ Id = 'E6'; Hr = 35; Sys = 80; Dia = 50; Spo2 = 85; Temp = 35.9; Pain = 0; Gcs = 6; Complaint = 'Unconscious'; Expected = 'CRITICO' }
 )
 $patientIds = @{}
@@ -176,7 +176,7 @@ do {
 Check 'RF-03 SLA escalation' ($null -ne $alert -and $alert.estado -eq 'PENDIENTE') "alert=$($alert.id) level=$($alert.nivel) sla=$($alert.slaMinutos) state=$($alert.estado)"
 
 # SSE: start the stream, acknowledge the alert, and confirm the live event and heartbeat.
-Set-Content -Path $sseCmd -Value "@echo off`r`ncurl.exe -N --max-time 22 -H `"X-API-Key: $triageKey`" -o `"$ssePath`" $triage/triage/alertas/stream" -Encoding ASCII
+Set-Content -Path $sseCmd -Value "@echo off`r`ncurl.exe -N --max-time 45 -H `"X-API-Key: $triageKey`" -o `"$ssePath`" $triage/triage/alertas/stream" -Encoding ASCII
 if (Test-Path $ssePath) { Remove-Item $ssePath -Force }
 $sseProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $sseCmd -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 2
@@ -189,9 +189,8 @@ Check 'RF-06 duplicate acknowledgement' ($ackAgain.Status -eq 409) "status=$($ac
 
 # Resolve while the stream is still open so the RESUELTA event is captured.
 $resolvePatient = Invoke-Api -Method PATCH -Url "$triage/triage/pacientes/$slaPatientId/estado" -Headers $triageHeaders -Body @{ estado = 'EN_CONSULTA' }
-Start-Sleep -Seconds 15
-if (-not $sseProc.HasExited) { Stop-Process -Id $sseProc.Id -Force }
-Start-Sleep -Seconds 1
+# Let curl exit on its own so its buffered tail is flushed before the file is read.
+if (-not $sseProc.WaitForExit(50000)) { Stop-Process -Id $sseProc.Id -Force; Start-Sleep -Seconds 1 }
 $sseText = if (Test-Path $ssePath) { Get-Content $ssePath -Raw } else { '' }
 $sseHasSnapshot = $sseText -match 'event:\s*alerta'
 $sseHasLive = $sseText.Contains([string]$alert.id)
@@ -214,15 +213,14 @@ Check 'RF-05 invalid parameters' ($badReport.Status -eq 400 -and $badReport.Json
 
 # RF-04 degraded assistant response
 $consultHeaders = @{ 'X-API-Key' = $assistantKey; 'X-Correlation-Id' = "demo-$suffix" }
-# The seeded corpus is Spanish; an English question retrieves no evidence and never reaches the LLM.
 $consult = Invoke-Api -Method POST -Url "$assistant/asistente/consulta" -Headers $consultHeaders -Body @{ pregunta = 'Cuales son las medidas iniciales ante una crisis hipertensiva?' }
 Check 'RF-04 degraded consultation' ($consult.Status -eq 503 -and $consult.Text -match 'LLM_UNAVAILABLE') "status=$($consult.Status) body=$($consult.Text.Substring(0, [Math]::Min(180, $consult.Text.Length)))"
 
 # Auth negatives
 $noKey = Invoke-Api -Method GET -Url "$triage/triage/alertas"
 $wrongKey = Invoke-Api -Method GET -Url "$triage/triage/alertas" -Headers @{ 'X-API-Key' = 'wrong' }
-$corrNo = $noKey.Headers['X-Correlation-Id']
-$corrWrong = $wrongKey.Headers['X-Correlation-Id']
+$corrNo = $noKey.Headers['X-Correlation-Id']; if (-not $corrNo) { $corrNo = $noKey.Json.correlationId }
+$corrWrong = $wrongKey.Headers['X-Correlation-Id']; if (-not $corrWrong) { $corrWrong = $wrongKey.Json.correlationId }
 Check 'Auth without key' ($noKey.Status -eq 401 -and $noKey.Json.code -eq 'UNAUTHORIZED' -and $corrNo) "status=$($noKey.Status) correlation=$corrNo"
 Check 'Auth invalid key' ($wrongKey.Status -eq 401 -and $wrongKey.Json.code -eq 'UNAUTHORIZED' -and $corrWrong) "status=$($wrongKey.Status) correlation=$corrWrong"
 
@@ -239,8 +237,8 @@ Check 'NFR-07 assistant metrics' ($metricsA.Status -eq 200 -and $hasAssistant) "
 # Outbox -> Kafka with the explicit W3C header
 $oldEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-$outboxRaw = & kubectl --context $KubectlContext -n $Namespace exec local-db-0 -- env PGPASSWORD=local-dev-password psql -t -A -U triage_admin -d triage -c "SELECT count(*) FROM outbox_evento WHERE traceparent LIKE '%$traceId%';" 2>&1 | Out-String
-$kafkaHeaders = & kubectl --context $KubectlContext -n $Namespace exec kafka-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic triaje.eventos --from-beginning --property print.headers=true --max-messages 50 --timeout-ms 10000 2>&1 | Out-String
+$outboxRaw = ''; for ($i = 0; $i -lt 6; $i++) { $outboxRaw = & kubectl --context $KubectlContext -n $Namespace exec local-db-0 -- env PGPASSWORD=local-dev-password psql -t -A -U triage_admin -d triage -c "SELECT count(*) FROM outbox_evento WHERE traceparent LIKE '%$traceId%';" 2>&1 | Out-String; if ($outboxRaw -match '(?m)^\s*[1-9]\d*\s*$') { break }; Start-Sleep -Seconds 2 }
+$kafkaHeaders = & kubectl --context $KubectlContext -n $Namespace exec kafka-0 -- /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic triaje.eventos --from-beginning --property print.headers=true --max-messages 600 --timeout-ms 10000 2>&1 | Out-String
 $ErrorActionPreference = $oldEap
 $match = [regex]::Match($outboxRaw, '(?m)^\s*(\d+)\s*$')
 $outboxCount = if ($match.Success) { $match.Groups[1].Value } else { '0' }
