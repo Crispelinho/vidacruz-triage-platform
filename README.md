@@ -82,7 +82,7 @@ curl -s -H "X-API-Key: $REVIEWER_KEY" https://$HOST/ops/triage/prometheus | head
 curl -s -H "X-API-Key: $REVIEWER_KEY" https://$HOST/ops/asistente/prometheus | head
 ```
 
-The route table and the manual GitHub settings (protected environments `azure` and `gemini-verification`, optional `*_REVIEWER_API_KEY` secrets) are in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 1.8 and 1.9).
+The route table and the manual GitHub settings (protected environments `azure`, `gemini-verification` and `openrouter-verification`, optional `*_REVIEWER_API_KEY` secrets) are in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 1.8 and 1.9).
 
 ## Known limits
 

@@ -177,18 +177,20 @@ Estos ajustes se hacen en la interfaz de GitHub (o con `gh api`) y son la fronte
    - Secrets requeridos: `TRIAGE_API_KEY`, `ASSISTANT_API_KEY`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`. Opcionales: `GEMINI_API_KEY`, `OPENCODE_API_KEY`.
    - Secrets opcionales nuevos: `TRIAGE_REVIEWER_API_KEY` y `ASSISTANT_REVIEWER_API_KEY` (mínimo 16 caracteres, distintos de las claves principales). Es la clave que se entrega a los evaluadores. `deploy.ps1` solo la incluye en `triage-service-secrets` / `clinical-assistant-service-secrets` cuando existe y nunca la imprime. Para revocarla: borrar el secret y volver a desplegar (el pod la toma al reiniciarse; si la imagen no cambia, `kubectl -n vidacruz rollout restart deployment/triage-service deployment/clinical-assistant-service`). La aplicación la acepta cuando incluye la lectura de esas variables (cambio de la rama de *medium-fixes*).
 2. **Environment nuevo `gemini-verification`**: mismas *deployment branches* (`develop`, `main`) y *required reviewers*. Crear ahí el secret `GEMINI_API_KEY` y **borrar el `GEMINI_API_KEY` de nivel repositorio** si existe: un secret de repositorio lo puede leer cualquier rama que edite un workflow, uno de environment solo los jobs que pasan sus reglas.
-3. Comprobación rápida con la CLI:
+3. **Environment nuevo `openrouter-verification`** (para `openrouter-chat-verification.yml`): las mismas reglas que `gemini-verification`. Mover ahí el secret `OPENROUTER_API_KEY` y **borrar el de nivel repositorio**. La variable `OPENROUTER_MODEL` puede quedar en el repositorio o en el environment.
+4. Comprobación rápida con la CLI:
 
 ```powershell
 gh api repos/{owner}/{repo}/environments --jq '.environments[] | {name, protection_rules: [.protection_rules[].type], deployment_branch_policy}'
 gh secret list
 gh secret list --env azure
 gh secret list --env gemini-verification
+gh secret list --env openrouter-verification
 ```
 
-`gh secret list` (nivel repositorio) no debería mostrar `GEMINI_API_KEY`.
+`gh secret list` (nivel repositorio) no debería mostrar `GEMINI_API_KEY` ni `OPENROUTER_API_KEY`.
 
-Las acciones de `deploy.yml` y `gemini-embedding-verification.yml` están fijadas por SHA completo, con el tag como comentario. Se resolvieron con `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (desreferenciando los tags anotados con `git/tags/<sha>`) y se confirmó la versión exacta comparando contra `git/matching-refs/tags/`. Para actualizar una acción hay que repetir ese procedimiento.
+Las acciones de `deploy.yml`, `gemini-embedding-verification.yml` y `openrouter-chat-verification.yml` están fijadas por SHA completo, con el tag como comentario. Se resolvieron con `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (desreferenciando los tags anotados con `git/tags/<sha>`) y se confirmó la versión exacta comparando contra `git/matching-refs/tags/`. Para actualizar una acción hay que repetir ese procedimiento.
 
 ### 1.9 Health y métricas desde fuera del clúster
 
