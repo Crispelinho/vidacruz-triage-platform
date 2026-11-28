@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationRequest;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 

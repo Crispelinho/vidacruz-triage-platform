@@ -2,6 +2,7 @@ package com.vidacruz.clinicalassistantservice.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,18 @@ class ApiKeyAuthenticationFilterTest {
 
 		assertThat(chainCalled).isTrue();
 		assertThat(exchange.getResponse().getStatusCode()).isNull();
+	}
+
+	@Test
+	void allowsPrefixedHealthProbeAndSwaggerDocsWithoutKey() {
+		for (String path : List.of("/asistente/actuator/health/liveness", "/swagger-ui/index.html", "/swagger-ui.html",
+				"/v3/api-docs", "/v3/api-docs/swagger-config", "/webjars/swagger-ui/index.css")) {
+			chainCalled.set(false);
+			MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path));
+			filter.filter(exchange, chain).block();
+			assertThat(chainCalled).as(path).isTrue();
+			assertThat(exchange.getResponse().getStatusCode()).as(path).isNull();
+		}
 	}
 
 	@Test

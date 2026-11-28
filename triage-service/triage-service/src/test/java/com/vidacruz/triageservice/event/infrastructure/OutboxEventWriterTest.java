@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.application.filter.CorrelationId;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.event.infrastructure.OutboxEvento;
 
 import io.micrometer.tracing.CurrentTraceContext;
 import io.micrometer.tracing.TraceContext;

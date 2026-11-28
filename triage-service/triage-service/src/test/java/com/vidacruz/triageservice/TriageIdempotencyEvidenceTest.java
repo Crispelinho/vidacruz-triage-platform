@@ -15,8 +15,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.r2dbc.core.DatabaseClient;
 
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationRequest;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;

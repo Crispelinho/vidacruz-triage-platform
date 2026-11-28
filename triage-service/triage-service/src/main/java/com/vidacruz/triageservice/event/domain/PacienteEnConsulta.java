@@ -1,7 +1,5 @@
 package com.vidacruz.triageservice.event.domain;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -10,16 +8,15 @@ public class PacienteEnConsulta extends TriageEvent {
     private final String estadoAnterior;
     private final ZonedDateTime fechaEntradaConsulta;
 
-    @JsonCreator
     public PacienteEnConsulta(
-            @JsonProperty("eventId") UUID eventId,
-            @JsonProperty("schemaVersion") int schemaVersion,
-            @JsonProperty("pacienteId") UUID pacienteId,
-            @JsonProperty("pacienteSequence") long pacienteSequence,
-            @JsonProperty("occurredAt") ZonedDateTime occurredAt,
-            @JsonProperty("correlationId") String correlationId,
-            @JsonProperty("estadoAnterior") String estadoAnterior,
-            @JsonProperty("fechaEntradaConsulta") ZonedDateTime fechaEntradaConsulta) {
+            UUID eventId,
+            int schemaVersion,
+            UUID pacienteId,
+            long pacienteSequence,
+            ZonedDateTime occurredAt,
+            String correlationId,
+            String estadoAnterior,
+            ZonedDateTime fechaEntradaConsulta) {
 
         super(eventId, EventType.EVT_03_PACIENTE_EN_CONSULTA, schemaVersion, pacienteId,
               pacienteSequence, occurredAt, correlationId);
@@ -35,12 +32,10 @@ public class PacienteEnConsulta extends TriageEvent {
         this.fechaEntradaConsulta = fechaEntradaConsulta;
     }
 
-    @JsonProperty("estadoAnterior")
     public String getEstadoAnterior() {
         return estadoAnterior;
     }
 
-    @JsonProperty("fechaEntradaConsulta")
     public ZonedDateTime getFechaEntradaConsulta() {
         return fechaEntradaConsulta;
     }

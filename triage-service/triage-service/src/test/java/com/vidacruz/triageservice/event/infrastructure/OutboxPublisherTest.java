@@ -24,7 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.event.infrastructure.OutboxEvento;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

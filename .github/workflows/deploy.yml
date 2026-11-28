@@ -2,6 +2,13 @@
 # identity created by infra/azure/main.bicep trusts only the jobs of this repository in the environment "azure",
 # so no Azure password is stored in GitHub. In the cluster it can only write the namespace vidacruz; everything else
 # is prepared by infra/azure/provision.ps1, which also lists the variables and secrets this job needs.
+#
+# Only the branches develop and main may deploy: deployments come from develop, and main is the default branch of
+# the repository. The job-level `if` is defence in depth: a workflow file on another branch can be edited to drop
+# it, so the real boundary is the "Deployment branches" rule and the required reviewers of the environment "azure"
+# (see docs/operations/despliegue-azure-y-pruebas.md).
+#
+# Actions are pinned to full commit SHAs because tags are mutable; the trailing comment names the release.
 name: deploy
 
 on:
@@ -17,28 +24,35 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: azure
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: azure/login@v3
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       # The cluster only accepts Microsoft Entra ID tokens: kubelogin turns the Azure session of the job into one
-      - uses: azure/use-kubelogin@v1.3
+      - uses: azure/use-kubelogin@0ce7c36141aa27d4934872cf00b0120804c98a29 # v1.3
         with:
           kubelogin-version: v0.2.22
 
+      # TRIAGE_REVIEWER_API_KEY and ASSISTANT_REVIEWER_API_KEY are optional: a separate key for the evaluators that
+      # can be revoked without rotating the main one. When a secret is not set, deploy.ps1 leaves it out.
       - name: Build, push and deploy
         shell: pwsh
         env:
           TRIAGE_API_KEY: ${{ secrets.TRIAGE_API_KEY }}
           ASSISTANT_API_KEY: ${{ secrets.ASSISTANT_API_KEY }}
+          TRIAGE_REVIEWER_API_KEY: ${{ secrets.TRIAGE_REVIEWER_API_KEY }}
+          ASSISTANT_REVIEWER_API_KEY: ${{ secrets.ASSISTANT_REVIEWER_API_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

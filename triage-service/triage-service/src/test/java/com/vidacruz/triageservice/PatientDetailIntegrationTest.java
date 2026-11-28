@@ -23,9 +23,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.r2dbc.core.DatabaseClient;
 
-import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.dto.PatientDetailResponse;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationRequest;
+import com.vidacruz.triageservice.domain.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.SlaEvaluator;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;

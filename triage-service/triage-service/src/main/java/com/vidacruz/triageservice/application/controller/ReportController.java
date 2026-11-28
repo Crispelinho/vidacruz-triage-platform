@@ -5,9 +5,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vidacruz.triageservice.application.dto.LatencyPercentileReport;
-import com.vidacruz.triageservice.application.dto.OperationHourReport;
-import com.vidacruz.triageservice.application.dto.SlaOperationalReport;
+import com.vidacruz.triageservice.domain.dto.LatencyPercentileReport;
+import com.vidacruz.triageservice.domain.dto.OperationHourReport;
+import com.vidacruz.triageservice.domain.dto.SlaOperationalReport;
 import com.vidacruz.triageservice.domain.service.ReportService;
 
 import reactor.core.publisher.Flux;
