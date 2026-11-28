@@ -36,7 +36,7 @@ public final class JacksonGroundedAnswerDecoder implements GroundedAnswerDecoder
 		}
 		JsonNode root;
 		try {
-			root = mapper.readTree(raw);
+			root = mapper.readTree(unwrapMarkdownJson(raw));
 		}
 		catch (JsonProcessingException ex) {
 			throw new InvalidLLMResponseException("LLM answer is not valid JSON", ex);
@@ -65,6 +65,23 @@ public final class JacksonGroundedAnswerDecoder implements GroundedAnswerDecoder
 			throw new InvalidLLMResponseException("LLM answer has no fuentes");
 		}
 		return new GroundedAnswer(respuesta, fuentes);
+	}
+
+	/**
+	 * Real chat models often wrap the requested JSON in a markdown code fence even when prompted for JSON only. Remove
+	 * one such wrapper before parsing; the G-04 contract itself stays strict. Anything else is left untouched so that
+	 * malformed answers are still rejected.
+	 */
+	private static String unwrapMarkdownJson(String raw) {
+		String trimmed = raw.strip();
+		if (!trimmed.startsWith("```") || !trimmed.endsWith("```") || trimmed.length() < 6) {
+			return raw;
+		}
+		int newline = trimmed.indexOf('\n');
+		if (newline < 0) {
+			return raw;
+		}
+		return trimmed.substring(newline + 1, trimmed.length() - 3).strip();
 	}
 
 	private static boolean hasText(JsonNode node, String field) {

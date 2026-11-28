@@ -23,6 +23,33 @@ class JacksonGroundedAnswerDecoderTest {
 	}
 
 	@Test
+	void decodesFencedJsonWithLanguageTag() {
+		GroundedAnswer answer = decoder.decode("```json\n{\"respuesta\":\"texto [1]\",\"fuentes\":["
+				+ "{\"protocolo\":\"PROTO-001\",\"seccion\":\"Medidas iniciales\"}]}\n```");
+
+		assertThat(answer.respuesta()).isEqualTo("texto [1]");
+		assertThat(answer.fuentes()).hasSize(1);
+		assertThat(answer.fuentes().get(0).protocolo()).isEqualTo("PROTO-001");
+	}
+
+	@Test
+	void decodesFencedJsonWithoutLanguageTag() {
+		GroundedAnswer answer = decoder.decode("```\n{\"respuesta\":\"otro texto\",\"fuentes\":["
+				+ "{\"protocolo\":\"PROTO-002\",\"seccion\":\"Signos\"}]}\n```");
+
+		assertThat(answer.respuesta()).isEqualTo("otro texto");
+		assertThat(answer.fuentes().get(0).protocolo()).isEqualTo("PROTO-002");
+	}
+
+	@Test
+	void keepsStrictContractForFencedJson() {
+		assertThatThrownBy(() -> decoder.decode("```json\n{\"respuesta\":\"x\",\"fuentes\":[]}\n```"))
+				.isInstanceOf(InvalidLLMResponseException.class);
+		assertThatThrownBy(() -> decoder.decode("```json\n{\"respuesta\":\"x\"}\n```"))
+				.isInstanceOf(InvalidLLMResponseException.class);
+	}
+
+	@Test
 	void rejectsMalformedJsonWithoutEchoingContent() {
 		assertThatThrownBy(() -> decoder.decode("respuesta libre con dato sensible"))
 				.isInstanceOf(InvalidLLMResponseException.class)
