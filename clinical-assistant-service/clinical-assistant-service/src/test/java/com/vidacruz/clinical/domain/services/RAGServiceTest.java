@@ -22,11 +22,13 @@ import com.vidacruz.clinical.domain.exceptions.InvalidCitationException;
 import com.vidacruz.clinical.domain.exceptions.InvalidLLMResponseException;
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
@@ -191,7 +193,8 @@ class RAGServiceTest {
 	}
 
 	@Test
-	void jsonAnswerWithoutPositionalMarkersIsAccepted() {
+	void markerlessAnswerUnrelatedToTheCitedEvidenceIsRejectedByDefault() {
+		// M-1: a real, retrieved source is not enough; without an [n] marker the text must share its vocabulary.
 		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
 		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
 		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
@@ -200,6 +203,38 @@ class RAGServiceTest {
 		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just(answer(evidence, "respuesta sin marcadores")));
 
 		StepVerifier.create(service.answer(PromptRequest.of("q")))
+				.expectError(InvalidCitationException.class).verify();
+	}
+
+	@Test
+	void markerlessAnswerThatUsesTheEvidenceVocabularyIsAcceptedByDefault() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
+		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just(answer(evidence, "texto del protocolo vigente")));
+
+		StepVerifier.create(service.answer(PromptRequest.of("q")))
+				.assertNext(response -> assertThat(response.sources()).containsExactly(evidence.get(0)))
+				.verifyComplete();
+	}
+
+	@Test
+	void jsonAnswerWithoutPositionalMarkersIsAcceptedWhenTheCheckIsDisabled() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
+		LLMRouter router = (question, fragments) -> llmProvider.generate(question, fragments)
+				.map(text -> new LLMCompletion("single", "unknown", text));
+		RAGService lenient = new RAGService(embeddingProvider, vectorStore, router, new JacksonGroundedAnswerDecoder(),
+				corpusIndex, RAGService.DEFAULT_RELEVANCE_THRESHOLD,
+				new GroundingCheck(GroundingCheck.Policy.disabled()));
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
+		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just(answer(evidence, "respuesta sin marcadores")));
+
+		StepVerifier.create(lenient.answer(PromptRequest.of("q")))
 				.assertNext(response -> assertThat(response.sources()).containsExactly(evidence.get(0)))
 				.verifyComplete();
 	}

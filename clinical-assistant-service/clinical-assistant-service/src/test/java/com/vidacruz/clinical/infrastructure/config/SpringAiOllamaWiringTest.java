@@ -122,7 +122,10 @@ class SpringAiOllamaWiringTest {
 
 			assertThat(requestBody.get()).contains("\"model\":\"llama3.1:8b\"")
 					.contains("\"stream\":true")
-					.contains("PROTO-001 / Medidas iniciales");
+					.contains("\"role\":\"system\"")
+					.contains("\"role\":\"user\"")
+					.contains("<pregunta>")
+					.contains("<evidencia id=\\\"1\\\" protocolo=\\\"PROTO-001\\\" seccion=\\\"Medidas iniciales\\\">");
 		});
 	}
 

@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -92,15 +94,20 @@ class SpringAIChatAdapterTest {
 	}
 
 	@Test
-	void sendsTheSharedGroundedPromptVerbatim() {
+	void sendsTheSharedGroundedPromptInTheSystemAndUserRoles() {
 		StreamingChatModel chatModel = new StreamingChatModel(Flux.just(chunk("ok")));
 		SpringAIChatAdapter adapter = adapter("ollama", chatModel, "llama3.1:8b");
 
 		adapter.generate("¿Cómo controlo un sangrado?", EVIDENCE).block(Duration.ofSeconds(5));
 
-		// JSON braces in the instruction must not be treated as template variables by ChatClient.
-		assertThat(chatModel.lastPrompt.get().getContents())
-				.isEqualTo(GroundedPrompt.build("¿Cómo controlo un sangrado?", EVIDENCE));
+		List<Message> messages = chatModel.lastPrompt.get().getInstructions();
+		// M-1: the trusted instruction never travels next to user-controlled text.
+		assertThat(messages).filteredOn(message -> message.getMessageType() == MessageType.SYSTEM)
+				.extracting(Message::getText)
+				.containsExactly(GroundedPrompt.systemInstruction());
+		assertThat(messages).filteredOn(message -> message.getMessageType() == MessageType.USER)
+				.extracting(Message::getText)
+				.containsExactly(GroundedPrompt.userContent("¿Cómo controlo un sangrado?", EVIDENCE));
 	}
 
 	@Test

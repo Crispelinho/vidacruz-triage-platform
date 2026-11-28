@@ -19,8 +19,9 @@ import reactor.core.scheduler.Schedulers;
  *
  * <p>The call uses {@code prompt().user(...).stream().content()} (a {@code Flux<String>}), never the blocking
  * {@code call()} API. The chunks are joined into one answer because {@link com.vidacruz.clinical.domain.services.RAGService}
- * validates the complete JSON before replying (RN-05). The shared {@link GroundedPrompt} and {@link ProviderFailures}
- * are unchanged; timeout, circuit breaker and failover stay in {@link ResilientLLMRouter}.
+ * validates the complete JSON before replying (RN-05). The shared {@link GroundedPrompt} supplies the trusted system
+ * instruction and the delimited question/evidence user content (M-1); {@link ProviderFailures} is unchanged. Timeout,
+ * circuit breaker and failover stay in {@link ResilientLLMRouter}.
  *
  * <p>The Google GenAI SDK exposes its stream as a blocking {@code Iterable}; that node subscribes on
  * {@code boundedElastic} so the Netty event loop is never blocked (TST-RXN). Ollama and OpenAI-compatible models are
@@ -68,7 +69,8 @@ public final class SpringAIChatAdapter implements NamedLLMProvider {
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
 		// No user params are passed, so ChatClient sends the text as-is: the JSON braces are not template syntax.
 		Mono<String> answer = Mono.defer(() -> chatClient.prompt()
-				.user(GroundedPrompt.build(question, evidence))
+				.system(GroundedPrompt.systemInstruction())
+				.user(GroundedPrompt.userContent(question, evidence))
 				.stream()
 				.content()
 				.subscribeOn(streamScheduler)

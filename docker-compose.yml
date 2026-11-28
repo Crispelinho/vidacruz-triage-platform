@@ -159,6 +159,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       TRIAGE_EVENTS_TOPIC: triaje.eventos
       TRIAGE_API_KEY: ${TRIAGE_API_KEY:-test-triage-key}
+      # Optional evaluator key (M-2): triage:read + triage:write. Empty means only the owner key above.
+      TRIAGE_REVIEWER_API_KEY: ${TRIAGE_REVIEWER_API_KEY:-}
       OUTBOX_PUBLISHER_ENABLED: "true"
       TRIAGE_SLA_EVALUATION_ENABLED: "true"
       SLA_CRITICO_MINUTES: ${SLA_CRITICO_MINUTES:-1}
@@ -199,6 +201,8 @@ services:
       PATIENT_EVENTS_TOPIC: triaje.eventos
       URGENCY_CONSUMER_ENABLED: "true"
       ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-test-assistant-key}
+      # Optional evaluator key (M-2): assistant:query, no corpus:admin. Empty means only the owner key above.
+      ASSISTANT_REVIEWER_API_KEY: ${ASSISTANT_REVIEWER_API_KEY:-}
       RAG_LLM_CHAIN: ${RAG_LLM_CHAIN:-ollama}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
