@@ -72,7 +72,10 @@ rag:
     timeout: 15s
   # M-1 post-check on the answer text. CitationValidator proves the source exists; this ties the text to it.
   grounding:
-    require-markers: ${RAG_GROUNDING_REQUIRE_MARKERS:true}
+    # Default: an answer needs an [n] marker, or without one at least this share of evidence vocabulary.
+    markerless-min-overlap: ${RAG_GROUNDING_MARKERLESS_MIN_OVERLAP:0.2}
+    # Opt-in: reject every answer without an [n] marker (providers do not always emit them).
+    require-markers: ${RAG_GROUNDING_REQUIRE_MARKERS:false}
     # Opt-in: share of content words that must appear in the cited fragments (0 disables). The Ollama fixture
     # answer cannot pass it, so enable it (suggested 0.3) only with a real provider.
     min-lexical-overlap: ${RAG_GROUNDING_MIN_LEXICAL_OVERLAP:0.0}

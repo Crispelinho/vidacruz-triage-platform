@@ -193,8 +193,8 @@ class RAGServiceTest {
 	}
 
 	@Test
-	void jsonAnswerWithoutPositionalMarkersIsRejectedByDefault() {
-		// M-1: a real, retrieved source is not enough; the answer text must point at it with an [n] marker.
+	void markerlessAnswerUnrelatedToTheCitedEvidenceIsRejectedByDefault() {
+		// M-1: a real, retrieved source is not enough; without an [n] marker the text must share its vocabulary.
 		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
 		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
 		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
@@ -207,7 +207,21 @@ class RAGServiceTest {
 	}
 
 	@Test
-	void jsonAnswerWithoutPositionalMarkersIsAcceptedWhenMarkersAreNotRequired() {
+	void markerlessAnswerThatUsesTheEvidenceVocabularyIsAcceptedByDefault() {
+		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
+		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
+		when(embeddingProvider.embed("q")).thenReturn(Mono.just(QUERY_EMBEDDING));
+		when(vectorStore.similaritySearchWithScores(QUERY_EMBEDDING, PromptRequest.DEFAULT_TOP_K))
+				.thenReturn(Mono.just(List.of(scored(evidence.get(0), 0.9d))));
+		when(llmProvider.generate("q", evidence)).thenReturn(Mono.just(answer(evidence, "texto del protocolo vigente")));
+
+		StepVerifier.create(service.answer(PromptRequest.of("q")))
+				.assertNext(response -> assertThat(response.sources()).containsExactly(evidence.get(0)))
+				.verifyComplete();
+	}
+
+	@Test
+	void jsonAnswerWithoutPositionalMarkersIsAcceptedWhenTheCheckIsDisabled() {
 		List<EvidenceFragment> evidence = List.of(fragment("PROTO-001", "Medidas iniciales"));
 		corpusIndex.refresh(List.of(com.vidacruz.clinical.domain.models.ProtocolSection.from(evidence.get(0))));
 		LLMRouter router = (question, fragments) -> llmProvider.generate(question, fragments)

@@ -69,6 +69,14 @@ class PiiRedactorTest {
 				"Paciente [NOMBRE] CC [DOCUMENTO], tel [TELEFONO], [EMAIL], 54 años con dolor torácico");
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = { "¿Cuáles son las medidas iniciales ante una crisis hipertensiva?",
+			"¿Cuándo se administra el primer antibiótico en sepsis?",
+			"¿Cuál es el tratamiento de primera línea para la diabetes tipo 2?" })
+	void leavesTheSpecAndDemoQuestionsUnchanged(String question) {
+		assertThat(PiiRedactor.redact(question)).isEqualTo(question);
+	}
+
 	@Test
 	void nullAndEmptyAreReturnedAsIs() {
 		assertThat(PiiRedactor.redact(null)).isNull();
