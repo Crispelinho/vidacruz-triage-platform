@@ -1,0 +1,16 @@
+{
+  "startedAt": "2026-11-28T14:40:23Z",
+  "assistantTrace": {
+    "traceId": "8fe27038f7cff48400206685dbb55d12",
+    "status": 200
+  },
+  "cycles": 17,
+  "statuses": {
+    "ask -> 200": 17,
+    "ask invalid citation -> 200": 4,
+    "ask out of corpus -> 200": 17,
+    "ask provider failure -> 503": 5,
+    "ask traced -> 200": 1,
+    "urgency state -> 200": 17
+  }
+}
