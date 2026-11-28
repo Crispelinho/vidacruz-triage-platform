@@ -11,7 +11,9 @@ $files = @(
     'docs/audits/20261128/azure-develop-206ede7-chat-rerun.txt',
     'docs/audits/20261128/azure-develop-206ede7-db-rowlevel.txt',
     'docs/audits/20261128/azure-develop-206ede7-newman-summary.txt',
-    'docs/audits/20261128/azure-develop-206ede7-verification.md'
+    'docs/audits/20261128/azure-develop-206ede7-verification.md',
+    'docs/audits/20261128/local-e77ff63-k8s-e2e.txt',
+    'docs/audits/20261128/local-e77ff63-verification.md'
 )
 
 foreach ($rel in $files) {

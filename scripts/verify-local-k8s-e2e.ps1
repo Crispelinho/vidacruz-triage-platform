@@ -176,7 +176,7 @@ do {
 Check 'RF-03 SLA escalation' ($null -ne $alert -and $alert.estado -eq 'PENDIENTE') "alert=$($alert.id) level=$($alert.nivel) sla=$($alert.slaMinutos) state=$($alert.estado)"
 
 # SSE: start the stream, acknowledge the alert, and confirm the live event and heartbeat.
-Set-Content -Path $sseCmd -Value "@echo off`r`ncurl.exe -N --max-time 22 -H `"X-API-Key: $triageKey`" -o `"$ssePath`" $triage/triage/alertas/stream" -Encoding ASCII
+Set-Content -Path $sseCmd -Value "@echo off`r`ncurl.exe -N --max-time 45 -H `"X-API-Key: $triageKey`" -o `"$ssePath`" $triage/triage/alertas/stream" -Encoding ASCII
 if (Test-Path $ssePath) { Remove-Item $ssePath -Force }
 $sseProc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $sseCmd -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 2
@@ -189,9 +189,8 @@ Check 'RF-06 duplicate acknowledgement' ($ackAgain.Status -eq 409) "status=$($ac
 
 # Resolve while the stream is still open so the RESUELTA event is captured.
 $resolvePatient = Invoke-Api -Method PATCH -Url "$triage/triage/pacientes/$slaPatientId/estado" -Headers $triageHeaders -Body @{ estado = 'EN_CONSULTA' }
-Start-Sleep -Seconds 15
-if (-not $sseProc.HasExited) { Stop-Process -Id $sseProc.Id -Force }
-Start-Sleep -Seconds 1
+# Let curl exit on its own so its buffered tail is flushed before the file is read.
+if (-not $sseProc.WaitForExit(50000)) { Stop-Process -Id $sseProc.Id -Force; Start-Sleep -Seconds 1 }
 $sseText = if (Test-Path $ssePath) { Get-Content $ssePath -Raw } else { '' }
 $sseHasSnapshot = $sseText -match 'event:\s*alerta'
 $sseHasLive = $sseText.Contains([string]$alert.id)
