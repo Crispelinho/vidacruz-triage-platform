@@ -1,0 +1,44 @@
+{
+  "retrievedAt": "2026-11-28T05:35:42.5370245-05:00",
+  "source": "az consumption budget show --subscription <redacted> --budget-name vidacruz-azure-for-students -o json",
+  "note": "Sanitized export: subscription id and contact emails are redacted; no credentials, tokens or secrets are included.",
+  "budget": {
+    "amount": "100.0",
+    "category": "Cost",
+    "currentSpend": {
+      "amount": "0.5212887105024231",
+      "unit": "USD"
+    },
+    "eTag": "\"1dd7eb461c07bdb\"",
+    "id": "/subscriptions/<redacted>/providers/Microsoft.Consumption/budgets/vidacruz-azure-for-students",
+    "name": "vidacruz-azure-for-students",
+    "notifications": {
+      "alert50": {
+        "contactEmails": [
+          "<redacted>"
+        ],
+        "contactGroups": [],
+        "contactRoles": [],
+        "enabled": true,
+        "operator": "GreaterThan",
+        "threshold": "50.0"
+      },
+      "alert80": {
+        "contactEmails": [
+          "<redacted>"
+        ],
+        "contactGroups": [],
+        "contactRoles": [],
+        "enabled": true,
+        "operator": "GreaterThan",
+        "threshold": "80.0"
+      }
+    },
+    "timeGrain": "Annually",
+    "timePeriod": {
+      "endDate": "2027-11-01T00:00:00Z",
+      "startDate": "2026-11-01T00:00:00Z"
+    },
+    "type": "Microsoft.Consumption/budgets"
+  }
+}
