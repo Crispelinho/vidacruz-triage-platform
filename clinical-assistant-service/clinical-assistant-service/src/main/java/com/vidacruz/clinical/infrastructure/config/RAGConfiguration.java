@@ -19,6 +19,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.vidacruz.clinical.domain.ports.ClinicalDocumentRepository;
 import com.vidacruz.clinical.domain.ports.CorpusIndexSource;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.GroundedAnswerDecoder;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.domain.ports.VectorStore;
@@ -32,11 +33,13 @@ import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
@@ -58,7 +61,7 @@ import reactor.core.scheduler.Schedulers;
 @Configuration(proxyBeanMethods = false)
 @Import(Resilience4jConfiguration.class)
 @EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
-		OpenCodeProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
+		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
 class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
@@ -117,6 +120,12 @@ class RAGConfiguration {
 	@Bean
 	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
 		return new OpenCodeHttpLLMAdapter(builder, properties);
+	}
+
+	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */
+	@Bean
+	NamedLLMProvider openRouterNode(WebClient.Builder builder, OpenRouterProperties properties) {
+		return new OpenRouterHttpLLMAdapter(builder, properties);
 	}
 
 	@Bean
@@ -178,10 +187,16 @@ class RAGConfiguration {
 		return args -> refresher.refresh().block();
 	}
 
+	/** G-04 decoding of the raw LLM answer; JSON stays in infrastructure so the domain has no Jackson dependency. */
+	@Bean
+	GroundedAnswerDecoder groundedAnswerDecoder() {
+		return new JacksonGroundedAnswerDecoder();
+	}
+
 	@Bean
 	RAGService ragService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
-			CorpusIndex corpusIndex, VectorStoreProperties properties) {
-		return new RAGService(embeddingProvider, vectorStore, llmRouter, corpusIndex,
+			GroundedAnswerDecoder groundedAnswerDecoder, CorpusIndex corpusIndex, VectorStoreProperties properties) {
+		return new RAGService(embeddingProvider, vectorStore, llmRouter, groundedAnswerDecoder, corpusIndex,
 				properties.relevanceThreshold());
 	}
 

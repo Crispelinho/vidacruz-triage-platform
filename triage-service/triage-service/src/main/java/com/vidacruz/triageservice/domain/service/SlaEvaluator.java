@@ -11,8 +11,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.domain.model.AlertStatus;
@@ -32,7 +30,6 @@ import reactor.core.publisher.Mono;
  * RF-03/RN-03 SLA evaluator: conditional escalation with one audit row, one EVT-02 and one RF-06 alert per patient.
  * All four writes share the same transaction, so an alert exists if and only if the escalation was committed.
  */
-@Service
 public class SlaEvaluator {
 
 	private static final Logger log = LoggerFactory.getLogger(SlaEvaluator.class);
@@ -48,17 +45,6 @@ public class SlaEvaluator {
 	private final Clock clock;
 	private final TriageMetrics metrics;
 
-	public SlaEvaluator(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
-			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
-			TriageMetrics metrics) {
-		this(patientRepository, auditRepository, eventWriter, alertRepository, transactionalOperator,
-				Clock.systemUTC(), metrics);
-	}
-
-	@Autowired
 	public SlaEvaluator(PatientRepository patientRepository,
 			AuditEntryRepository auditRepository,
 			OutboxEventWriter eventWriter,

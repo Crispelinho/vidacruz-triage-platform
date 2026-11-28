@@ -229,6 +229,16 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   }
 }
 
+// Azure PostgreSQL blocks extension creation until the extension is allow-listed at server level.
+// The clinical assistant Flyway migration needs pgvector; this parameter is dynamic (no restart).
+resource postgresVectorExtension 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
+  parent: postgres
+  name: 'azure.extensions'
+  properties: {
+    value: 'vector'
+  }
+}
+
 resource triageDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
   parent: postgres
   name: 'triage'

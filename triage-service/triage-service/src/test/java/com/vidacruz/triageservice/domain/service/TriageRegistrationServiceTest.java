@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -75,7 +76,7 @@ class TriageRegistrationServiceTest {
 	void setUp() {
 		service = new TriageRegistrationService(patientRepository, auditRepository, eventWriter,
 				idempotencyRepository, mapper, new TriageClassifier(), new SlaProperties(Map.of()),
-				transactionalOperator, metrics);
+				transactionalOperator, Clock.systemUTC(), metrics);
 		lenient().when(patientRepository.save(any(PatientEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		lenient().when(auditRepository.save(any(AuditEntryEntity.class)))

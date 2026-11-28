@@ -15,6 +15,7 @@ import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.VectorStore;
+import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -32,7 +33,7 @@ class RAGServiceRn05GateTest {
 		when(store.similaritySearchWithScores(new float[] { 1f }, 4))
 				.thenReturn(Mono.just(List.of(new ScoredEvidenceFragment(fragment, 0.2d))));
 
-		RAGService service = new RAGService(embedding, store, llm, 0.75d);
+		RAGService service = new RAGService(embedding, store, llm, new JacksonGroundedAnswerDecoder(), 0.75d);
 
 		StepVerifier.create(service.answer(PromptRequest.of("q")))
 				.assertNext(response -> {

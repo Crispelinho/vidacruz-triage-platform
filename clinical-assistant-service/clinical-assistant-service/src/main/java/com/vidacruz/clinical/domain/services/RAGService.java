@@ -10,6 +10,7 @@ import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.models.ScoredEvidenceFragment;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.GroundedAnswerDecoder;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.TaskAwareEmbeddingProvider;
@@ -34,24 +35,28 @@ public class RAGService {
 
 	private final LLMRouter llmRouter;
 
+	private final GroundedAnswerDecoder answerDecoder;
+
 	private final CorpusIndex corpusIndex;
 
 	private final double relevanceThreshold;
 
-	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter) {
-		this(embeddingProvider, vectorStore, llmRouter, new CorpusIndex(), DEFAULT_RELEVANCE_THRESHOLD);
+	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
+			GroundedAnswerDecoder answerDecoder) {
+		this(embeddingProvider, vectorStore, llmRouter, answerDecoder, new CorpusIndex(), DEFAULT_RELEVANCE_THRESHOLD);
 	}
 
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
-			double relevanceThreshold) {
-		this(embeddingProvider, vectorStore, llmRouter, new CorpusIndex(), relevanceThreshold);
+			GroundedAnswerDecoder answerDecoder, double relevanceThreshold) {
+		this(embeddingProvider, vectorStore, llmRouter, answerDecoder, new CorpusIndex(), relevanceThreshold);
 	}
 
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
-			CorpusIndex corpusIndex, double relevanceThreshold) {
+			GroundedAnswerDecoder answerDecoder, CorpusIndex corpusIndex, double relevanceThreshold) {
 		this.embeddingProvider = Objects.requireNonNull(embeddingProvider, "embeddingProvider");
 		this.vectorStore = Objects.requireNonNull(vectorStore, "vectorStore");
 		this.llmRouter = Objects.requireNonNull(llmRouter, "llmRouter");
+		this.answerDecoder = Objects.requireNonNull(answerDecoder, "answerDecoder");
 		this.corpusIndex = Objects.requireNonNull(corpusIndex, "corpusIndex");
 		if (!Double.isFinite(relevanceThreshold) || relevanceThreshold < 0.0d || relevanceThreshold > 1.0d) {
 			throw new IllegalArgumentException("relevanceThreshold must be between 0 and 1");
@@ -60,22 +65,27 @@ public class RAGService {
 	}
 
 	/** Compatibility constructor for a single provider; production wiring uses the resilient router. */
-	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider) {
-		this(embeddingProvider, vectorStore, (LLMRouter) (question, evidence) -> llmProvider
-				.generate(question, evidence).map(answer -> new LLMCompletion("single", "unknown", answer)),
-				new CorpusIndex(), DEFAULT_RELEVANCE_THRESHOLD);
+	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider,
+			GroundedAnswerDecoder answerDecoder) {
+		this(embeddingProvider, vectorStore, llmProvider, answerDecoder, new CorpusIndex(),
+				DEFAULT_RELEVANCE_THRESHOLD);
 	}
 
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider,
-			CorpusIndex corpusIndex) {
-		this(embeddingProvider, vectorStore, llmProvider, corpusIndex, DEFAULT_RELEVANCE_THRESHOLD);
+			GroundedAnswerDecoder answerDecoder, CorpusIndex corpusIndex) {
+		this(embeddingProvider, vectorStore, llmProvider, answerDecoder, corpusIndex, DEFAULT_RELEVANCE_THRESHOLD);
 	}
 
 	public RAGService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMProvider llmProvider,
-			CorpusIndex corpusIndex, double relevanceThreshold) {
-		this(embeddingProvider, vectorStore, (LLMRouter) (question, evidence) -> llmProvider
-				.generate(question, evidence).map(answer -> new LLMCompletion("single", "unknown", answer)),
-				corpusIndex, relevanceThreshold);
+			GroundedAnswerDecoder answerDecoder, CorpusIndex corpusIndex, double relevanceThreshold) {
+		this(embeddingProvider, vectorStore, singleProviderRouter(llmProvider), answerDecoder, corpusIndex,
+				relevanceThreshold);
+	}
+
+	private static LLMRouter singleProviderRouter(LLMProvider llmProvider) {
+		Objects.requireNonNull(llmProvider, "llmProvider");
+		return (question, evidence) -> llmProvider.generate(question, evidence)
+				.map(answer -> new LLMCompletion("single", "unknown", answer));
 	}
 
 	public Mono<RAGResponse> answer(PromptRequest request) {
@@ -100,7 +110,7 @@ public class RAGService {
 					return llmRouter.generate(request.question(), relevant)
 							.map(completion -> {
 								// G-04: strict JSON; a parse error is a direct rejection, never a regeneration.
-								var answer = GroundedAnswerParser.parse(completion.answer());
+								var answer = answerDecoder.decode(completion.answer());
 								// G-03: corpus index AND retrieved set; no DocumentoClinico read per request.
 								List<Citation> citations = CitationValidator.resolve(answer, relevant, corpusIndex);
 								List<EvidenceFragment> cited = citations.stream()

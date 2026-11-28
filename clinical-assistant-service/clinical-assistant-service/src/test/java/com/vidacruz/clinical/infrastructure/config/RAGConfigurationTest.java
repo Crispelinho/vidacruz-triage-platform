@@ -17,6 +17,7 @@ import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 
@@ -36,8 +37,10 @@ class RAGConfigurationTest {
 	void wiresPortsToTheFailoverChain() {
 		runner.run(context -> {
 			assertThat(context).hasNotFailed();
-			assertThat(context.getBeansOfType(NamedLLMProvider.class)).hasSize(3);
+			assertThat(context.getBeansOfType(NamedLLMProvider.class)).hasSize(4);
 			assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
+			assertThat(context.getBean("openRouterNode", NamedLLMProvider.class))
+					.isInstanceOf(OpenRouterHttpLLMAdapter.class);
 			assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 			assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(LexicalEmbeddingAdapter.class);
 			assertThat(context.getBean(VectorStore.class)).isInstanceOf(PgvectorVectorStoreAdapter.class);
@@ -56,6 +59,12 @@ class RAGConfigurationTest {
 			LLMRouterProperties chain = context.getBean(LLMRouterProperties.class);
 			assertThat(chain.providerKeys()).containsExactly("ollama", "gemini", "opencode");
 			assertThat(chain.timeout()).isEqualTo(Duration.ofSeconds(15));
+
+			OpenRouterProperties openRouter = context.getBean(OpenRouterProperties.class);
+			assertThat(openRouter.baseUrl()).isEqualTo("https://openrouter.ai/api/v1");
+			assertThat(openRouter.model()).isEqualTo("nvidia/nemotron-3.5-lightning:free");
+			assertThat(openRouter.apiKey()).isEmpty();
+			assertThat(openRouter.dataCollection()).isEqualTo("deny");
 
 			VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
 			assertThat(vector.dimensions()).isEqualTo(768);
@@ -90,11 +99,21 @@ class RAGConfigurationTest {
 	}
 
 	@Test
+	void openRouterCanBeSelectedExplicitly() {
+		runner.withPropertyValues("rag.llm.chain=openrouter").run(context -> {
+			assertThat(context).hasNotFailed();
+			assertThat(context.getBean(LLMRouterProperties.class).providerKeys()).containsExactly("openrouter");
+			assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
+		});
+	}
+
+	@Test
 	void invalidPropertiesFailStartup() {
 		runner.withPropertyValues("clinical.vector-store.dimensions=0")
 				.run(context -> assertThat(context).hasFailed());
 		runner.withPropertyValues("ollama.timeout=0s").run(context -> assertThat(context).hasFailed());
 		runner.withPropertyValues("rag.llm.chain=unknown").run(context -> assertThat(context).hasFailed());
+		runner.withPropertyValues("openrouter.data-collection=allow").run(context -> assertThat(context).hasFailed());
 	}
 
 	@Test

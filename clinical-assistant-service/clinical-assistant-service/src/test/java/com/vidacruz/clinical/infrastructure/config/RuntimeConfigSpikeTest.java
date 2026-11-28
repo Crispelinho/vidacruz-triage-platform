@@ -17,6 +17,7 @@ import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -25,7 +26,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 /**
  * ADR-05 runtime configuration spike (harness): proves custom config keys bind and select the intended beans.
  *
- * <p>Covered: rag.llm.chain, ollama.*, gemini.*, opencode.*, and clinical.vector-store.embedding-provider.
+ * <p>Covered: rag.llm.chain, ollama.*, gemini.*, opencode.*, openrouter.*, and clinical.vector-store.embedding-provider.
  * Not covered: live provider calls, Spring AI static-key behavior, or network reachability.
  */
 class RuntimeConfigSpikeTest {
@@ -59,9 +60,16 @@ class RuntimeConfigSpikeTest {
             assertThat(opencode.model()).isEqualTo("glm-5.3");
             assertThat(opencode.apiKey()).isEmpty();
 
+            OpenRouterProperties openRouter = context.getBean(OpenRouterProperties.class);
+            assertThat(openRouter.baseUrl()).isEqualTo("https://openrouter.ai/api/v1");
+            assertThat(openRouter.model()).isEqualTo("nvidia/nemotron-3.5-lightning:free");
+            assertThat(openRouter.apiKey()).isEmpty();
+            assertThat(openRouter.dataCollection()).isEqualTo("deny");
+
             assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
             assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(GeminiHttpLLMAdapter.class);
             assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(OpenCodeHttpLLMAdapter.class);
+            assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(OpenRouterHttpLLMAdapter.class);
             assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 
             VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
@@ -83,6 +91,9 @@ class RuntimeConfigSpikeTest {
                 "gemini.model=gemini-3.5-flash-lite",
                 "opencode.api-key=test-opencode-key",
                 "opencode.model=glm-custom",
+                "openrouter.api-key=test-openrouter-key",
+                "openrouter.model=openrouter/free",
+                "openrouter.base-url=http://router-host:9000/v1",
                 "clinical.vector-store.embedding-provider=gemini",
                 "gemini.embedding.model=gemini-embedding-2",
                 "gemini.embedding.dimensions=768")
@@ -97,6 +108,10 @@ class RuntimeConfigSpikeTest {
                 assertThat(context.getBean(GeminiProperties.class).apiKey()).isEqualTo("test-gemini-key");
                 assertThat(context.getBean(OpenCodeProperties.class).apiKey()).isEqualTo("test-opencode-key");
                 assertThat(context.getBean(OpenCodeProperties.class).model()).isEqualTo("glm-custom");
+                OpenRouterProperties openRouter = context.getBean(OpenRouterProperties.class);
+                assertThat(openRouter.baseUrl()).isEqualTo("http://router-host:9000/v1");
+                assertThat(openRouter.model()).isEqualTo("openrouter/free");
+                assertThat(openRouter.apiKey()).isEqualTo("test-openrouter-key");
 
                 assertThat(context.getBean(EmbeddingProvider.class)).isInstanceOf(GeminiEmbeddingAdapter.class);
                 GeminiEmbeddingProperties embedding = context.getBean(GeminiEmbeddingProperties.class);

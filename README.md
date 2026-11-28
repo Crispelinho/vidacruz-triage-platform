@@ -55,16 +55,25 @@ Run in order. Details and ready-to-import requests are in [`docs/demo/local-veri
 - [ ] NFR-07: `/actuator/prometheus` on both services needs `X-API-Key`, and Prometheus (`localhost:9090`) plus the provisioned Grafana dashboard (`localhost:3000`) show the counters after the requests above.
 - [ ] NFR-16: a registration with a W3C `traceparent` header produces one trace across `triage-service` and `clinical-assistant-service` in Jaeger (`localhost:16686`).
 
+## Evaluator map
+
+For the technical-test review, start here:
+
+| What to review | Where |
+|---|---|
+| One-command local run | This README (`Run it`) + `docker-compose.yml` |
+| Architecture diagram and flows | `Architecture` section below + [`docs/architecture/diagrams.md`](docs/architecture/diagrams.md) |
+| Key decisions and justification | `Key decisions` section below + [`docs/adr/README.md`](docs/adr/README.md) |
+| Functional/non-functional requirements | [`docs/requirements.md`](docs/requirements.md) |
+| Test coverage / local verification | [`docs/demo/local-verification.md`](docs/demo/local-verification.md), [`postman/`](postman/), service `src/test` trees |
+| Enunciado compliance matrix | [`docs/demo/enunciado-compliance-matrix.md`](docs/demo/enunciado-compliance-matrix.md) |
+| Kubernetes / Azure IaC | `infra/k8s/`, `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/`, `infra/azure/` |
+| Azure deployment evidence | [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) |
+
 ## Known limits
 
 - **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target is recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md). No credentials are stored here, and local traces still go to the Jaeger container.
-- **Azure deployment status.** There is **no live public URL**. The AKS deployment was validated on 2026-11-26 at `https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com`:
-  - `401 TRG-005` without a key, so the API-key filter is enforced end to end.
-  - `200` on the OpenAPI document and the Swagger UI.
-  - Gateway `Programmed` and TLS certificate `Ready`.
-  - Triage `2/2` pods.
-
-  The resource group no longer exists: deleting it once the evidence was recorded was the planned step to bring the cost of the Azure for Students subscription to zero. On 2026-11-27 the host no longer resolves. The evidence is in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 2.2 and 2.3). To reproduce the deployment, run `infra/azure/provision.ps1` and then the `deploy.yml` workflow. A new deployment gets a new DNS suffix, so the URL changes.
+- **Azure deployment status.** Submission URL provided: `https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com/docs/triage/swagger-ui/index.html#/Pacientes/registrarPaciente`. An unauthenticated probe to the Swagger UI returned `401`, which indicates the gateway and API-key filter are reachable; authenticated API verification requires the `X-API-Key` shared through a secure channel (**do not commit keys**). Historical deployment evidence is in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md). Availability can change because the environment is cost-controlled; to reproduce, run `infra/azure/provision.ps1` and then the `deploy.yml` workflow. A new deployment gets a new DNS suffix, so the URL changes.
 - **RF-04 compatibility alias.** `POST /rag` remains available as a compatibility alias for existing clients; new clients should use `POST /asistente/consulta`.
 - **RF-04 provider.** The default chain targets Ollama at `http://ollama:11434`; the `ollama` Compose profile does not auto-pull a model. Without a reachable provider, expect the fixed 503 notice.
 - **SSE and browsers.** `EventSource` cannot send `X-API-Key`. Use streaming `fetch` with the header, `curl -N`, or a backend proxy (ADR-15).
@@ -147,5 +156,7 @@ More views (registration sequence, escalation race guard, state machine, event f
 | One database per service | Clear data ownership; no shared schema | [ADR-14](docs/adr/ADR-14-database-ownership-one-db-per-service.md) |
 
 The full list, with status and where each decision is implemented, is in [`docs/adr/README.md`](docs/adr/README.md). Services are documented in [`docs/services/`](docs/services/) and requirements in [`docs/requirements.md`](docs/requirements.md).
+
+Release flow: `develop` -> `release/vX.Y.Z` -> PR to `main` -> tag `vX.Y.Z`. See [`docs/operations/release-policy.md`](docs/operations/release-policy.md).
 
 **Production note:** Boot 3.5.16 reached EOL on 2026-06-30. Production requires commercial Spring support or a migration to Boot 4.1+ (ADR-10).

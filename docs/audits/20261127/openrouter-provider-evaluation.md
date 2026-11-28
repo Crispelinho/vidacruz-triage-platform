@@ -1,12 +1,21 @@
 # OpenRouter evaluation: free external-client provider, documented only
 
-OpenRouter is recorded as a **candidate** chat provider, not as an adopted chain node. A direct HTTP probe confirmed that its free router answers from an external client at `cost=0`, follows the citation/no-evidence contract, and can be constrained against training and paid fallback. No adapter, configuration or test was changed: Gemini stays the verified primary chat node and ADR-05 remains `Proposed`. Raw non-sensitive values are in [`openrouter-provider-evaluation-results.json`](openrouter-provider-evaluation-results.json). Neither file contains a credential, prompt text, answer text or account identifier.
+OpenRouter is recorded as a **candidate** chat provider, not as an adopted chain node. A direct HTTP probe confirmed that its free router answers from an external client at `cost=0`, follows the citation/no-evidence contract, and can be constrained against training and paid fallback. An opt-in adapter was later added under issue #143, but it is not part of the default chain: Gemini stays the verified primary chat node and ADR-05 remains `Proposed`. Raw non-sensitive values are in [`openrouter-provider-evaluation-results.json`](openrouter-provider-evaluation-results.json). Neither file contains a credential, prompt text, answer text or account identifier.
 
 ## Quick path
 
-1. Keep `RAG_LLM_CHAIN=gemini` for the demo. Do not add an OpenRouter chain node yet.
-2. If a free external node is evaluated later, use `openrouter/free` with `provider.data_collection=deny` and `provider.max_price={"prompt":0,"completion":0}`.
-3. Do **not** send `provider.zdr=true` to free models: it removes every free endpoint.
+1. Keep `RAG_LLM_CHAIN=gemini` for the demo. The OpenRouter node is registered but opt-in; enable it explicitly only after a rotated key and an accepted ADR-05 amendment.
+2. The adapter pins a free model (`nvidia/nemotron-3.5-lightning:free`) and always sends `provider.data_collection=deny` and `provider.max_price={"prompt":0,"completion":0}`.
+3. Do **not** send `provider.zdr=true` to free models: it removes every free endpoint. The adapter deliberately omits it.
+
+## Implementation note (2026-11-27, issue #143)
+
+- `OpenRouterHttpLLMAdapter` implements `NamedLLMProvider` with key `openrouter` and calls the OpenAI-compatible `/chat/completions` endpoint using the shared grounded prompt.
+- `OpenRouterProperties` binds `openrouter.*`; the API key comes only from `OPENROUTER_API_KEY` and defaults to empty. No key value is stored in source, configuration, tests, docs, logs or metrics.
+- `RAGConfiguration` registers the `openRouterNode` bean, but `rag.llm.chain` still defaults to `ollama,gemini,opencode`. Enable with `RAG_LLM_CHAIN=openrouter,gemini` only after the gate work below is done.
+- `openrouter.data-collection` is validated to `deny`; the zero price ceiling is hardwired, so a paid fallback cannot be selected by configuration. `openrouter/model` is configurable for a later five-run gate.
+- Tests: `OpenRouterHttpLLMAdapterWireTest` checks the endpoint, Bearer header, privacy body, response parsing and 429-to-unavailable mapping against a local stub; config tests cover defaults, overrides, explicit chain selection and invalid privacy values.
+- This is implementation only. It does not close live-provider, cost or five-run chat verification, and it does not accept ADR-05.
 
 ## What was measured
 
@@ -50,14 +59,14 @@ The API returned an account identifier in an error payload during probing. It wa
 - [x] Free external-client access verified with a live HTTP probe
 - [x] Citation and no-evidence behaviour verified on synthetic, de-identified inputs
 - [x] Privacy controls and their free-tier limits recorded
-- [x] No repository code, configuration or test changed
+- [x] Opt-in adapter, configuration and stub tests added under issue #143
 - [ ] Trial key rotated after being pasted in plaintext in chat
 - [ ] Five-run chat gate executed if the provider is ever adopted
 - [ ] Cost confirmed against billing, not only the API `usage` field
 
 ## Next step
 
-Keep this as a recorded alternative next to the [R-07 chat evidence](gemini-chat-r07-verification.md). If the Developer/User later chooses OpenRouter, open a separate issue and ADR-05 amendment before adding an adapter. Reproduce only with a rotated key from a secret store, injected as an environment variable; never paste it into a chat, issue, PR, file or metric label.
+Keep this as a recorded alternative next to the [R-07 chat evidence](gemini-chat-r07-verification.md). The adapter added under issue #143 is opt-in and does not adopt the provider; enabling it still requires the rotated key, measured cost, the five-run chat gate and a formal ADR-05 acceptance. Reproduce only with a rotated key from a secret store, injected as an environment variable; never paste it into a chat, issue, PR, file or metric label.
 
 ```powershell
 $env:OPENROUTER_API_KEY='<from secret store>'
