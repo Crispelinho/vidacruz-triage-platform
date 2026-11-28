@@ -20,6 +20,8 @@ Verify the chat gates that were still unverified after the Gemini embedding run:
 | Negative/no-evidence probes | **Passed 2/2.** Both returned the fixed notice with zero LLM calls. |
 | Cost | Not measured. OpenCode is prepaid and no billing API was queried. |
 
+The local clinical suite ran 252 tests with one failure and two skips. The failure was `ClinicalSchemaIsolationTest` timing out in a Testcontainers wait strategy, unrelated to the chat harness; its isolated rerun passed in 2m36s.
+
 Provider diagnosis: the Actions Secret exists and was accepted by the workflow, but `opencode/glm-5.3` returns `402` for insufficient balance. A previously recorded free-model probe ([run 46063009871](https://github.com/Crispelinho/vidacruz-triage-platform/actions/runs/46063009871)) returned `429` with `FreeUsageLimitError` for the free models available under the same secret, and one model was unavailable. No free OpenCode model was usable at verification time.
 
 ## Gates still open
