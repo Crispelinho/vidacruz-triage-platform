@@ -30,6 +30,7 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL || 'glm-5.3' }}
         working-directory: clinical-assistant-service/clinical-assistant-service
         run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.OpenCodeChatVerificationTest'
 
