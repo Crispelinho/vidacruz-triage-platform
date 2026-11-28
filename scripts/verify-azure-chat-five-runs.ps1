@@ -1,7 +1,8 @@
 param(
     [string]$Kubeconfig = 'C:\Users\HP\AppData\Local\Temp\vidacruz-vidacruz-aks.kubeconfig',
     [string]$PublicHost = 'https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com',
-    [string]$ReportPath = 'C:\Users\HP\AppData\Local\Temp\opencode\azure-chat-five-runs.txt'
+    [string]$ReportPath = 'C:\Users\HP\AppData\Local\Temp\opencode\azure-chat-five-runs.txt',
+    [string]$TargetLabel = 'develop e57f6fe (deploy run 46163138392)'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,7 +70,7 @@ $probes = @(
 $results = New-Object System.Collections.ArrayList
 $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add("=== Azure chat five-run gate $(Get-Date -Format o) ===")
-[void]$lines.Add("Host: $PublicHost; target: main 38d9d77")
+[void]$lines.Add("Host: $PublicHost; target: $TargetLabel")
 
 foreach ($probe in $probes) {
     $passes = 0

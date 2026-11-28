@@ -99,8 +99,12 @@ Start-Sleep -Seconds 2
 $oldEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 $podsRaw = (& kubectl --kubeconfig $Kubeconfig --request-timeout=90s -n vidacruz get pods -o jsonpath='{.items[*].metadata.name}' 2>&1 | Out-String)
-$podName = @($podsRaw -split '\s+' | Where-Object { $_ -like 'triage-service-*' } | Select-Object -First 1)[0]
-$logs = if ($podName) { (& kubectl --kubeconfig $Kubeconfig --request-timeout=90s -n vidacruz logs "pod/$podName" --since=5m --tail=1500 2>&1 | Out-String) } else { '' }
+$podNames = @($podsRaw -split '\s+' | Where-Object { $_ -like 'triage-service-*' })
+$logsBuilder = New-Object System.Text.StringBuilder
+foreach ($podName in $podNames) {
+    [void]$logsBuilder.AppendLine((& kubectl --kubeconfig $Kubeconfig --request-timeout=90s -n vidacruz logs "pod/$podName" --since=5m --tail=1500 2>&1 | Out-String))
+}
+$logs = $logsBuilder.ToString()
 $ErrorActionPreference = $oldEap
 $auditLines = @($logs -split "`r?`n" | Where-Object { $_ -match 'PHI read' -and $_ -match [regex]::Escape($PatientId) -and $_ -match 'keyId=owner' })
 Check -Name 'PHI read audit line' -Passed ($auditLines.Count -ge 1) -Detail "matching_lines=$($auditLines.Count) keyId=owner (value never logged)"

@@ -3,7 +3,8 @@ param(
     [string]$Collection = (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs/audits/20261128/VidaCruz.azure-no-secrets.postman_collection.json'),
     [string]$JsonReport = (Join-Path $env:TEMP 'newman-develop-206ede7.json'),
     [string]$LogPath = (Join-Path $env:TEMP 'newman-develop-206ede7.log'),
-    [string]$SummaryPath = (Join-Path $env:TEMP 'newman-develop-206ede7-summary.txt')
+    [string]$SummaryPath = (Join-Path $env:TEMP 'newman-develop-206ede7-summary.txt'),
+    [string]$TargetLabel = 'Azure develop e57f6fe (deploy run 46163138392)'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,7 +45,7 @@ $assertions = $run.stats.assertions
 $ok = ($requests.failed -eq 0 -and $assertions.failed -eq 0)
 $lines = @(
     "Generated: $(Get-Date -Format o)",
-    'Target: Azure develop 206ede7 (deploy run 46149735968)',
+    "Target: $TargetLabel",
     "Requests: total=$($requests.total) failed=$($requests.failed) pending=$($requests.pending)",
     "Assertions: total=$($assertions.total) failed=$($assertions.failed) pending=$($assertions.pending)",
     "Result: $(if ($ok) { 'PASS' } else { 'FAIL' })",
