@@ -1,12 +1,12 @@
 package com.vidacruz.triageservice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vidacruz.triageservice.event.domain.EventType;
-import com.vidacruz.triageservice.event.domain.PacienteAlta;
-import com.vidacruz.triageservice.event.domain.PacienteEscalado;
-import com.vidacruz.triageservice.event.domain.PacienteEnConsulta;
-import com.vidacruz.triageservice.event.domain.PacienteRegistrado;
-import com.vidacruz.triageservice.event.domain.TriageEvent;
+import com.vidacruz.triageservice.event.infrastructure.contract.EventType;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteAlta;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteEscalado;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteEnConsulta;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteRegistrado;
+import com.vidacruz.triageservice.event.infrastructure.contract.TriageEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

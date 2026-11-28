@@ -4,10 +4,15 @@ import java.time.Clock;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vidacruz.triageservice.domain.model.AuditLog;
+import com.vidacruz.triageservice.domain.model.EventOutbox;
+import com.vidacruz.triageservice.domain.model.IdempotencyStore;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.PatientStore;
+import com.vidacruz.triageservice.domain.model.RequestFingerprinter;
+import com.vidacruz.triageservice.domain.model.SlaPolicy;
+import com.vidacruz.triageservice.domain.model.TransactionRunner;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.report.OperationReportRepository;
 import com.vidacruz.triageservice.domain.report.ReportPolicy;
@@ -19,14 +24,10 @@ import com.vidacruz.triageservice.domain.service.SlaEvaluator;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.domain.service.WatchAlertsUseCase;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 /**
- * Explicit wiring for the domain services. Keeping the beans here lets the use cases stay free of Spring DI
- * annotations; the constructors and every transaction boundary remain unchanged.
+ * Explicit wiring for the domain services. The use cases depend only on domain ports; the adapters that implement
+ * them live in infrastructure, so the domain stays free of Spring, Jackson and persistence types.
  */
 @Configuration
 public class DomainServiceConfiguration {
@@ -59,40 +60,38 @@ public class DomainServiceConfiguration {
 	}
 
 	@Bean
-	public SlaEvaluator slaEvaluator(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public SlaEvaluator slaEvaluator(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionRunner transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		return new SlaEvaluator(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, clock, metrics);
+		return new SlaEvaluator(patients, auditLog, outbox, alertRepository, transactions, clock, metrics);
 	}
 
 	@Bean
-	public TriageRegistrationService triageRegistrationService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
-			IdempotencyKeyRepository idempotencyRepository,
-			ObjectMapper objectMapper,
+	public TriageRegistrationService triageRegistrationService(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
+			IdempotencyStore idempotencyStore,
+			RequestFingerprinter fingerprinter,
 			TriageClassifier classifier,
-			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator,
+			SlaPolicy slaPolicy,
+			TransactionRunner transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		return new TriageRegistrationService(patientRepository, auditRepository, eventWriter, idempotencyRepository,
-				objectMapper, classifier, slaProperties, transactionalOperator, clock, metrics);
+		return new TriageRegistrationService(patients, auditLog, outbox, idempotencyStore, fingerprinter, classifier,
+				slaPolicy, transactions, clock, metrics);
 	}
 
 	@Bean
-	public PatientLifecycleService patientLifecycleService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public PatientLifecycleService patientLifecycleService(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionRunner transactions,
 			Clock clock) {
-		return new PatientLifecycleService(patientRepository, auditRepository, eventWriter, alertRepository,
-				transactionalOperator, clock);
+		return new PatientLifecycleService(patients, auditLog, outbox, alertRepository, transactions, clock);
 	}
 }

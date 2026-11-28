@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.application.filter.CorrelationId;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
+import com.vidacruz.triageservice.domain.model.EventOutbox;
 
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
@@ -22,7 +22,7 @@ import reactor.core.publisher.Mono;
 
 /** Appends events with contiguous per-patient sequence numbers and the published flat envelope (DEC-03, G-T25). */
 @Component
-public class OutboxEventWriter {
+public class OutboxEventWriter implements EventOutbox {
 
 	private static final int SCHEMA_VERSION = 1;
 	private static final String TRACEPARENT = "traceparent";
@@ -38,6 +38,11 @@ public class OutboxEventWriter {
 		this.objectMapper = objectMapper;
 		this.tracer = tracer;
 		this.propagator = propagator;
+	}
+
+	@Override
+	public Mono<Void> append(UUID patientId, String eventType, Map<String, Object> payload, Instant occurredAt) {
+		return write(patientId, eventType, payload, occurredAt).then();
 	}
 
 	public Mono<OutboxEvento> write(UUID patientId, String eventType, Map<String, Object> payload,

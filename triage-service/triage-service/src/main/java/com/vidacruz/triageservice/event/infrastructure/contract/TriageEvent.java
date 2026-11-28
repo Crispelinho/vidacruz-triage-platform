@@ -1,4 +1,4 @@
-package com.vidacruz.triageservice.event.domain;
+package com.vidacruz.triageservice.event.infrastructure.contract;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;

@@ -49,10 +49,10 @@ class TriageRollbackEvidenceTest {
 
 	@Test
 	void failedEventWriteRollsBackTheWholeRegistration() {
-		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+		when(eventWriter.append(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
 				.thenReturn(Mono.error(new IllegalStateException("forced outbox failure")));
 
-		StepVerifier.create(registrationService.register(request(), "rollback-key"))
+		StepVerifier.create(registrationService.register(request().toDomain(), "rollback-key"))
 				.expectErrorMessage("forced outbox failure")
 				.verify();
 

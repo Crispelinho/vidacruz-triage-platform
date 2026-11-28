@@ -1,19 +1,18 @@
-package com.vidacruz.triageservice.event.domain;
+package com.vidacruz.triageservice.event.infrastructure.contract;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
-public class PacienteRegistrado extends TriageEvent {
+public class PacienteEscalado extends TriageEvent {
 
     private final String nivel;
     private final int slaMinutos;
-    private final String estado;
-    private final ZonedDateTime fechaRegistro;
+    private final ZonedDateTime fechaEscalamiento;
 
     @JsonCreator
-    public PacienteRegistrado(
+    public PacienteEscalado(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("schemaVersion") int schemaVersion,
             @JsonProperty("pacienteId") UUID pacienteId,
@@ -22,26 +21,21 @@ public class PacienteRegistrado extends TriageEvent {
             @JsonProperty("correlationId") String correlationId,
             @JsonProperty("nivel") String nivel,
             @JsonProperty("slaMinutos") int slaMinutos,
-            @JsonProperty("estado") String estado,
-            @JsonProperty("fechaRegistro") ZonedDateTime fechaRegistro) {
+            @JsonProperty("fechaEscalamiento") ZonedDateTime fechaEscalamiento) {
 
-        super(eventId, EventType.EVT_01_PACIENTE_REGISTRADO, schemaVersion, pacienteId,
+        super(eventId, EventType.EVT_02_PACIENTE_ESCALADO, schemaVersion, pacienteId,
               pacienteSequence, occurredAt, correlationId);
 
         if (nivel == null || nivel.isBlank()) {
             throw new IllegalArgumentException("nivel cannot be null or blank");
         }
-        if (estado == null || estado.isBlank()) {
-            throw new IllegalArgumentException("estado cannot be null or blank");
-        }
-        if (fechaRegistro == null) {
-            throw new IllegalArgumentException("fechaRegistro cannot be null");
+        if (fechaEscalamiento == null) {
+            throw new IllegalArgumentException("fechaEscalamiento cannot be null");
         }
 
         this.nivel = nivel;
         this.slaMinutos = slaMinutos;
-        this.estado = estado;
-        this.fechaRegistro = fechaRegistro;
+        this.fechaEscalamiento = fechaEscalamiento;
     }
 
     @JsonProperty("nivel")
@@ -54,20 +48,15 @@ public class PacienteRegistrado extends TriageEvent {
         return slaMinutos;
     }
 
-    @JsonProperty("estado")
-    public String getEstado() {
-        return estado;
-    }
-
-    @JsonProperty("fechaRegistro")
-    public ZonedDateTime getFechaRegistro() {
-        return fechaRegistro;
+    @JsonProperty("fechaEscalamiento")
+    public ZonedDateTime getFechaEscalamiento() {
+        return fechaEscalamiento;
     }
 
     @Override
     public Object getPayload() {
-        return new PayloadData(nivel, slaMinutos, estado, fechaRegistro);
+        return new PayloadData(nivel, slaMinutos, fechaEscalamiento);
     }
 
-    private record PayloadData(String nivel, int slaMinutos, String estado, ZonedDateTime fechaRegistro) {}
+    private record PayloadData(String nivel, int slaMinutos, ZonedDateTime fechaEscalamiento) {}
 }

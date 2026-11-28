@@ -1,25 +1,29 @@
-package com.vidacruz.triageservice.domain.service;
+package com.vidacruz.triageservice.infrastructure.persistence;
 
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
 
+import org.springframework.stereotype.Component;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triageservice.domain.model.PatientRegistration;
+import com.vidacruz.triageservice.domain.model.RequestFingerprinter;
 
-/** SHA-256 of the canonical, validated request body: sorted wire keys and normalized values (DEC-15, ADR-12). */
-public final class RequestFingerprint {
+/**
+ * SHA-256 of the canonical, validated request body: sorted wire keys and normalized values (DEC-15, ADR-12). A plain
+ * {@link ObjectMapper} is used on purpose, so the digest never depends on the Jackson settings of the application.
+ */
+@Component
+public class JacksonRequestFingerprinter implements RequestFingerprinter {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	private RequestFingerprint() {
-	}
-
-	public static String of(PatientRegistration registration) {
+	@Override
+	public String fingerprint(PatientRegistration registration) {
 		Map<String, Object> canonical = new TreeMap<>();
 		canonical.put("edad", registration.age());
 		canonical.put("dolor", registration.pain());
@@ -36,15 +40,6 @@ public final class RequestFingerprint {
 			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
 		} catch (JsonProcessingException | NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("Cannot build canonical request digest", exception);
-		}
-	}
-
-	public static String of(String canonicalJson) {
-		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-					.digest(canonicalJson.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 digest is not available", exception);
 		}
 	}
 }

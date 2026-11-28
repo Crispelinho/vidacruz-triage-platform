@@ -39,18 +39,20 @@ public class TriageController {
 	public Mono<ResponseEntity<PatientRegistrationResponse>> register(
 			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
 			@RequestBody Mono<PatientRegistrationRequest> body) {
-		return body.flatMap(request -> registrationService.register(request, idempotencyKey))
-				.map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
+		// toDomain() validates; an invalid body fails here, before any idempotency key is reserved.
+		return body.flatMap(request -> registrationService.register(request.toDomain(), idempotencyKey))
+				.map(result -> ResponseEntity.status(HttpStatus.CREATED).body(PatientMapper.toResponse(result)));
 	}
 
 	@PatchMapping("/pacientes/{id}/estado")
 	public Mono<PatientDetailResponse> changeStatus(@PathVariable UUID id,
 			@RequestBody Mono<StateChangeRequest> body) {
-		return body.flatMap(request -> lifecycleService.changeStatus(id, request.status()));
+		return body.flatMap(request -> lifecycleService.changeStatus(id, request.status()))
+				.map(PatientMapper::toResponse);
 	}
 
 	@GetMapping("/pacientes/{id}")
 	public Mono<PatientDetailResponse> getPatient(@PathVariable UUID id) {
-		return lifecycleService.getPatient(id);
+		return lifecycleService.getPatient(id).map(PatientMapper::toResponse);
 	}
 }

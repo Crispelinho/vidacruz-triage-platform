@@ -1,4 +1,4 @@
-package com.vidacruz.triageservice.event.domain;
+package com.vidacruz.triageservice.event.infrastructure.contract;
 
 public enum EventType {
     EVT_01_PACIENTE_REGISTRADO,

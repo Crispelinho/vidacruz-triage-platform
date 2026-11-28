@@ -9,28 +9,26 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.exception.IdempotencyKeyReusedException;
+import com.vidacruz.triageservice.domain.model.AuditEntry;
+import com.vidacruz.triageservice.domain.model.AuditLog;
+import com.vidacruz.triageservice.domain.model.EventOutbox;
+import com.vidacruz.triageservice.domain.model.IdempotencyRecord;
+import com.vidacruz.triageservice.domain.model.IdempotencyStore;
+import com.vidacruz.triageservice.domain.model.Patient;
 import com.vidacruz.triageservice.domain.model.PatientRegistration;
+import com.vidacruz.triageservice.domain.model.PatientStore;
+import com.vidacruz.triageservice.domain.model.RegistrationResult;
+import com.vidacruz.triageservice.domain.model.RequestFingerprinter;
+import com.vidacruz.triageservice.domain.model.SlaPolicy;
+import com.vidacruz.triageservice.domain.model.TransactionRunner;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 import reactor.core.publisher.Mono;
 
-/** RF-01 use case: validate, classify, persist, audit and record the registration event atomically. */
+/** RF-01 use case: classify, persist, audit and record the registration event atomically. */
 public class TriageRegistrationService {
 
 	private static final Logger log = LoggerFactory.getLogger(TriageRegistrationService.class);
@@ -40,118 +38,99 @@ public class TriageRegistrationService {
 	public static final String REGISTRATION_AUDIT = "REGISTRO";
 	private static final int EXPIRY_HOURS = 24;
 
-	private final PatientRepository patientRepository;
-	private final AuditEntryRepository auditRepository;
-	private final OutboxEventWriter eventWriter;
-	private final IdempotencyKeyRepository idempotencyRepository;
-	private final ObjectMapper objectMapper;
+	private final PatientStore patients;
+	private final AuditLog auditLog;
+	private final EventOutbox outbox;
+	private final IdempotencyStore idempotencyStore;
+	private final RequestFingerprinter fingerprinter;
 	private final TriageClassifier classifier;
-	private final SlaProperties slaProperties;
-	private final TransactionalOperator transactionalOperator;
+	private final SlaPolicy slaPolicy;
+	private final TransactionRunner transactions;
 	private final Clock clock;
 	private final TriageMetrics metrics;
 
-	public TriageRegistrationService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
-			IdempotencyKeyRepository idempotencyRepository,
-			ObjectMapper objectMapper,
+	public TriageRegistrationService(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
+			IdempotencyStore idempotencyStore,
+			RequestFingerprinter fingerprinter,
 			TriageClassifier classifier,
-			SlaProperties slaProperties,
-			TransactionalOperator transactionalOperator,
+			SlaPolicy slaPolicy,
+			TransactionRunner transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		this.patientRepository = patientRepository;
-		this.auditRepository = auditRepository;
-		this.eventWriter = eventWriter;
-		this.idempotencyRepository = idempotencyRepository;
-		this.objectMapper = objectMapper;
+		this.patients = patients;
+		this.auditLog = auditLog;
+		this.outbox = outbox;
+		this.idempotencyStore = idempotencyStore;
+		this.fingerprinter = fingerprinter;
 		this.classifier = classifier;
-		this.slaProperties = slaProperties;
-		this.transactionalOperator = transactionalOperator;
+		this.slaPolicy = slaPolicy;
+		this.transactions = transactions;
 		this.clock = clock;
 		this.metrics = metrics;
 	}
 
-	public Mono<PatientRegistrationResponse> register(PatientRegistrationRequest request) {
-		Registration registration = prepare(request);
-		return transactionalOperator.transactional(registration.write())
-				.doOnNext(written -> metrics.patientClassified(registration.level()))
-				.thenReturn(registration.response())
+	public Mono<RegistrationResult> register(PatientRegistration patient) {
+		Registration registration = prepare(patient, clock.instant());
+		return transactions.inTransaction(registration.write().thenReturn(registration.result()))
+				.doOnNext(written -> metrics.patientClassified(registration.result().level()))
 				.doOnNext(TriageRegistrationService::logRegistered);
 	}
 
 	/** DEC-15 / TST-IDM: replay the original response for the same key and body, conflict on body reuse. */
-	public Mono<PatientRegistrationResponse> register(PatientRegistrationRequest request, String idempotencyKey) {
+	public Mono<RegistrationResult> register(PatientRegistration patient, String idempotencyKey) {
 		if (idempotencyKey == null || idempotencyKey.isBlank()) {
-			return register(request);
+			return register(patient);
 		}
-		// Validation runs before hashing and storing, so a 400 never reserves the key.
-		String requestHash = RequestFingerprint.of(request.toDomain());
+		// The registration is already validated, so a 400 never reserves the key.
+		String requestHash = fingerprinter.fingerprint(patient);
 		String key = idempotencyKey.trim();
 
-		return transactionalOperator.transactional(
-				idempotencyRepository.findById(key)
+		return transactions.inTransaction(
+				idempotencyStore.find(key)
 						.flatMap(stored -> replay(stored, requestHash))
-						.switchIfEmpty(Mono.defer(() -> createWithKey(request, key, requestHash))));
+						.switchIfEmpty(Mono.defer(() -> createWithKey(patient, key, requestHash))));
 	}
 
-	private Mono<PatientRegistrationResponse> replay(IdempotencyKeyEntity stored, String requestHash) {
+	private static Mono<RegistrationResult> replay(IdempotencyRecord stored, String requestHash) {
 		if (!requestHash.equals(stored.requestHash())) {
 			return Mono.error(new IdempotencyKeyReusedException(stored.key()));
 		}
-		try {
-			return Mono.just(objectMapper.readValue(stored.responseBody(), PatientRegistrationResponse.class));
-		} catch (JsonProcessingException exception) {
-			return Mono.error(new IllegalStateException("Stored idempotency response is not readable", exception));
-		}
+		return Mono.just(stored.response());
 	}
 
-	private Mono<PatientRegistrationResponse> createWithKey(PatientRegistrationRequest request, String key,
-			String requestHash) {
+	private Mono<RegistrationResult> createWithKey(PatientRegistration patient, String key, String requestHash) {
 		Instant now = clock.instant();
-		return idempotencyRepository.insertPending(key, requestHash, now,
-				now.plus(EXPIRY_HOURS, ChronoUnit.HOURS))
-				.flatMap(inserted -> {
-					if (inserted != 1) {
+		return idempotencyStore.reserve(key, requestHash, now, now.plus(EXPIRY_HOURS, ChronoUnit.HOURS))
+				.flatMap(reserved -> {
+					if (!reserved) {
 						// The losing request waits for the winner's transaction, then replays its response.
-						return idempotencyRepository.findByIdForUpdate(key)
+						return idempotencyStore.findForUpdate(key)
 								.flatMap(existing -> replay(existing, requestHash))
-								.switchIfEmpty(Mono.defer(() -> createWithKey(request, key, requestHash)));
+								.switchIfEmpty(Mono.defer(() -> createWithKey(patient, key, requestHash)));
 					}
-					Registration registration = prepare(request, now);
-					String responseBody;
-					try {
-						responseBody = objectMapper.writeValueAsString(registration.response());
-					} catch (JsonProcessingException exception) {
-						return Mono.error(new IllegalStateException("Cannot store idempotency response", exception));
-					}
+					Registration registration = prepare(patient, now);
 					return registration.write()
-							.then(idempotencyRepository.complete(key, registration.response().id(), 201,
-									responseBody))
-							.doOnNext(completed -> metrics.patientClassified(registration.level()))
-							.thenReturn(registration.response())
+							.then(idempotencyStore.complete(key, registration.result()))
+							.thenReturn(registration.result())
+							.doOnNext(result -> metrics.patientClassified(result.level()))
 							.doOnNext(TriageRegistrationService::logRegistered);
 				});
 	}
 
 	/** Logs identifiers and the classification only; name and complaint stay out of the logs. */
-	private static void logRegistered(PatientRegistrationResponse response) {
-		log.info("Patient {} registered as {} with a {}-minute SLA", response.id(), response.level(),
-				response.slaMinutes());
+	private static void logRegistered(RegistrationResult result) {
+		log.info("Patient {} registered as {} with a {}-minute SLA", result.id(), result.level(),
+				result.slaMinutes());
 	}
 
-	private Registration prepare(PatientRegistrationRequest request) {
-		return prepare(request, clock.instant());
-	}
-
-	private Registration prepare(PatientRegistrationRequest request, Instant registeredAt) {
-		PatientRegistration patient = request.toDomain();
+	private Registration prepare(PatientRegistration patient, Instant registeredAt) {
 		TriageLevel level = classifier.classify(patient);
-		int slaMinutes = slaProperties.minutesFor(level);
+		int slaMinutes = slaPolicy.minutesFor(level);
 		UUID patientId = UUID.randomUUID();
 
-		PatientEntity entity = new PatientEntity(
+		Patient registered = new Patient(
 				patientId,
 				patient.fullName(),
 				patient.age(),
@@ -163,7 +142,7 @@ public class TriageRegistrationService {
 				patient.pain(),
 				patient.gcs(),
 				patient.complaint(),
-				level.name(),
+				level,
 				slaMinutes,
 				REGISTERED_STATUS,
 				false,
@@ -171,20 +150,20 @@ public class TriageRegistrationService {
 				registeredAt,
 				registeredAt);
 
-		Mono<?> write = patientRepository.save(entity)
-				.then(auditRepository.save(new AuditEntryEntity(
+		Mono<Void> write = patients.add(registered)
+				.then(auditLog.append(new AuditEntry(
 						UUID.randomUUID(), patientId, registeredAt, null,
 						REGISTERED_STATUS, REGISTRATION_AUDIT)))
-				.then(eventWriter.write(patientId, REGISTERED_EVENT, Map.of(
+				.then(outbox.append(patientId, REGISTERED_EVENT, Map.of(
 						"nivel", level.name(),
 						"slaMinutos", slaMinutes,
 						"estado", REGISTERED_STATUS,
 						"fechaRegistro", registeredAt.toString()), registeredAt));
 
-		return new Registration(new PatientRegistrationResponse(
-				patientId, level.name(), slaMinutes, REGISTERED_STATUS, registeredAt), write, level);
+		return new Registration(new RegistrationResult(patientId, level, slaMinutes, REGISTERED_STATUS, registeredAt),
+				write);
 	}
 
-	private record Registration(PatientRegistrationResponse response, Mono<?> write, TriageLevel level) {
+	private record Registration(RegistrationResult result, Mono<Void> write) {
 	}
 }

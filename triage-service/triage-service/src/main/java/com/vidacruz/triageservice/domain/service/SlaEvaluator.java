@@ -11,18 +11,18 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
 import com.vidacruz.triageservice.domain.model.AlertStatus;
+import com.vidacruz.triageservice.domain.model.AuditEntry;
+import com.vidacruz.triageservice.domain.model.AuditLog;
+import com.vidacruz.triageservice.domain.model.EventOutbox;
 import com.vidacruz.triageservice.domain.model.MedicalAlert;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
+import com.vidacruz.triageservice.domain.model.Patient;
+import com.vidacruz.triageservice.domain.model.PatientStore;
+import com.vidacruz.triageservice.domain.model.TransactionRunner;
 import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
 
 import reactor.core.publisher.Mono;
 
@@ -37,38 +37,38 @@ public class SlaEvaluator {
 	public static final String ESCALATED_EVENT = "paciente_escalado";
 	public static final String ESCALATION_AUDIT = "ESCALAMIENTO";
 
-	private final PatientRepository patientRepository;
-	private final AuditEntryRepository auditRepository;
-	private final OutboxEventWriter eventWriter;
+	private final PatientStore patients;
+	private final AuditLog auditLog;
+	private final EventOutbox outbox;
 	private final MedicalAlertRepository alertRepository;
-	private final TransactionalOperator transactionalOperator;
+	private final TransactionRunner transactions;
 	private final Clock clock;
 	private final TriageMetrics metrics;
 
-	public SlaEvaluator(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public SlaEvaluator(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionRunner transactions,
 			Clock clock,
 			TriageMetrics metrics) {
-		this.patientRepository = patientRepository;
-		this.auditRepository = auditRepository;
-		this.eventWriter = eventWriter;
+		this.patients = patients;
+		this.auditLog = auditLog;
+		this.outbox = outbox;
 		this.alertRepository = alertRepository;
-		this.transactionalOperator = transactionalOperator;
+		this.transactions = transactions;
 		this.clock = clock;
 		this.metrics = metrics;
 	}
 
 	/** Returns the number of patients escalated by this run. */
 	public Mono<Integer> evaluateOnce() {
-		return patientRepository.findEscalationCandidates()
+		return patients.findEscalationCandidates()
 				.flatMap(this::escalateIfOverdue)
 				.reduce(0, Integer::sum);
 	}
 
-	private Mono<Integer> escalateIfOverdue(PatientEntity patient) {
+	private Mono<Integer> escalateIfOverdue(Patient patient) {
 		// PostgreSQL TIMESTAMPTZ has microsecond precision. Comparing a nanosecond clock against the stored instant
 		// would escalate up to one microsecond before the real SLA boundary (AMB-04).
 		Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
@@ -80,29 +80,27 @@ public class SlaEvaluator {
 		return escalate(patient, now);
 	}
 
-	private Mono<Integer> escalate(PatientEntity patient, Instant changedAt) {
-		TriageLevel level = TriageLevel.valueOf(patient.level());
-		Mono<Integer> atomicWrite = patientRepository.escalate(patient.id(), changedAt)
-				// R2DBC @Query UPDATEs complete empty on success in this stack; only an explicit 0 is a lost race.
-				.defaultIfEmpty(1)
-				.flatMap(updated -> {
-					if (updated != 1) {
+	private Mono<Integer> escalate(Patient patient, Instant changedAt) {
+		TriageLevel level = patient.level();
+		Mono<Integer> atomicWrite = patients.markEscalated(patient.id(), changedAt)
+				.flatMap(escalated -> {
+					if (!escalated) {
 						return Mono.just(0);
 					}
 					Map<String, Object> payload = Map.of(
-							"nivel", patient.level(),
+							"nivel", level.name(),
 							"slaMinutos", patient.slaMinutes(),
 							"fechaEscalamiento", changedAt.toString());
-					return auditRepository.save(new AuditEntryEntity(
+					return auditLog.append(new AuditEntry(
 							UUID.randomUUID(), patient.id(), changedAt,
 							PatientLifecycleService.REGISTERED,
 							PatientLifecycleService.REGISTERED,
 							ESCALATION_AUDIT))
-							.then(eventWriter.write(patient.id(), ESCALATED_EVENT, payload, changedAt))
+							.then(outbox.append(patient.id(), ESCALATED_EVENT, payload, changedAt))
 							.then(alertRepository.create(alert(patient, changedAt)))
 							.thenReturn(1);
 				});
-		return transactionalOperator.transactional(atomicWrite)
+		return transactions.inTransaction(atomicWrite)
 				.doOnNext(count -> {
 					if (count == 1) {
 						metrics.patientEscalated(level);
@@ -113,10 +111,10 @@ public class SlaEvaluator {
 	}
 
 	/** The alert holds the clinical signal only; the patient detail stays behind the regular API. */
-	private static MedicalAlert alert(PatientEntity patient, Instant changedAt) {
+	private static MedicalAlert alert(Patient patient, Instant changedAt) {
 		var wait = BigDecimal.valueOf(Duration.between(patient.registeredAt(), changedAt).toSeconds())
 				.divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-		return new MedicalAlert(UUID.randomUUID(), patient.id(), TriageLevel.valueOf(patient.level()),
+		return new MedicalAlert(UUID.randomUUID(), patient.id(), patient.level(),
 				patient.slaMinutes(), patient.registeredAt(), changedAt, wait,
 				AlertStatus.PENDIENTE, null, null, null, changedAt);
 	}

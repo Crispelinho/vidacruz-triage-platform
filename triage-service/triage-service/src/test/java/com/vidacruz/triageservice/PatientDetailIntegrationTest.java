@@ -23,9 +23,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.r2dbc.core.DatabaseClient;
 
-import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
 import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.model.PatientDetail;
+import com.vidacruz.triageservice.domain.model.RegistrationResult;
+import com.vidacruz.triageservice.domain.model.TriageLevel;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
 import com.vidacruz.triageservice.domain.service.SlaEvaluator;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
@@ -109,11 +110,11 @@ class PatientDetailIntegrationTest {
 	void detailReturnsEveryRegisteredClinicalField() {
 		UUID id = register();
 
-		PatientDetailResponse detail = lifecycleService.getPatient(id).block();
+		PatientDetail detail = lifecycleService.getPatient(id).block();
 		assertThat(detail).isNotNull();
 		assertThat(detail.id()).isEqualTo(id);
 		assertThat(detail.fullName()).isEqualTo("Paciente de prueba");
-		assertThat(detail.level()).isEqualTo("CRITICO");
+		assertThat(detail.level()).isEqualTo(TriageLevel.CRITICO);
 		assertThat(detail.slaMinutes()).isEqualTo(5);
 		assertThat(detail.status()).isEqualTo(PatientLifecycleService.REGISTERED);
 		assertThat(detail.escalated()).isFalse();
@@ -137,7 +138,7 @@ class PatientDetailIntegrationTest {
 		clock.advance(Duration.ofMinutes(6));
 		assertThat(evaluator.evaluateOnce().block()).isEqualTo(1);
 
-		PatientDetailResponse detail = lifecycleService.getPatient(id).block();
+		PatientDetail detail = lifecycleService.getPatient(id).block();
 		assertThat(detail.status()).isEqualTo(PatientLifecycleService.REGISTERED);
 		assertThat(detail.escalated()).isTrue();
 		assertThat(detail.minutesInStatus()).isEqualTo(6);
@@ -150,7 +151,7 @@ class PatientDetailIntegrationTest {
 		UUID id = register();
 
 		clock.advance(Duration.ofMinutes(3));
-		PatientDetailResponse consultation = lifecycleService.changeStatus(id,
+		PatientDetail consultation = lifecycleService.changeStatus(id,
 				PatientLifecycleService.IN_CONSULTATION).block();
 		assertThat(consultation.status()).isEqualTo(PatientLifecycleService.IN_CONSULTATION);
 		assertThat(consultation.minutesInStatus()).isZero();
@@ -158,7 +159,7 @@ class PatientDetailIntegrationTest {
 		clock.advance(Duration.ofMinutes(4));
 		assertThat(lifecycleService.getPatient(id).block().minutesInStatus()).isEqualTo(4);
 
-		PatientDetailResponse discharge = lifecycleService.changeStatus(id, PatientLifecycleService.DISCHARGED).block();
+		PatientDetail discharge = lifecycleService.changeStatus(id, PatientLifecycleService.DISCHARGED).block();
 		assertThat(discharge.status()).isEqualTo(PatientLifecycleService.DISCHARGED);
 		assertThat(discharge.minutesInStatus()).isZero();
 		Instant lastChange = column(id, "ultimo_cambio_en");
@@ -171,8 +172,9 @@ class PatientDetailIntegrationTest {
 	}
 
 	private UUID register() {
-		PatientRegistrationResponse response = registrationService.register(new PatientRegistrationRequest(
-				"Paciente de prueba", 40, 130, 180, 110, 97, BigDecimal.valueOf(36.8), 8, 15, "Control")).block();
+		RegistrationResult response = registrationService.register(new PatientRegistrationRequest(
+				"Paciente de prueba", 40, 130, 180, 110, 97, BigDecimal.valueOf(36.8), 8, 15, "Control").toDomain())
+				.block();
 		assertThat(response).isNotNull();
 		return response.id();
 	}

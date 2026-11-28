@@ -1,17 +1,17 @@
-package com.vidacruz.triageservice.event.domain;
+package com.vidacruz.triageservice.event.infrastructure.contract;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
-public class PacienteAlta extends TriageEvent {
+public class PacienteEnConsulta extends TriageEvent {
 
     private final String estadoAnterior;
-    private final ZonedDateTime fechaAlta;
+    private final ZonedDateTime fechaEntradaConsulta;
 
     @JsonCreator
-    public PacienteAlta(
+    public PacienteEnConsulta(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("schemaVersion") int schemaVersion,
             @JsonProperty("pacienteId") UUID pacienteId,
@@ -19,20 +19,20 @@ public class PacienteAlta extends TriageEvent {
             @JsonProperty("occurredAt") ZonedDateTime occurredAt,
             @JsonProperty("correlationId") String correlationId,
             @JsonProperty("estadoAnterior") String estadoAnterior,
-            @JsonProperty("fechaAlta") ZonedDateTime fechaAlta) {
+            @JsonProperty("fechaEntradaConsulta") ZonedDateTime fechaEntradaConsulta) {
 
-        super(eventId, EventType.EVT_04_PACIENTE_ALTA, schemaVersion, pacienteId,
+        super(eventId, EventType.EVT_03_PACIENTE_EN_CONSULTA, schemaVersion, pacienteId,
               pacienteSequence, occurredAt, correlationId);
 
         if (estadoAnterior == null || estadoAnterior.isBlank()) {
             throw new IllegalArgumentException("estadoAnterior cannot be null or blank");
         }
-        if (fechaAlta == null) {
-            throw new IllegalArgumentException("fechaAlta cannot be null");
+        if (fechaEntradaConsulta == null) {
+            throw new IllegalArgumentException("fechaEntradaConsulta cannot be null");
         }
 
         this.estadoAnterior = estadoAnterior;
-        this.fechaAlta = fechaAlta;
+        this.fechaEntradaConsulta = fechaEntradaConsulta;
     }
 
     @JsonProperty("estadoAnterior")
@@ -40,15 +40,15 @@ public class PacienteAlta extends TriageEvent {
         return estadoAnterior;
     }
 
-    @JsonProperty("fechaAlta")
-    public ZonedDateTime getFechaAlta() {
-        return fechaAlta;
+    @JsonProperty("fechaEntradaConsulta")
+    public ZonedDateTime getFechaEntradaConsulta() {
+        return fechaEntradaConsulta;
     }
 
     @Override
     public Object getPayload() {
-        return new PayloadData(estadoAnterior, fechaAlta);
+        return new PayloadData(estadoAnterior, fechaEntradaConsulta);
     }
 
-    private record PayloadData(String estadoAnterior, ZonedDateTime fechaAlta) {}
+    private record PayloadData(String estadoAnterior, ZonedDateTime fechaEntradaConsulta) {}
 }

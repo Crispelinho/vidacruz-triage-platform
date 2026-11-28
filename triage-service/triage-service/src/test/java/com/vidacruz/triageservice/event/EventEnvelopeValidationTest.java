@@ -1,10 +1,10 @@
 package com.vidacruz.triageservice.event;
 
-import com.vidacruz.triageservice.event.domain.EventType;
-import com.vidacruz.triageservice.event.domain.PacienteAlta;
-import com.vidacruz.triageservice.event.domain.PacienteEscalado;
-import com.vidacruz.triageservice.event.domain.PacienteEnConsulta;
-import com.vidacruz.triageservice.event.domain.PacienteRegistrado;
+import com.vidacruz.triageservice.event.infrastructure.contract.EventType;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteAlta;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteEscalado;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteEnConsulta;
+import com.vidacruz.triageservice.event.infrastructure.contract.PacienteRegistrado;
 import org.junit.jupiter.api.Test;
 
 import java.time.ZonedDateTime;

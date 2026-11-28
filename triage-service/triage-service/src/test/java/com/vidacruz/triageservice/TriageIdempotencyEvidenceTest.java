@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.r2dbc.core.DatabaseClient;
 
 import com.vidacruz.triageservice.application.dto.PatientRegistrationRequest;
-import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
+import com.vidacruz.triageservice.domain.model.RegistrationResult;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
@@ -65,7 +65,7 @@ class TriageIdempotencyEvidenceTest {
 
 	@Test
 	void sequentialRegistrationPersistsPatient() {
-		PatientRegistrationResponse response = registrationService.register(validRequest(), "seq-key").block();
+		RegistrationResult response = registrationService.register(validRequest().toDomain(), "seq-key").block();
 		assertThat(response).isNotNull();
 		assertThat(count("SELECT COUNT(*) AS n FROM paciente WHERE id = :id", "id", response.id())).isEqualTo(1);
 	}
@@ -75,9 +75,9 @@ class TriageIdempotencyEvidenceTest {
 		String key = "db-idempotency-key";
 		Instant now = Instant.now();
 
-		List<PatientRegistrationResponse> responses = Flux.merge(
-				registrationService.register(validRequest(), key),
-				registrationService.register(validRequest(), key))
+		List<RegistrationResult> responses = Flux.merge(
+				registrationService.register(validRequest().toDomain(), key),
+				registrationService.register(validRequest().toDomain(), key))
 				.collectList().block();
 
 		assertThat(responses).hasSize(2);

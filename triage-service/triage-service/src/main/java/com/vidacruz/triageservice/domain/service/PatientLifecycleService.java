@@ -1,7 +1,6 @@
 package com.vidacruz.triageservice.domain.service;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
@@ -9,17 +8,17 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.reactive.TransactionalOperator;
 
-import com.vidacruz.triageservice.application.dto.PatientDetailResponse;
 import com.vidacruz.triageservice.domain.exception.InvalidStateTransitionException;
 import com.vidacruz.triageservice.domain.exception.PatientNotFoundException;
+import com.vidacruz.triageservice.domain.model.AuditEntry;
+import com.vidacruz.triageservice.domain.model.AuditLog;
+import com.vidacruz.triageservice.domain.model.EventOutbox;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
-import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
-import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
+import com.vidacruz.triageservice.domain.model.Patient;
+import com.vidacruz.triageservice.domain.model.PatientDetail;
+import com.vidacruz.triageservice.domain.model.PatientStore;
+import com.vidacruz.triageservice.domain.model.TransactionRunner;
 
 import reactor.core.publisher.Mono;
 
@@ -42,40 +41,40 @@ public class PatientLifecycleService {
 			IN_CONSULTATION, Set.of(DISCHARGED),
 			DISCHARGED, Set.of());
 
-	private final PatientRepository patientRepository;
-	private final AuditEntryRepository auditRepository;
-	private final OutboxEventWriter eventWriter;
+	private final PatientStore patients;
+	private final AuditLog auditLog;
+	private final EventOutbox outbox;
 	private final MedicalAlertRepository alertRepository;
-	private final TransactionalOperator transactionalOperator;
+	private final TransactionRunner transactions;
 	private final Clock clock;
 
-	public PatientLifecycleService(PatientRepository patientRepository,
-			AuditEntryRepository auditRepository,
-			OutboxEventWriter eventWriter,
+	public PatientLifecycleService(PatientStore patients,
+			AuditLog auditLog,
+			EventOutbox outbox,
 			MedicalAlertRepository alertRepository,
-			TransactionalOperator transactionalOperator,
+			TransactionRunner transactions,
 			Clock clock) {
-		this.patientRepository = patientRepository;
-		this.auditRepository = auditRepository;
-		this.eventWriter = eventWriter;
+		this.patients = patients;
+		this.auditLog = auditLog;
+		this.outbox = outbox;
 		this.alertRepository = alertRepository;
-		this.transactionalOperator = transactionalOperator;
+		this.transactions = transactions;
 		this.clock = clock;
 	}
 
-	public Mono<PatientDetailResponse> changeStatus(UUID patientId, String requestedStatus) {
-		return patientRepository.findById(patientId)
+	public Mono<PatientDetail> changeStatus(UUID patientId, String requestedStatus) {
+		return patients.findById(patientId)
 				.switchIfEmpty(Mono.error(new PatientNotFoundException(patientId)))
 				.flatMap(patient -> applyTransition(patient, requestedStatus));
 	}
 
-	public Mono<PatientDetailResponse> getPatient(UUID patientId) {
-		return patientRepository.findById(patientId)
+	public Mono<PatientDetail> getPatient(UUID patientId) {
+		return patients.findById(patientId)
 				.switchIfEmpty(Mono.error(new PatientNotFoundException(patientId)))
-				.map(patient -> toResponse(patient, clock.instant()));
+				.map(patient -> patient.detailAt(clock.instant()));
 	}
 
-	private Mono<PatientDetailResponse> applyTransition(PatientEntity patient, String requestedStatus) {
+	private Mono<PatientDetail> applyTransition(Patient patient, String requestedStatus) {
 		String previousStatus = patient.status();
 		Set<String> allowed = ALLOWED_TRANSITIONS.get(previousStatus);
 		if (allowed == null || requestedStatus == null || !allowed.contains(requestedStatus)) {
@@ -91,50 +90,22 @@ public class PatientLifecycleService {
 				? Map.of("estadoAnterior", previousStatus, "fechaEntradaConsulta", changedAt.toString())
 				: Map.of("estadoAnterior", previousStatus, "fechaAlta", changedAt.toString());
 
-		Mono<?> atomicWrite = patientRepository
+		Mono<?> atomicWrite = patients
 				.changeStatus(patient.id(), previousStatus, requestedStatus, changedAt)
-				.flatMap(updated -> updated == 1
+				.flatMap(moved -> moved
 						? Mono.empty()
 						: Mono.error(new InvalidStateTransitionException(
 								previousStatus + " no puede pasar a " + requestedStatus)))
-				.then(auditRepository.save(new AuditEntryEntity(
+				.then(auditLog.append(new AuditEntry(
 						UUID.randomUUID(), patient.id(), changedAt, previousStatus,
 						requestedStatus, auditType)))
-				.then(eventWriter.write(patient.id(), eventType, payload, changedAt))
+				.then(outbox.append(patient.id(), eventType, payload, changedAt))
 				// Entering consultation or discharge retires the alert in the same transaction (RF-06, DER-03).
 				.then(alertRepository.resolveForPatient(patient.id(), changedAt));
 
-		return transactionalOperator.transactional(atomicWrite)
-				.thenReturn(toResponse(patient, changedAt, changedAt, requestedStatus))
-				.doOnNext(response -> log.info("Patient {} moved from {} to {}", patient.id(), previousStatus,
+		return transactions.inTransaction(atomicWrite)
+				.then(Mono.fromSupplier(() -> patient.detailAfterTransition(requestedStatus, changedAt)))
+				.doOnNext(detail -> log.info("Patient {} moved from {} to {}", patient.id(), previousStatus,
 						requestedStatus));
-	}
-
-	private static PatientDetailResponse toResponse(PatientEntity patient, Instant statusStart, Instant now,
-			String status) {
-		long minutes = Duration.between(statusStart, now).toMinutes();
-		return new PatientDetailResponse(
-				patient.id(),
-				patient.fullName(),
-				patient.level(),
-				patient.slaMinutes(),
-				status,
-				Boolean.TRUE.equals(patient.escalated()),
-				patient.registeredAt(),
-				minutes,
-				patient.age(),
-				patient.heartRate(),
-				patient.systolic(),
-				patient.diastolic(),
-				patient.spo2(),
-				patient.temperature(),
-				patient.pain(),
-				patient.gcs(),
-				patient.complaint());
-	}
-
-	private static PatientDetailResponse toResponse(PatientEntity patient, Instant now) {
-		// The timer follows the status start, not the last mutation: escalation stays in the same status.
-		return toResponse(patient, patient.statusSince(), now, patient.status());
 	}
 }

@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -33,10 +32,8 @@ import com.vidacruz.triageservice.application.dto.PatientRegistrationResponse;
 import com.vidacruz.triageservice.domain.model.MedicalAlertRepository;
 import com.vidacruz.triageservice.domain.model.TriageMetrics;
 import com.vidacruz.triageservice.domain.service.PatientLifecycleService;
-import com.vidacruz.triageservice.domain.service.RequestFingerprint;
 import com.vidacruz.triageservice.domain.service.TriageClassifier;
 import com.vidacruz.triageservice.domain.service.TriageRegistrationService;
-import com.vidacruz.triageservice.event.domain.OutboxEvento;
 import com.vidacruz.triageservice.event.infrastructure.OutboxEventWriter;
 import com.vidacruz.triageservice.infrastructure.config.ClockConfig;
 import com.vidacruz.triageservice.infrastructure.config.SlaProperties;
@@ -44,14 +41,21 @@ import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.AuditEntryRepository;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.IdempotencyKeyRepository;
+import com.vidacruz.triageservice.infrastructure.persistence.JacksonRequestFingerprinter;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientEntity;
 import com.vidacruz.triageservice.infrastructure.persistence.PatientRepository;
+import com.vidacruz.triageservice.infrastructure.persistence.R2dbcAuditLog;
+import com.vidacruz.triageservice.infrastructure.persistence.R2dbcIdempotencyStore;
+import com.vidacruz.triageservice.infrastructure.persistence.R2dbcPatientStore;
+import com.vidacruz.triageservice.infrastructure.persistence.R2dbcTransactionRunner;
 
 import reactor.core.publisher.Mono;
 
 @WebFluxTest(controllers = TriageController.class)
 @Import({ TriageRegistrationService.class, PatientLifecycleService.class, TriageClassifier.class,
-		SlaProperties.class, ClockConfig.class, TriageControllerTest.TestSecurity.class })
+		SlaProperties.class, ClockConfig.class, R2dbcPatientStore.class, R2dbcAuditLog.class,
+		R2dbcIdempotencyStore.class, R2dbcTransactionRunner.class, JacksonRequestFingerprinter.class,
+		TriageControllerTest.TestSecurity.class })
 class TriageControllerTest {
 
 	private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -87,9 +91,8 @@ class TriageControllerTest {
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 		when(auditRepository.save(any(AuditEntryEntity.class)))
 				.thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-		when(eventWriter.write(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
-				.thenReturn(Mono.just(new OutboxEvento(UUID.randomUUID(), "paciente_registrado", "{}",
-						UUID.randomUUID(), 1, OffsetDateTime.now(), UUID.randomUUID())));
+		when(eventWriter.append(any(UUID.class), anyString(), anyMap(), any(Instant.class)))
+				.thenReturn(Mono.empty());
 		when(transactionalOperator.transactional(any(Mono.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 		when(idempotencyRepository.insertPending(anyString(), anyString(), any(Instant.class),
@@ -160,7 +163,7 @@ class TriageControllerTest {
 		PatientRegistrationResponse original = new PatientRegistrationResponse(patientId, "CRITICO", 5,
 				"REGISTRADO", registeredAt);
 		IdempotencyKeyEntity stored = new IdempotencyKeyEntity("idem-1",
-				RequestFingerprint.of(registration("Paciente de prueba", 130).toDomain()), patientId, 201,
+				new JacksonRequestFingerprinter().fingerprint(registration("Paciente de prueba", 130).toDomain()), patientId, 201,
 				writeJson(original), registeredAt, registeredAt);
 		when(idempotencyRepository.findById("idem-1")).thenReturn(Mono.just(stored));
 
@@ -181,7 +184,7 @@ class TriageControllerTest {
 		PatientRegistrationResponse original = new PatientRegistrationResponse(UUID.randomUUID(), "CRITICO", 5,
 				"REGISTRADO", now);
 		IdempotencyKeyEntity stored = new IdempotencyKeyEntity("idem-2",
-				RequestFingerprint.of(registration("Otro paciente", 130).toDomain()), original.id(), 201,
+				new JacksonRequestFingerprinter().fingerprint(registration("Otro paciente", 130).toDomain()), original.id(), 201,
 				writeJson(original), now, now);
 		when(idempotencyRepository.findById("idem-2")).thenReturn(Mono.just(stored));
 
