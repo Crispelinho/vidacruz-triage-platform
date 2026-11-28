@@ -27,6 +27,12 @@ for an invalid acknowledgement. The verification document was corrected accordin
 No provider key was configured, so the degraded 503 is the expected assistant result. Patient names, complaints,
 prompts, answers and keys are not attached to spans or metrics. The trace id is carried only as a Kafka header.
 
+## Rerun on `main` `38d9d77` (2026-11-28)
+
+After rebuilding both images from `main` and applying `k8s/local` from `main`, the same checklist was repeated: **33 PASS / 0 FAIL** (`2026-11-28T06:44:03-05:00`; sanitized report `local-e2e-main-final2.txt`, not committed). All areas in the table above passed again, including outbox→Kafka `traceparent` and one Jaeger trace containing spans from both services.
+
+That rerun needed corrections in a temporary harness copy. `main` still has the English E5 fixture and English degraded-consult question, although the seeded corpus and classifier are Spanish; those two fixes are already on `develop` via `f16dfcd` (#180). Four more robustness fixes are not committed yet: read the 401 correlation id from the JSON body when header indexing returns empty, retry the outbox query until the row is visible, consume up to 600 Kafka messages because the topic already has earlier runs, and allow about 150 s for the degraded path because the unavailable local provider takes roughly 97 s to time out. A transient `Invoke-WebRequest` failure also needed a bounded retry. These are harness defects, not application findings; the committed harness should be updated before the next unpatched run.
+
 ## Prerequisites
 
 - Windows with `kubectl`, `docker` and PowerShell available.
@@ -80,5 +86,5 @@ credentials into the script, the manifests or the report.
 ## Scope boundary
 
 This run validates the local overlay and the application flow; it does not close the Azure acceptance gates in
-`docs/adr/ADR-11-azure-target.md`. Those still require a reproducible `provision.ps1`/`deploy.yml` run without
-manual workarounds, budget-alert evidence, manifest/schema validation and a secret-rotation record.
+`docs/adr/ADR-11-azure-target.md`. The reproducible rerun, budget-alert evidence and
+manifest/schema validation were recorded on 2026-11-28; a secret-rotation/image-scan record is still required.

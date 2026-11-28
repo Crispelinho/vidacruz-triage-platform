@@ -1,0 +1,35 @@
+=== Azure PostgreSQL row-level verification 2026-11-28T07:21:36.0211579-05:00 ===
+Pod runs inside AKS and uses the aks-egress IP allowed by the PostgreSQL firewall rule.
+Credentials are injected from Kubernetes Secret via secretKeyRef and are never printed.
+Only SELECT statements are issued. No patient names or complaints are read.
+apply: pod/vidacruz-psql-verify created
+wait: pod/vidacruz-psql-verify condition met
+=== CONNECTIVITY ===
+triage|10.19.0.4|5432
+=== PATIENT TOTALS ===
+59
+CRITICO|EN_CONSULTA|11
+CRITICO|REGISTRADO|12
+NO_URGENTE|ALTA|9
+NO_URGENTE_2|ALTA|9
+URGENTE|REGISTRADO|9
+URGENTE_2|REGISTRADO|9
+=== AZURE VERIFICATION PATIENT ===
+16476d7d-1d50-4157-b406-9e9edc2958e5|CRITICO|5|EN_CONSULTA|t|2026-11-28 04:23:07.604063+00
+=== OUTBOX ROWS FOR THAT PATIENT ===
+paciente_registrado|1|t|0|f|00-7c2e9b41d8a64f30b5e7c1a9f2d6b845-af08caaa73afb76a-01
+paciente_escalado|1|t|0|f|
+paciente_en_consulta|1|t|0|f|00-b4c7ff621d82229bf3094acd20f6df54-a506141a40fe0df8-01
+=== TRACE ID MATCHES IN OUTBOX ===
+2
+paciente_registrado|16476d7d-1d50-4157-b406-9e9edc2958e5|t|00-7c2e9b41d8a64f30b5e7c1a9f2d6b845-af08caaa73afb76a-01
+paciente_registrado|5be095bd-2620-44df-a6e0-f965ddbb0251|t|00-7c2e9b41d8a64f30b5e7c1a9f2d6b845-e115f290ca18a1c3-01
+=== AUDIT TRANSITIONS ===
+|REGISTRADO|REGISTRO|2026-11-28 04:23:07.604063+00
+REGISTRADO|REGISTRADO|ESCALAMIENTO|2026-11-28 04:28:10.095746+00
+REGISTRADO|EN_CONSULTA|ENTRADA_CONSULTA|2026-11-28 04:28:23.474886+00
+=== MEDICAL ALERT ===
+9e86da05-aa83-48b2-875e-987918379aa2|CRITICO|RESUELTA|5.03|t|t
+=== FAILED OUTBOX ROWS ===
+0
+cleanup: pod "vidacruz-psql-verify" deleted from vidacruz namespace
