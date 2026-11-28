@@ -2,6 +2,38 @@
 
 All notable changes to the Vida Cruz triage platform are documented in this file. The format follows Keep a Changelog and releases use semantic versioning.
 
+## [1.0.6] - 2026-11-28
+
+### Fixed
+
+- Swagger UI, `swagger-config` and WebJars are reachable through the gateway `/docs/...` routes without an API key. Both API-key filters now normalize the gateway prefixes injected into the request path before checking public paths, while business endpoints remain protected (#172, issue #171).
+
+### Notes
+
+- Newman on the public Azure host at `6dddcf5` ran 31 requests / 70 assertions with 0 failures after applying the `/ops` health routes to the existing cluster. ADR-05 and ADR-11 remain `Proposed`.
+
+## [1.0.5] - 2026-11-28
+
+### Added
+
+- Strict ArchUnit allow-list for the triage domain: `domain..` and `event.domain..` may depend only on the JDK, Reactor and themselves. Persistence, SQL reports, transactions, response encoding and outbox writes now sit behind domain ports with infrastructure adapters (#166, issue #156).
+- Gateway routes for `/ops/{triage,asistente}/health` and `/ops/{triage,asistente}/prometheus` (the latter still requires `X-API-Key`), plus A-5 CI hardening with branch guards, SHA-pinned actions, protected environments and no persisted checkout credentials (#160).
+
+### Fixed
+
+- Swagger UI, WebJars and `/v3/api-docs` are public in both API key filters while business endpoints stay protected (#165, issue #164). Both services now also include the springdoc WebFlux dependency that actually serves those endpoints, and gateway-prefixed health probes no longer require an API key (#169, issue #168).
+
+### Notes
+
+- This release makes no Azure deployment or acceptance claim; ADR-05 and ADR-11 remain `Proposed`.
+- OpenRouter chat-gate evidence is recorded, but rotation of the compromised trial key is still pending; no new live provider calls are made here.
+
+## [1.0.4] - 2026-11-28
+
+### Fixed
+
+- Azure PostgreSQL `azure.extensions` Bicep configuration now sets `source: user-override`, so a fresh `provision.ps1` succeeds without a manual parameter change.
+
 ## [1.0.3] - 2026-11-28
 
 ### Fixed
