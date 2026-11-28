@@ -121,7 +121,7 @@ class ScopedRouteAuthorizationTest {
 		client.get().uri(PATIENT).header("X-API-Key", "reader-key-0001").header("X-Correlation-Id", "corr-42")
 				.exchange().expectStatus().isOk();
 
-		List<String> lines = audit.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+		List<String> lines = awaitAuditEvents(1).stream().map(ILoggingEvent::getFormattedMessage).toList();
 		assertThat(lines).singleElement().satisfies(line -> assertThat(line)
 				.contains("keyId=dashboard")
 				.contains("patientId=3f2c1b9e-0000-4000-8000-000000000001")
@@ -137,8 +137,20 @@ class ScopedRouteAuthorizationTest {
 				.expectStatus().isOk();
 		client.get().uri(PATIENT).exchange().expectStatus().isUnauthorized();
 
-		assertThat(audit.list).singleElement().satisfies(event -> assertThat(event.getFormattedMessage())
+		assertThat(awaitAuditEvents(1)).singleElement().satisfies(event -> assertThat(event.getFormattedMessage())
 				.contains("keyId=prometheus").contains("status=403"));
+	}
+
+	/**
+	 * The audit line is written from {@code doFinally}, which can run after the client has read the status. Wait a
+	 * bounded time for the expected number of lines instead of asserting on a list that may still be empty.
+	 */
+	private List<ILoggingEvent> awaitAuditEvents(int expected) {
+		long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+		while (audit.list.size() < expected && System.nanoTime() < deadline) {
+			java.util.concurrent.locks.LockSupport.parkNanos(10_000_000L);
+		}
+		return audit.list;
 	}
 
 	@RestController
