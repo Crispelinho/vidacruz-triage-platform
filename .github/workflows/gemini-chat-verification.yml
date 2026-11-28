@@ -1,5 +1,6 @@
 # Real-provider chat gates against Gemini through the migrated Spring AI node, started by hand.
-# GEMINI_API_KEY is injected from the Actions secret only into the steps that need it; no value is persisted.
+# GEMINI_API_KEY comes from the protected "azure" environment only in the steps that need it; no value is persisted.
+# The job requests no id-token permission, so it cannot mint the Azure OIDC token allowed by that environment.
 # The job-level `if` limits dispatch to develop/main; ad-hoc verification uses a disposable branch.
 # Actions are pinned to full commit SHAs.
 
@@ -16,7 +17,7 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: gemini-verification
+    environment: azure
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
