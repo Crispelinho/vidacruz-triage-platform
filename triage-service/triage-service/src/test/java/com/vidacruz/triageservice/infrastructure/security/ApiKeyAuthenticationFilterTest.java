@@ -48,6 +48,18 @@ class ApiKeyAuthenticationFilterTest {
 	}
 
 	@Test
+	void allowsSwaggerDocsWithoutKey() {
+		for (String path : new String[] { "/swagger-ui/index.html", "/swagger-ui.html", "/v3/api-docs",
+				"/v3/api-docs/swagger-config", "/webjars/swagger-ui/index.css" }) {
+			chainCalled.set(false);
+			MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path));
+			filter.filter(exchange, chain).block();
+			assertThat(chainCalled).as(path).isTrue();
+			assertThat(exchange.getResponse().getStatusCode()).as(path).isNull();
+		}
+	}
+
+	@Test
 	void allowsRequestWithValidKey() {
 		MockServerWebExchange exchange = MockServerWebExchange
 				.from(MockServerHttpRequest.get(BUSINESS_PATH).header("X-API-Key", API_KEY));
