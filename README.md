@@ -92,6 +92,44 @@ curl -s -H "X-API-Key: $REVIEWER_KEY" https://$HOST/ops/asistente/prometheus | h
 
 The route table and the manual GitHub settings (a single protected environment `azure` for deployment and the real-provider verifications, optional `*_REVIEWER_API_KEY` secrets) are in [`docs/operations/despliegue-azure-y-pruebas.md`](docs/operations/despliegue-azure-y-pruebas.md) (sections 1.8 and 1.9).
 
+## Security decisions
+
+Owner decisions from the 2026-11-27 security review that are **not in `main` yet** (open PRs or GitHub settings). Guiding rule: the evaluators must be able to test every scenario from any machine, so access is controlled by API keys and never by IP allow-lists.
+
+**Accepted risks (kept on purpose for testability)**
+
+| Decision | Why | Mitigation |
+|---|---|---|
+| Public routes `/triage` and `/asistente` open to any IP | The deliverable requires reachable APIs, and evaluator IPs are unknown | Every call needs `X-API-Key`; evaluators get a separate, revocable reviewer key without `corpus:admin` |
+| Health and readiness without a key (`/ops/.../health`) | Evaluators can check the deployment from outside | Only `UP`/`DOWN` is shown (`show-details: never`); metrics still need the key |
+| Local defaults in `docker-compose.yml`, `k8s/local`, Postman and Grafana | `docker compose up` must work with no environment variables | Local only: `deploy.ps1` requires real secrets for Azure |
+| Kafka and Redis without TLS in local environments | Same one-command local run | Local only; TLS for Azure is a deferred improvement |
+| Public Swagger and OpenAPI paths | Evaluators can explore the contract | The contract is public, but every operation still needs the key |
+| AKS API server without authorized IP ranges (B-8) | Authorized ranges would block GitHub-hosted runners | Entra ID + Azure RBAC and `disableLocalAccounts` |
+
+**Pending merge**
+
+| Item | Where | Status |
+|---|---|---|
+| M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Open; its README section *Security improvements (backlog)* lists what each item leaves for later |
+| A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Open |
+| One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Open. GitHub side already applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
+| Remove the repository-level copies of the seven secrets, then the empty `gemini-verification` and `openrouter-verification` environments | GitHub settings | Only after PR #184 merges: until then the two verification workflows on `develop` still read the repository copies |
+
+**Deferred improvements**
+
+| Finding | Improvement |
+|---|---|
+| A-2 | Reserve protocol codes and add a `trusted` flag to ingested documents, so an ingested document cannot impersonate an official protocol citation |
+| A-3 | Kafka SASL_SSL and event signing; enforce the NetworkPolicies (Azure CNI powered by Cilium) |
+| A-4 | One least-privilege PostgreSQL user per service, `sslmode=verify-full` and private networking instead of `publicNetworkAccess: Enabled` |
+| B-1 | Bind Compose ports to `127.0.0.1` through a `BIND_ADDRESS` variable (evaluators can still use `0.0.0.0`); Redis password and a non-default Grafana password locally |
+| B-2 | Range limit on the legacy `/triage/reports/*` endpoints |
+| B-3 | Validate `X-Correlation-Id` (format and length) before echoing and logging it |
+| B-4 | Size and rate limits on corpus ingestion to cap embedding costs |
+| B-5 | Remove Azure identifiers and personal data from versioned documentation |
+| B-6 | Remove dead scaffolding that can be mistaken for the real code |
+
 ## Known limits
 
 - **Deployment artifacts.** The AKS manifests live in `triage-service/deployment/k8s/`, `clinical-assistant-service/deployment/k8s/` and `infra/k8s/`; the Azure IaC is in `infra/azure/`, and the CI/deploy workflows are in `.github/workflows/`. The validated target is recorded in [ADR-12](docs/adr/ADR-12-aks-deployment.md). No credentials are stored here, and local traces still go to the Jaeger container.
