@@ -2,6 +2,35 @@
 
 All notable changes to the Vida Cruz triage platform are documented in this file. The format follows Keep a Changelog and releases use semantic versioning.
 
+## [1.0.4] - 2026-11-28
+
+### Fixed
+
+- Azure PostgreSQL `azure.extensions` Bicep configuration now sets `source: user-override`, so a fresh `provision.ps1` succeeds without a manual parameter change.
+
+## [1.0.3] - 2026-11-28
+
+### Fixed
+
+- Azure PostgreSQL now allow-lists the `vector` extension through Bicep, so the clinical assistant Flyway migration runs on a fresh provision without a manual server parameter.
+- The strict G-04 grounded-answer decoder accepts LLM responses wrapped in a markdown JSON code fence while keeping validation of `respuesta` and `fuentes` unchanged.
+
+### Added
+
+- Enunciado compliance matrix documenting coverage of the delivered requirements.
+
+## [1.0.2] - 2026-11-27
+
+### Fixed
+
+- Azure deployment now injects `SPRING_DATASOURCE_PASSWORD`, `SPRING_R2DBC_PASSWORD`, `SPRING_R2DBC_URL` and `SPRING_R2DBC_USERNAME` in the base manifests, matching the local Kubernetes overlay so both services start without manual patching.
+
+## [1.0.1] - 2026-11-27
+
+### Fixed
+
+- Azure deployment builds each service from its module directory so Gradle finds `gradlew` during the image build.
+
 ## [1.0.0] - 2026-11-27
 
 First evaluation release of the two-service platform: triage service and clinical assistant service.
