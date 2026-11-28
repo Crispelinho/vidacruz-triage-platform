@@ -33,6 +33,16 @@ class DashboardUnits(unittest.TestCase):
                 self.assertEqual("short", unit(title))
 
 
+class DashboardColours(unittest.TestCase):
+
+    def test_counters_do_not_turn_red_above_grafanas_default_threshold(self):
+        # Without explicit steps Grafana paints any value over 80 red, including a count of registered patients.
+        for panel in (p for p in DASHBOARD["panels"] if p["type"] == "stat"):
+            with self.subTest(panel["title"]):
+                thresholds = panel["fieldConfig"]["defaults"].get("thresholds", {})
+                self.assertEqual([None], [step["value"] for step in thresholds.get("steps", [])])
+
+
 class PoolPanel(unittest.TestCase):
 
     def test_shows_the_jdbc_pool_beside_the_r2dbc_pool(self):

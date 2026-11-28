@@ -15,7 +15,7 @@
       "description": "RF-01 registrations in the selected range, by triage level.",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(triage_patients_classified_total[$__range]))" }]
     },
@@ -25,7 +25,7 @@
       "description": "RF-03 escalations in the selected range.",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(triage_patients_escalated_total[$__range]))" }]
     },
@@ -35,7 +35,7 @@
       "description": "RF-06 acknowledgements in the selected range.",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(triage_alerts_acknowledged_total[$__range]))" }]
     },
@@ -45,7 +45,7 @@
       "description": "Escalations minus acknowledgements in the selected range, floored at zero.",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{
         "refId": "A",
@@ -80,7 +80,7 @@
       "title": "Preguntas respondidas",
       "gridPos": { "h": 4, "w": 8, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"answered\"}[$__range]))" }]
     },
@@ -89,7 +89,7 @@
       "title": "Sin protocolo",
       "gridPos": { "h": 4, "w": 8, "x": 8, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"no_evidence\"}[$__range]))" }]
     },
@@ -98,7 +98,7 @@
       "title": "Modo degradado (503)",
       "gridPos": { "h": 4, "w": 8, "x": 16, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "refId": "A", "expr": "sum(increase(assistant_answers_total{outcome=\"unavailable\"}[$__range]))" }]
     },
