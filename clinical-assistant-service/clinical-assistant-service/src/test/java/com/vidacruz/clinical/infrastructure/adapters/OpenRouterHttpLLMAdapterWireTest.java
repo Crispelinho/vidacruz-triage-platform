@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import com.vidacruz.clinical.domain.exceptions.LLMUnavailableException;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.ports.NamedLLMProvider;
 import com.vidacruz.clinical.infrastructure.config.OpenRouterProperties;
 
 /**
@@ -84,6 +85,23 @@ class OpenRouterHttpLLMAdapterWireTest {
 				.contains("<pregunta>crisis hipertensiva</pregunta>")
 				.contains("protocolo=\\\"PROTO-001\\\" seccion=\\\"Medidas\\\"")
 				.doesNotContain("\"zdr\"");
+	}
+
+	@Test
+	void productionWrappingRedactsIdentifiersBeforeTheQuestionLeavesTheCluster() {
+		// M-5: OpenRouter is an external provider, so RAGConfiguration wraps it like gemini and opencode.
+		NamedLLMProvider node = new PiiRedactingLLMProvider(adapter("wire-test-key"));
+
+		node.generate("Paciente Juan Pérez CC 79123456, tel 3101234567, crisis hipertensiva", List.of(fragment()))
+				.block();
+
+		assertThat(body.get()).isNotNull()
+				.doesNotContain("Juan")
+				.doesNotContain("79123456")
+				.doesNotContain("3101234567")
+				.contains("Paciente [NOMBRE] CC [DOCUMENTO], tel [TELEFONO], crisis hipertensiva");
+		assertThat(node.key()).isEqualTo("openrouter");
+		assertThat(node.model()).isEqualTo(MODEL);
 	}
 
 	@Test

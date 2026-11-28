@@ -138,10 +138,13 @@ class RAGConfiguration {
 		return new PiiRedactingLLMProvider(new SpringAIChatAdapter("opencode", chatClient, properties.model()));
 	}
 
-	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */
+	/**
+	 * Optional external node, registered for {@code rag.llm.chain=openrouter} and never part of the default chain. The
+	 * question is PII-redacted before it leaves the cluster (M-5), like gemini and opencode.
+	 */
 	@Bean
 	NamedLLMProvider openRouterNode(WebClient.Builder builder, OpenRouterProperties properties) {
-		return new OpenRouterHttpLLMAdapter(builder, properties);
+		return new PiiRedactingLLMProvider(new OpenRouterHttpLLMAdapter(builder, properties));
 	}
 
 	@Bean

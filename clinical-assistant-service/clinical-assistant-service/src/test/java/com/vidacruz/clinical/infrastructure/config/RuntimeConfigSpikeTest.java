@@ -76,7 +76,7 @@ class RuntimeConfigSpikeTest {
             assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(SpringAIChatAdapter.class);
             assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
             assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
-            assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(OpenRouterHttpLLMAdapter.class);
+            assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
             assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 
             VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
