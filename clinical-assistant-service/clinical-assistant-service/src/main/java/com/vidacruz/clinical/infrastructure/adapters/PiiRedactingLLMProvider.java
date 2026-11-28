@@ -10,8 +10,8 @@ import com.vidacruz.clinical.domain.services.PiiRedactor;
 import reactor.core.publisher.Mono;
 
 /**
- * Wraps every node that sends the question outside the cluster (Gemini, OpenCode) so the question is redacted with
- * {@link PiiRedactor} before it is serialised (M-5). The in-cluster Ollama node is not wrapped. Evidence comes from the
+ * Wraps every node that sends the question outside the cluster (Gemini, OpenCode, OpenRouter) so the question is
+ * redacted with {@link PiiRedactor} before it is serialised (M-5). The in-cluster Ollama node is not wrapped. Evidence comes from the
  * curated protocol corpus, not from the patient, so it is passed through unchanged.
  *
  * <p>Keeping the decorator in front of the adapter means the key and model stay the same, so circuit breakers,

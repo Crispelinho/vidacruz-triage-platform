@@ -17,7 +17,6 @@ import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 
@@ -70,7 +69,7 @@ class RuntimeConfigSpikeTest {
             assertThat(context.getBean("ollamaNode", NamedLLMProvider.class)).isInstanceOf(OllamaHttpLLMAdapter.class);
             assertThat(context.getBean("geminiNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
             assertThat(context.getBean("opencodeNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
-            assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(OpenRouterHttpLLMAdapter.class);
+            assertThat(context.getBean("openRouterNode", NamedLLMProvider.class)).isInstanceOf(PiiRedactingLLMProvider.class);
             assertThat(context.getBean(LLMRouter.class)).isInstanceOf(ResilientLLMRouter.class);
 
             VectorStoreProperties vector = context.getBean(VectorStoreProperties.class);
