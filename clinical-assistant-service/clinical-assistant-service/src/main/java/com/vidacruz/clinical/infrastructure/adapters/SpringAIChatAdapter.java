@@ -17,10 +17,10 @@ import reactor.core.scheduler.Schedulers;
  * A C17 chain node whose transport is a Spring AI {@link ChatClient}. One instance is created per provider, so a
  * heterogeneous chain is three qualified {@code ChatClient} beans behind the same {@link NamedLLMProvider} port.
  *
- * <p>The call uses {@code prompt().user(...).stream().content()} (a {@code Flux<String>}), never the blocking
- * {@code call()} API. The chunks are joined into one answer because {@link com.vidacruz.clinical.domain.services.RAGService}
- * validates the complete JSON before replying (RN-05). The shared {@link GroundedPrompt} and {@link ProviderFailures}
- * are unchanged; timeout, circuit breaker and failover stay in {@link ResilientLLMRouter}.
+ * <p>The call uses {@code prompt().system(...).user(...).stream().content()}, never the blocking {@code call()} API.
+ * The chunks are joined into one answer because {@link com.vidacruz.clinical.domain.services.RAGService} validates the
+ * complete JSON before replying (RN-05). The shared {@link GroundedPrompt} and {@link ProviderFailures} are unchanged;
+ * timeout, circuit breaker and failover stay in {@link ResilientLLMRouter}.
  *
  * <p>The Google GenAI SDK exposes its stream as a blocking {@code Iterable}; that node subscribes on
  * {@code boundedElastic} so the Netty event loop is never blocked (TST-RXN). Ollama and OpenAI-compatible models are
@@ -66,9 +66,10 @@ public final class SpringAIChatAdapter implements NamedLLMProvider {
 
 	@Override
 	public Mono<String> generate(String question, List<EvidenceFragment> evidence) {
-		// No user params are passed, so ChatClient sends the text as-is: the JSON braces are not template syntax.
+		// M-1: trusted instruction in system role, delimited/escaped untrusted data in user message.
 		Mono<String> answer = Mono.defer(() -> chatClient.prompt()
-				.user(GroundedPrompt.build(question, evidence))
+				.system(GroundedPrompt.systemInstruction())
+				.user(GroundedPrompt.userContent(question, evidence))
 				.stream()
 				.content()
 				.subscribeOn(streamScheduler)

@@ -29,6 +29,7 @@ import com.vidacruz.clinical.domain.ports.VectorStore;
 import com.vidacruz.clinical.domain.services.CorpusIndex;
 import com.vidacruz.clinical.domain.services.CorpusIndexRefresher;
 import com.vidacruz.clinical.domain.services.CorpusIngestionService;
+import com.vidacruz.clinical.domain.services.GroundingCheck;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.domain.services.RagRetrievalService;
 import com.vidacruz.clinical.domain.services.TextChunker;
@@ -41,6 +42,7 @@ import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
+import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
 import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
@@ -63,7 +65,8 @@ import reactor.core.scheduler.Schedulers;
 @Configuration(proxyBeanMethods = false)
 @Import({ Resilience4jConfiguration.class, SpringAIChatConfiguration.class })
 @EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
-		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class })
+		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class,
+		GroundingProperties.class })
 class RAGConfiguration {
 
 	@ConditionalOnProperty(name = "clinical.vector-store.mode", havingValue = "pgvector", matchIfMissing = true)
@@ -120,16 +123,19 @@ class RAGConfiguration {
 		return new SpringAIChatAdapter("ollama", chatClient, ollamaChatModel.getDefaultOptions().getModel());
 	}
 
+	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
 	NamedLLMProvider geminiNode(@Qualifier("geminiChatClient") ChatClient chatClient, GeminiProperties properties) {
 		// The Google GenAI SDK stream is a blocking Iterable; offload its subscription off the Netty event loop.
-		return new SpringAIChatAdapter("gemini", chatClient, properties.model(), Schedulers.boundedElastic());
+		return new PiiRedactingLLMProvider(
+				new SpringAIChatAdapter("gemini", chatClient, properties.model(), Schedulers.boundedElastic()));
 	}
 
+	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
 	NamedLLMProvider opencodeNode(@Qualifier("opencodeChatClient") ChatClient chatClient,
 			OpenCodeProperties properties) {
-		return new SpringAIChatAdapter("opencode", chatClient, properties.model());
+		return new PiiRedactingLLMProvider(new SpringAIChatAdapter("opencode", chatClient, properties.model()));
 	}
 
 	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */
@@ -205,9 +211,10 @@ class RAGConfiguration {
 
 	@Bean
 	RAGService ragService(EmbeddingProvider embeddingProvider, VectorStore vectorStore, LLMRouter llmRouter,
-			GroundedAnswerDecoder groundedAnswerDecoder, CorpusIndex corpusIndex, VectorStoreProperties properties) {
+			GroundedAnswerDecoder groundedAnswerDecoder, CorpusIndex corpusIndex, VectorStoreProperties properties,
+			GroundingProperties grounding) {
 		return new RAGService(embeddingProvider, vectorStore, llmRouter, groundedAnswerDecoder, corpusIndex,
-				properties.relevanceThreshold());
+				properties.relevanceThreshold(), new GroundingCheck(grounding.toPolicy()));
 	}
 
 	@Bean

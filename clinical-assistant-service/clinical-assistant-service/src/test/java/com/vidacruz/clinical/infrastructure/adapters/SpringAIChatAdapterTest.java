@@ -98,9 +98,11 @@ class SpringAIChatAdapterTest {
 
 		adapter.generate("¿Cómo controlo un sangrado?", EVIDENCE).block(Duration.ofSeconds(5));
 
-		// JSON braces in the instruction must not be treated as template variables by ChatClient.
-		assertThat(chatModel.lastPrompt.get().getContents())
-				.isEqualTo(GroundedPrompt.build("¿Cómo controlo un sangrado?", EVIDENCE));
+		// M-1: trusted instruction goes in system role, delimited data in user content.
+		assertThat(chatModel.lastPrompt.get().getSystemMessage().getText())
+				.isEqualTo(GroundedPrompt.systemInstruction());
+		assertThat(chatModel.lastPrompt.get().getUserMessage().getText())
+				.isEqualTo(GroundedPrompt.userContent("¿Cómo controlo un sangrado?", EVIDENCE));
 	}
 
 	@Test

@@ -1,0 +1,57 @@
+# M-4: dependency updates for both services, their images and the workflows. PRs target develop (never main).
+# Spring Boot major/minor migrations (3.5.x -> a supported line, ADR-10) are planned changes, not bot PRs, so only
+# patch updates of Spring Boot and Spring Cloud are proposed automatically.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /triage-service/triage-service
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(triage)
+    ignore:
+      - dependency-name: org.springframework.boot
+        update-types: [version-update:semver-major, version-update:semver-minor]
+    groups:
+      triage-patch:
+        update-types: [patch]
+
+  - package-ecosystem: gradle
+    directory: /clinical-assistant-service/clinical-assistant-service
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(clinical)
+    ignore:
+      - dependency-name: org.springframework.boot
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: org.springframework.cloud:spring-cloud-dependencies
+        update-types: [version-update:semver-major, version-update:semver-minor]
+    groups:
+      clinical-patch:
+        update-types: [patch]
+
+  - package-ecosystem: docker
+    directories:
+      - /triage-service/deployment
+      - /clinical-assistant-service/deployment
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build(docker)
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]

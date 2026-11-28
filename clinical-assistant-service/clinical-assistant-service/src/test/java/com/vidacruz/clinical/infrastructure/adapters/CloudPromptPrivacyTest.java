@@ -125,6 +125,8 @@ class CloudPromptPrivacyTest {
 				.contains(QUESTION)
 				.contains(EVIDENCE_TEXT)
 				.doesNotContain(PATIENT_CONTEXT);
+		// M-1: system instruction and delimited question travel through Spring AI/GenAI wire format.
+		assertThat(capturedBody.get()).contains("clinical protocol assistant");
 		assertThat(capturedPath.get()).contains(":streamGenerateContent");
 		assertThat(capturedApiKey.get()).isEqualTo("test-key");
 	}
@@ -137,7 +139,10 @@ class CloudPromptPrivacyTest {
 		assertThat(capturedBody.get()).isNotNull()
 				.contains(QUESTION)
 				.contains(EVIDENCE_TEXT)
-				.doesNotContain(PATIENT_CONTEXT);
+				.doesNotContain(PATIENT_CONTEXT)
+				// M-1: system message first, then the delimited data as the user message.
+				.contains("\"role\":\"system\"")
+				.contains("<pregunta>" + QUESTION + "</pregunta>");
 		assertThat(capturedPath.get()).endsWith("/v1/chat/completions");
 		assertThat(capturedAuthorization.get()).isEqualTo("Bearer test-key");
 	}
@@ -152,6 +157,29 @@ class CloudPromptPrivacyTest {
 		assertThatThrownBy(() -> answerThrough(opencodeNode()))
 				.isInstanceOf(LLMUnavailableException.class)
 				.hasMessageContaining("opencode/glm-5.3");
+	}
+
+	@Test
+	void redactingDecoratorStripsIdentifiersBeforeTheQuestionReachesTheWire() {
+		// M-5: production wires gemini/opencode behind PiiRedactingLLMProvider; verify with Spring AI node.
+		NamedLLMProvider node = new PiiRedactingLLMProvider(geminiNode());
+		String identifying = "Paciente Juan Pérez CC 79123456, tel 3101234567, crisis hipertensiva";
+		EvidenceFragment fragment = EvidenceFragment.create(UUID.randomUUID(), 0, "PROTO-001", "Medidas",
+				EVIDENCE_TEXT, QUERY_EMBEDDING);
+
+		node.generate(identifying, List.of(fragment)).block();
+
+		assertThat(capturedBody.get()).isNotNull()
+				.doesNotContain("Juan")
+				.doesNotContain("Pérez")
+				.doesNotContain("79123456")
+				.doesNotContain("3101234567")
+				.contains("[NOMBRE]")
+				.contains("[DOCUMENTO]")
+				.contains("[TELEFONO]")
+				.contains("crisis hipertensiva");
+		assertThat(node.key()).isEqualTo("gemini");
+		assertThat(node.model()).isEqualTo("gemini-3.5-flash-lite");
 	}
 
 	private NamedLLMProvider geminiNode() {
