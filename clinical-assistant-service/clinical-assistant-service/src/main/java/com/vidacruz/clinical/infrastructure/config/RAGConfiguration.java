@@ -44,6 +44,9 @@ import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
+import com.vidacruz.clinical.infrastructure.adapters.LlmAttemptTracing;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
@@ -149,7 +152,8 @@ class RAGConfiguration {
 
 	@Bean
 	LLMRouter llmRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry,
-			LLMRouterProperties properties, MeterRegistry meterRegistry) {
+			LLMRouterProperties properties, MeterRegistry meterRegistry,
+			ObjectProvider<ObservationRegistry> observations) {
 		Map<String, NamedLLMProvider> byKey = providers.stream()
 				.collect(Collectors.toMap(NamedLLMProvider::key, provider -> provider));
 		List<NamedLLMProvider> ordered = new ArrayList<>();
@@ -160,7 +164,8 @@ class RAGConfiguration {
 			}
 			ordered.add(provider);
 		}
-		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry));
+		return new ResilientLLMRouter(ordered, registry, properties.timeout(), new LlmCallMetrics(meterRegistry),
+				new LlmAttemptTracing(observations.getIfAvailable(() -> ObservationRegistry.NOOP)));
 	}
 
 	/**

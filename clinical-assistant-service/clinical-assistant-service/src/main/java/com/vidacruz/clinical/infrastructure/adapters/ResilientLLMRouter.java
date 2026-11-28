@@ -14,6 +14,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.micrometer.observation.ObservationRegistry;
 import reactor.core.publisher.Mono;
 
 /**
@@ -31,8 +32,17 @@ public final class ResilientLLMRouter implements LLMRouter {
 
 	private final LlmCallMetrics metrics;
 
+	private final LlmAttemptTracing tracing;
+
+	/** A router whose attempts are not traced. */
 	public ResilientLLMRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry, Duration timeout,
 			LlmCallMetrics metrics) {
+		this(providers, registry, timeout, metrics, new LlmAttemptTracing(ObservationRegistry.NOOP));
+	}
+
+	public ResilientLLMRouter(List<NamedLLMProvider> providers, CircuitBreakerRegistry registry, Duration timeout,
+			LlmCallMetrics metrics, LlmAttemptTracing tracing) {
+		this.tracing = Objects.requireNonNull(tracing, "tracing");
 		this.providers = List.copyOf(Objects.requireNonNull(providers, "providers"));
 		this.registry = Objects.requireNonNull(registry, "registry");
 		this.timeout = Objects.requireNonNull(timeout, "timeout");
@@ -55,6 +65,7 @@ public final class ResilientLLMRouter implements LLMRouter {
 		CircuitBreaker breaker = registry.circuitBreaker(provider.key());
 		Mono<LLMCompletion> current = Mono.defer(() -> provider.generate(question, evidence))
 				.timeout(timeout)
+				.transform(mono -> tracing.traced(provider.key(), mono))
 				.transform(metrics::timed)
 				.transform(mono -> ProviderFailures.map(provider.key(), provider.model(), mono))
 				.transformDeferred(CircuitBreakerOperator.of(breaker))
