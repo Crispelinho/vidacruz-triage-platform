@@ -51,7 +51,9 @@ class ApiKeyAuthenticationFilterTest {
 	@Test
 	void allowsPrefixedHealthProbeAndSwaggerDocsWithoutKey() {
 		for (String path : List.of("/triage/actuator/health/readiness", "/swagger-ui/index.html", "/swagger-ui.html",
-				"/v3/api-docs", "/v3/api-docs/swagger-config", "/webjars/swagger-ui/index.css")) {
+				"/v3/api-docs", "/v3/api-docs/swagger-config", "/webjars/swagger-ui/index.css",
+				"/docs/triage/swagger-ui.html", "/docs/triage/swagger-ui/index.html",
+				"/docs/triage/v3/api-docs/swagger-config", "/docs/triage/webjars/swagger-ui/index.css")) {
 			chainCalled.set(false);
 			MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path));
 			filter.filter(exchange, chain).block();

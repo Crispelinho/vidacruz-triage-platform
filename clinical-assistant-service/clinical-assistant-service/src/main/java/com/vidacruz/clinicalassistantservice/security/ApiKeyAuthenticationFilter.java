@@ -39,6 +39,9 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 			"/asistente/health", "/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui", "/webjars");
 	private static final List<String> PUBLIC_PREFIXES = List.of("/actuator/health/", "/health/",
 			"/asistente/actuator/health/", "/asistente/health/", "/v3/api-docs/", "/swagger-ui/", "/webjars/");
+	// The gateway applies X-Forwarded-Prefix to the request path before WebFilters run, so public paths arrive
+	// with one of these prefixes. Normalize them before deciding whether a request needs an API key (issue #171).
+	private static final List<String> GATEWAY_PREFIXES = List.of("/docs/triage", "/docs/asistente", "/triage", "/asistente");
 	private static final Logger LOGGER = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
 
 	private final String expectedKey;
@@ -55,7 +58,7 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
 		String path = exchange.getRequest().getPath().value();
-		if (isPublic(path)) {
+		if (isPublic(withoutGatewayPrefix(path))) {
 			return chain.filter(exchange);
 		}
 		String providedKey = exchange.getRequest().getHeaders().getFirst(API_KEY_HEADER);
@@ -65,6 +68,18 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 		String correlationId = correlationId(exchange);
 		LOGGER.warn("Rejected {} without a valid {} header (correlationId={})", path, API_KEY_HEADER, correlationId);
 		return unauthorized(exchange, correlationId);
+	}
+
+	private static String withoutGatewayPrefix(String path) {
+		for (String prefix : GATEWAY_PREFIXES) {
+			if (path.equals(prefix)) {
+				return "/";
+			}
+			if (path.startsWith(prefix + "/")) {
+				return path.substring(prefix.length());
+			}
+		}
+		return path;
 	}
 
 	private static boolean isPublic(String path) {
