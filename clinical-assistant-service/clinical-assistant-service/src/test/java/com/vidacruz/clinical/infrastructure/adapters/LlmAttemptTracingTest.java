@@ -80,7 +80,8 @@ class LlmAttemptTracingTest {
 
 	@Test
 	void marksACancelledAttemptAsFailed() {
-		StepVerifier.create(router(Mono.never()).generate(QUESTION, List.of()))
+		// A node timeout far beyond the cancellation, so that a slow machine cannot time the attempt out first.
+		StepVerifier.create(router(Mono.never(), Duration.ofMinutes(1)).generate(QUESTION, List.of()))
 				.thenAwait(Duration.ofMillis(50)).thenCancel().verify(Duration.ofSeconds(5));
 
 		SpanData span = attemptSpan();
@@ -104,6 +105,10 @@ class LlmAttemptTracingTest {
 	}
 
 	private ResilientLLMRouter router(Mono<String> result) {
+		return router(result, Duration.ofMillis(200));
+	}
+
+	private ResilientLLMRouter router(Mono<String> result, Duration timeout) {
 		NamedLLMProvider provider = new NamedLLMProvider() {
 			@Override
 			public String key() {
@@ -120,7 +125,7 @@ class LlmAttemptTracingTest {
 				return result;
 			}
 		};
-		return new ResilientLLMRouter(List.of(provider), CircuitBreakerRegistry.ofDefaults(), Duration.ofMillis(200),
+		return new ResilientLLMRouter(List.of(provider), CircuitBreakerRegistry.ofDefaults(), timeout,
 				new LlmCallMetrics(new SimpleMeterRegistry()), new LlmAttemptTracing(observations));
 	}
 
