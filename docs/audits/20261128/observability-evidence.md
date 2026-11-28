@@ -7,8 +7,8 @@
 - **Audit verdict (before remediation):** metrics collection and cross-service tracing work, and no sensitive text
   was found in spans. **Four checks fail** (Grafana Jaeger datasource, two dashboard panels with wrong numbers, one
   wrong unit), failed requests are not marked as errors in most spans, and **there are no alert rules at all**.
-- **After remediation (section 0):** everything above is fixed and verified except **F-1, the Grafana Jaeger
-  datasource, which is still open**.
+- **After remediation (section 0):** everything above is fixed and verified, including F-1, the Grafana Jaeger
+  datasource. Limits and what remains are in section 0.4.
 
 ## 0. Remediation and verification (same day)
 
@@ -19,7 +19,7 @@ of it.
 
 | Id | Status | Change | Before → after |
 |---|---|---|---|
-| F-1 | **Open** | Not applied: Jaeger 2.21 removed the v1 query API that Grafana 12.1.1 uses, and pinning `2.20.0` needs an image download that is not yet confirmed. | Unchanged: health check and search fail |
+| F-1 | Fixed by pinning | Jaeger `2.20.0` in Compose and `k8s/local` (approved by the repository owner); section 0.5 | Health check and search failing → **working with real data** |
 | F-2 | Fixed | Histogram steps at 1.5, 2.5, 3, 4, 7.5, 12.5, 15.5, 16 and 20 s | Timeouts p50/p95 22.5 / 29.3 s → **15.25 / 15.48 s** (real max 15.01 s). Success p95 up to 4.85 s (max 2.28) → at most 2.98 s (max 2.53) |
 | F-3 | Fixed | Redis query divides by the real rate and has no sample while idle | 0.022 ms shown for 1.24 ms → real average (promtool test; panel reads 1–3.6 ms) |
 | F-4 | Fixed, with one limit | Handled `5xx` answers mark the server span; one `llm attempt <node>` span per provider attempt is failed on error, timeout or cancellation | 0 error spans of 1013 → `HTTP 503` and `LLM provider call failed: timeout` errors. **Limit:** Spring AI still closes its `chat` span as successful on a timeout; the parent attempt span carries the error |
@@ -31,7 +31,7 @@ of it.
 | F-10 | **Not changed** | A `metrics:read` key for the scraper would need a second default key in Compose, that is, one more credential accepted by the local stack. That is an owner decision. | Owner keys still used locally |
 | Panel 22 and event rates | Fixed | `short` for per-minute counts, `ops/s` for event rates | `req/s` |
 | New: counter colours | Fixed | Stat panels turned red above 80 (Grafana default thresholds), seen once there was more traffic | Green at any volume |
-| Documentation (section 7) | Fixed in current documents | Meter names in the compliance matrix and the service document; implementation note in ADR-09; alerts and `promtool` tests in `local-verification.md` | `docs/analysis.md` keeps its planned names as a historical analysis. `local-verification.md` §8 stays inaccurate for search until F-1 |
+| Documentation (section 7) | Fixed in current documents | Meter names in the compliance matrix and the service document; implementation note in ADR-09; alerts and `promtool` tests in `local-verification.md` | `docs/analysis.md` keeps its planned names as a historical analysis. `local-verification.md` §8 is accurate again and explains the pin |
 
 ### 0.2 Alerts
 
@@ -66,7 +66,7 @@ Screenshots: [one firing, six quiet](observability/after/02-prometheus-alerts-on
 |---|---|
 | `triage-service` Gradle suite | **188 tests, 0 failures, 0 errors, 0 skipped** |
 | `clinical-assistant-service` Gradle suite | **341 tests, 0 failures, 0 errors, 3 skipped** (`GeminiChatVerificationTest`, `GeminiEmbeddingVerificationTest`, `OpenRouterChatVerificationTest`: they need real provider keys) |
-| `python -m unittest discover -s observability/tests` | **12 tests, OK**: dashboard queries, units, colours and alert rules with `promtool` |
+| `python -m unittest discover -s observability/tests` | **15 tests, OK**: dashboard queries, units, colours, alert rules with `promtool`, and the pinned Jaeger |
 | Full isolated stack built from this branch, synthetic traffic | 22 panels without query errors ([dashboard](observability/after/01-grafana-dashboard.png), [results](observability/after/evidence-after.json)) |
 | Span hygiene | **5200 spans, 1288 traces: no canary, corpus word, prompt delimiter or API key**; no hit in the logs of both services. Canaries now cover triage names, complaints and the acknowledging user, closing that gap of section 8 |
 | Traces | [publish span](observability/after/03-jaeger-trace-with-publish-span.png), [provider error](observability/after/04-jaeger-failed-attempt.png), [timeout](observability/after/06-jaeger-timed-out-attempt.png) |
@@ -78,8 +78,8 @@ gauges read values refreshed by a non-blocking R2DBC query, never during a scrap
 ### 0.4 Behaviour that changes, and what remains
 
 - New metric families: `triage_outbox_*`, `resilience4j_circuitbreaker_*`, `assistant_llm_attempt_seconds*`.
-- HTTP server series of handled `5xx` answers should now carry the marker class in their `exception`/`error` labels
-  instead of `none` (framework behaviour; not checked on a live scrape).
+- HTTP server series of handled `5xx` answers now carry `exception="ServerErrorResponse"` and
+  `error="ServerErrorResponse"` instead of `none` (seen on a live scrape).
 - The scheduled backlog read adds one short trace every 15 s.
 - **Still reaching spans unchanged:** exception messages of failures that escape the controllers, and of unhandled
   `4xx` such as an unreadable body (Spring marks those itself), and Spring AI's `chat` error message with the provider
@@ -92,6 +92,37 @@ gauges read values refreshed by a non-blocking R2DBC query, never during a scrap
 - Reproduce the alert run: with the full stack of section 9 running, `docker compose -p vidacruz-obs stop kafka`, then
   run [`provoke_alerts.py`](observability/tools/provoke_alerts.py) from its folder with `python` (without `-I`, it
   imports the traffic script), and start Kafka again.
+
+### 0.5 F-1: pinned Jaeger
+
+**Why `2.20.0` and not `2.23.0`.** Jaeger 2.21.0 removed the v1 query endpoints (`/api/services`, `/api/operations`,
+search on `/api/traces`). The Jaeger datasource of Grafana 12.1.1 uses them, and no released Grafana fix was found
+([grafana-jaeger-datasource#87](https://github.com/grafana/grafana-jaeger-datasource/issues/87), checked
+2026-11-28). `2.20.0` is the newest release that serves them.
+
+**What the pin gives up** ([Jaeger changelog](https://github.com/jaegertracing/jaeger/blob/main/CHANGELOG.md)): the
+2.21–2.23 hardening, including code-scanning and token-permission clean-ups (2.21), and in 2.23 panic recovery in the
+query gRPC and MCP handlers, escaping of index and service names in queries, rejection of empty tenant values, filter
+depth checks, an Apache Thrift update and a non-root group for the image. No CVE identifier was listed in the part of
+the changelog reviewed; vulnerability scanners were not run. The group is compensated with `user: "10001:10001"` in
+Compose and `runAsGroup: 10001` in the overlay. Jaeger remains a local-only tool.
+
+**Upgrade condition:** a Grafana release whose Jaeger datasource uses `/api/v3` for health, services and search;
+then raise both images and update [`test_jaeger.py`](../../../observability/tests/test_jaeger.py), which fails if
+the pinned image stops serving the endpoints Grafana uses.
+
+**Verification** on the full isolated stack with synthetic traffic ([results](observability/after-jaeger/evidence-jaeger.json)):
+
+| Check | Result |
+|---|---|
+| Datasource health | `OK` ([screenshot](observability/after-jaeger/01-grafana-jaeger-datasource-test.png)) |
+| Service and operation lists | both services listed |
+| Explore search, by service and by operation | traces returned ([screenshot](observability/after-jaeger/02-grafana-explore-jaeger-search.png)) |
+| Explore by trace id | 7 spans across both services ([screenshot](observability/after-jaeger/03-grafana-explore-jaeger-trace-id.png), [Jaeger UI](observability/after-jaeger/04-jaeger-2.20-trace.png)) |
+| Span hygiene | 1281 spans: no canary, corpus word, delimiter or key |
+| Local overlay | `kubectl kustomize k8s/local` renders the pinned image and group. **Not applied to a cluster** |
+
+Screenshots and results under `observability/after/` (section 0.3) were taken before this pin, with Jaeger `2.23.0`.
 
 ## 1. Where the evidence comes from
 
