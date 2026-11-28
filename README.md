@@ -47,6 +47,29 @@ curl -s http://localhost:8081/triage/alertas \
 
 Missing or wrong keys return `401` with `{"code":"UNAUTHORIZED","message":"Invalid or missing X-API-Key header","correlationId":"..."}`. Keys come from `TRIAGE_API_KEY` / `ASSISTANT_API_KEY`. The values above are Docker Compose defaults for localhost only: the services themselves have no default and refuse to start without a key. See `docs/adr/ADR-07-authentication-api-key.md`.
 
+### API keys and scopes
+
+Every request except the health probes needs `X-API-Key`. Each key has scopes, and each route needs one:
+
+| Service | Route | Scope |
+|---|---|---|
+| Triage | `GET /triage/**` (patients, alerts, SSE stream, reports) | `triage:read` |
+| Triage | `POST`/`PATCH /triage/**` (registration, state, acknowledgement) | `triage:write` |
+| Assistant | `POST /asistente/consulta`, `POST /rag`, `GET /asistente/estado-urgencias`, `GET /clinical/corpus/retrieve` | `assistant:query` |
+| Assistant | `POST /clinical/corpus/ingest` | `corpus:admin` |
+| Both | `/actuator/**` except health | `metrics:read` |
+
+A valid key without the route's scope gets `403` with `{"code":"FORBIDDEN",...}`; unknown routes are denied. Three kinds of key, all optional except the owner key:
+
+- **Owner key**: `TRIAGE_API_KEY` / `ASSISTANT_API_KEY`. It always has every scope, so existing setups need no change.
+- **Reviewer (evaluator) key**: `TRIAGE_REVIEWER_API_KEY` (`triage:read` + `triage:write`) and `ASSISTANT_REVIEWER_API_KEY` (`assistant:query`, **no** `corpus:admin`). Give these to external evaluators; unset them to revoke access without touching the owner key.
+  - Compose: put them in `.env` and run `docker compose up -d`.
+  - Kubernetes: add them to the `triage-service-secrets` / `clinical-assistant-service-secrets` Secrets (see `*/deployment/k8s/secret.example.yaml`).
+  - Azure: the same names as GitHub secrets of the `azure` environment, once the deploy workflow passes them through (separate change). A service started without them runs with the owner key only.
+- **Extra scoped keys**: `TRIAGE_API_KEYS` / `ASSISTANT_API_KEYS`, entries `id|scope,scope|key` separated by `;`, for example `dashboard|triage:read|<key>`.
+
+Only key ids (`owner`, `reviewer`, or your own id) are logged. Every `GET /triage/pacientes/{id}` writes one line on the `audit.phi` logger with the key id, patient id, status and correlation id. The public routes are open to any IP: there is no IP allow-list and no rate limit.
+
 ## Local verification checklist
 
 Run in order. Details and ready-to-import requests are in [`docs/demo/local-verification.md`](docs/demo/local-verification.md) and [`postman/`](postman/).
@@ -102,6 +125,21 @@ The route table and the manual GitHub settings (protected environments `azure`, 
 - **Idempotent registration is opt-in.** `POST /triage/pacientes` accepts an optional `Idempotency-Key` header: the same key with the same body replays the original `201`, and the same key with a different body returns `409`. Without the header, every call creates a new patient ([ADR-12 (Idempotency)](docs/adr/ADR-12-idempotency-key.md)).
 - **Report range.** `hasta` in `GET /triage/reportes/operacion` is an inclusive calendar day in UTC: the report covers up to the end of that day.
 - **E2E tests.** Local Testcontainers has no usable Docker socket in this environment; CI runs the full suite including PostgreSQL LISTEN/NOTIFY.
+
+## Security improvements (backlog)
+
+Items from the 2026-11-27 security review that were deliberately not done in the M-1…M-6 change, with the reason and the next step.
+
+| Finding | Item | Why it is deferred | Next step |
+|---|---|---|---|
+| M-1 | Strict grounding (`[n]` required, overlap on every answer, numbers must appear in the evidence) | Real providers do not always emit markers, and the Ollama fixture cannot pass the stricter checks; enabling them by default would turn valid answers into the no-protocol notice. The default only requires a marker **or** 20% lexical overlap. | Measure provider answers, then enable `RAG_GROUNDING_REQUIRE_MARKERS`, `RAG_GROUNDING_MIN_LEXICAL_OVERLAP` and `RAG_GROUNDING_NUMBERS_IN_EVIDENCE`. Show "verify the cited source" in the UI. |
+| M-2 | Rate limiting | Evaluators must reach the public routes from any IP, and the SSE stream is long-lived; a limiter needs tuning so it does not cut either. | Per-key (not per-IP) limit at the Gateway, at least 60 req/min, with SSE excluded. |
+| M-4 | SCA in blocking mode | The first Trivy run may find existing HIGH/CRITICAL issues; blocking at once would stop every merge. It runs report-only. | Review the first report, fix or document the findings, then set the repository variable `SCA_BLOCKING=true`. |
+| M-4 | Spring Boot 3.5 → a supported line | Out of scope for a security patch; Boot 3.5.16 is past OSS EOL (ADR-10). | Plan the migration to Boot 4.1+ (or commercial support) as its own change. |
+| M-5 | PII redaction is a heuristic | Names without a cue ("Juan Pérez llegó…") are not detected. | Run Ollama in the cluster as the first node, or use a paid tier with a DPA and no retention. Do not forward `contexto_paciente` without redaction. |
+| M-6 | NetworkPolicy enforcement | `main.bicep` sets no `networkPolicy`, and Docker Desktop/Minikube enforce none by default, so `infra/k8s/network-policies.yaml` is not enforced today. Enabling an engine changes how the cluster is created and could not be verified (Azure environment deleted). | Create the cluster with Azure CNI powered by Cilium (`networkDataplane`/`networkPolicy: cilium`), then verify the Gateway, SSE, Kafka, Redis, PostgreSQL and LLM flows. |
+| M-6 | Istio STRICT mTLS (`PeerAuthentication`) | The app-routing Istio only runs the Gateway; without sidecars in `vidacruz`, STRICT mode breaks gateway→pod traffic. | Enable the Istio add-on with sidecar injection in `vidacruz`, then apply `PeerAuthentication` STRICT. |
+| M-6 / A-3 | Kafka SASL_SSL, Redis TLS, PostgreSQL `verify-full` | Needs certificates and client configuration in both services; out of scope. | Native TLS for Kafka and Redis (or the mTLS above), plus `sslmode=verify-full` with the Azure CA. |
 
 ## Architecture
 
