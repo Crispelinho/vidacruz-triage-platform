@@ -2,6 +2,7 @@ package com.vidacruz.triageservice.infrastructure.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,16 @@ class ApiKeyAuthenticationFilterTest {
 
 		assertThat(chainCalled).isTrue();
 		assertThat(exchange.getResponse().getStatusCode()).isNull();
+	}
+
+	@Test
+	void allowsPrefixedHealthProbeAndSwaggerDocsWithoutKey() {
+		for (String path : List.of("/triage/actuator/health/readiness", "/v3/api-docs", "/v3/api-docs/swagger-config",
+				"/swagger-ui.html", "/swagger-ui/index.html", "/webjars/swagger-ui/index.css")) {
+			filter.filter(MockServerWebExchange.from(MockServerHttpRequest.get(path)), chain).block();
+			assertThat(chainCalled).as(path).isTrue();
+			chainCalled.set(false);
+		}
 	}
 
 	@Test

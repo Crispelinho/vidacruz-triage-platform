@@ -30,6 +30,8 @@ dependencies {
 	implementation("org.springframework.kafka:spring-kafka")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
+	// springdoc 2.x targets Spring Boot 3.x and serves /v3/api-docs plus the Swagger UI behind the public /docs routes.
+	implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.10.1")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.springframework:spring-jdbc")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
