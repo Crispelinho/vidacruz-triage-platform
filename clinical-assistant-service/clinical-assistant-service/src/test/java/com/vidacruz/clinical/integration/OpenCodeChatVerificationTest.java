@@ -20,6 +20,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -144,6 +145,7 @@ class OpenCodeChatVerificationTest {
 				for (int run = 1; run <= RUNS_PER_PROBE; run++) {
 					long start = System.nanoTime();
 					String failureType = null;
+					String failureStatus = null;
 					String evidenceProtocol = null;
 					String usedModel = null;
 					int citationCount = 0;
@@ -159,6 +161,7 @@ class OpenCodeChatVerificationTest {
 					}
 					catch (RuntimeException exception) {
 						failureType = exception.getClass().getSimpleName();
+						failureStatus = failureStatus(exception);
 					}
 					long latencyMs = (System.nanoTime() - start) / 1_000_000L;
 					boolean passed = failureType == null && citationsValid
@@ -172,6 +175,7 @@ class OpenCodeChatVerificationTest {
 					runNode.put("usedModel", usedModel);
 					if (failureType != null) {
 						runNode.put("failureType", failureType);
+						runNode.put("failureStatus", failureStatus);
 					}
 					if (passed) {
 						passedRuns++;
@@ -231,6 +235,19 @@ class OpenCodeChatVerificationTest {
 			evidence.put("finishedAt", Instant.now().toString());
 			writeEvidence(evidence);
 		}
+	}
+
+	private static String failureStatus(Throwable error) {
+		for (Throwable current = error; current != null; current = current.getCause()) {
+			if (current instanceof WebClientResponseException responseException) {
+				return String.valueOf(responseException.getStatusCode().value());
+			}
+		}
+		String message = error.getMessage();
+		if (message != null && message.contains("returned HTTP ")) {
+			return message.substring(message.lastIndexOf("returned HTTP ") + "returned HTTP ".length()).trim();
+		}
+		return null;
 	}
 
 	private static RAGService service() {
