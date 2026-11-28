@@ -1,0 +1,12 @@
+=== Azure chat five-run gate 2026-11-28T06:55:17.3590670-05:00 ===
+TOTAL=7 PASS=7 FAIL=0
+Host: https://vidacruz-l7rsr6.northcentralus.cloudapp.azure.com; target: main 38d9d77
+PASS PROTO-001 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS PROTO-002 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS PROTO-003 leve-4 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS PROTO-003 moderada-6-5 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS PROTO-003 severa-9 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS PROTO-003 alterado-4 :: 5/5 runs=1:200/src=True/model=gemini/gemini-3.5-flash-lite 2:200/src=True/model=gemini/gemini-3.5-flash-lite 3:200/src=True/model=gemini/gemini-3.5-flash-lite 4:200/src=True/model=gemini/gemini-3.5-flash-lite 5:200/src=True/model=gemini/gemini-3.5-flash-lite
+PASS negative diabetes :: 5/5 runs=1:200/fixed=True 2:200/fixed=True 3:200/fixed=True 4:200/fixed=True 5:200/fixed=True
+
+No credential values are stored in this report.
