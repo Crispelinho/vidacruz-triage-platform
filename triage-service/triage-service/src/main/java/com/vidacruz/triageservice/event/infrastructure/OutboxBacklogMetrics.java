@@ -1,5 +1,6 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.ToDoubleFunction;
 
@@ -35,6 +36,9 @@ public class OutboxBacklogMetrics {
 			WHERE publicado_en IS NULL
 			""";
 
+	/* Far above what the count takes on a healthy database, and below the scheduling interval. */
+	private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(10);
+
 	record Backlog(long pending, long failing, long requiresReview, double oldestPendingAgeSeconds) {
 	}
 
@@ -61,20 +65,20 @@ public class OutboxBacklogMetrics {
 				Backlog::oldestPendingAgeSeconds);
 	}
 
-	/** Reads the backlog once. A failure is logged and clears the values; the signal itself completes. */
+	/**
+	 * Reads the backlog once. A failure, including a read that does not answer in time, is logged and clears the
+	 * values; the signal itself completes. Spring waits for it before scheduling the next read, so reads never pile up.
+	 */
+	@Scheduled(fixedDelayString = "${app.outbox.metrics-interval-ms:15000}")
 	public Mono<Void> refresh() {
-		return query.doOnNext(latest::set)
+		return query.timeout(QUERY_TIMEOUT)
+				.doOnNext(latest::set)
 				.then()
 				.onErrorResume(error -> {
 					latest.set(null);
 					log.warn("Could not read the outbox backlog", error);
 					return Mono.empty();
 				});
-	}
-
-	@Scheduled(fixedDelayString = "${app.outbox.metrics-interval-ms:15000}")
-	void scheduledRefresh() {
-		refresh().subscribe();
 	}
 
 	private void gauge(MeterRegistry registry, String name, String description, String unit,

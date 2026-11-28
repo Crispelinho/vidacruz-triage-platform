@@ -41,7 +41,8 @@ public class OutboxPublishTracing {
 					.tag("messaging.system", "kafka")
 					.tag("messaging.destination.name", topic)
 					.start();
-			return send.doOnError(error -> span.error(new PublicationFailed()))
+			return send.doOnError(error -> span.error(new PublicationFailed("failed")))
+					.doOnCancel(() -> span.error(new PublicationFailed("cancelled")))
 					.doFinally(signal -> span.end());
 		});
 	}
@@ -49,8 +50,8 @@ public class OutboxPublishTracing {
 	/** No cause, message detail or stack trace: broker errors can quote the record. */
 	static final class PublicationFailed extends RuntimeException {
 
-		private PublicationFailed() {
-			super("Outbox publication failed", null, false, false);
+		private PublicationFailed(String how) {
+			super("Outbox publication " + how, null, false, false);
 		}
 	}
 }

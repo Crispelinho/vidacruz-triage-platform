@@ -1,13 +1,21 @@
 package com.vidacruz.triageservice.event.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelPropagator;
@@ -21,6 +29,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -61,6 +70,39 @@ class OutboxPublishTracingTest {
 			assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
 			assertThat(span.toString()).doesNotContain("SECRET");
 		});
+	}
+
+	/** A publication interrupted by a shutdown leaves the row unpublished, so its span must not read as a success. */
+	@Test
+	void marksACancelledPublicationAsFailed() {
+		StepVerifier.create(tracing.traced(TRACEPARENT, "triaje.eventos", Mono.never()))
+				.thenAwait(Duration.ofMillis(50))
+				.thenCancel()
+				.verify(Duration.ofSeconds(5));
+
+		assertThat(spans).singleElement().satisfies(span -> {
+			assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
+			assertThat(span.getStatus().getDescription()).isEqualTo("Outbox publication cancelled");
+		});
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void isAppliedByThePublisherToEverySendOfATracedEvent() {
+		OutboxEventoRepository repository = mock(OutboxEventoRepository.class);
+		KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
+		OutboxEvento event = new OutboxEvento(UUID.randomUUID(), "paciente_registrado", "{}", UUID.randomUUID(), 1,
+				OffsetDateTime.now(), UUID.randomUUID());
+		event.setTraceParent(TRACEPARENT);
+		when(repository.findUnpublishedWithoutLease(10)).thenReturn(Flux.just(event));
+		when(repository.claimLeaseIfAvailable(any(), any(), any())).thenReturn(Mono.just(1));
+		when(kafka.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
+		when(repository.markPublished(any(), any())).thenReturn(Mono.empty());
+
+		StepVerifier.create(new OutboxPublisher(repository, kafka, "triaje.eventos", 10, 30, 60_000, tracing).publish())
+				.expectNext(1).verifyComplete();
+
+		assertThat(spans).singleElement().extracting(SpanData::getName).isEqualTo("triaje.eventos publish");
 	}
 
 	/** Events written outside a trace, such as SLA escalations, must not start one of their own. */
