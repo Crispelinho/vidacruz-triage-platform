@@ -1,0 +1,69 @@
+{
+  "startedAt": "2026-11-28T16:51:57Z",
+  "timeline": [
+    {
+      "at": "16:52:49Z",
+      "alerts": []
+    },
+    {
+      "at": "16:52:59Z",
+      "alerts": [
+        "LlmCircuitBreakerOpen=pending name=ollama",
+        "LlmUnavailableRatioHigh=pending"
+      ]
+    },
+    {
+      "at": "16:53:59Z",
+      "alerts": [
+        "HttpServerErrorRatioHigh=pending application=clinical-assistant-service",
+        "LlmCircuitBreakerOpen=firing name=ollama",
+        "LlmUnavailableRatioHigh=pending"
+      ]
+    },
+    {
+      "at": "16:54:35Z",
+      "alerts": [
+        "HttpServerErrorRatioHigh=pending application=clinical-assistant-service",
+        "LlmCircuitBreakerOpen=firing name=ollama",
+        "LlmUnavailableRatioHigh=pending",
+        "OutboxPublishingStalled=pending application=triage-service job=triage-service"
+      ]
+    },
+    {
+      "at": "16:54:57Z",
+      "alerts": [
+        "HttpServerErrorRatioHigh=pending application=clinical-assistant-service",
+        "LlmCircuitBreakerOpen=firing name=ollama",
+        "LlmUnavailableRatioHigh=firing",
+        "OutboxPublishingStalled=pending application=triage-service job=triage-service"
+      ]
+    },
+    {
+      "at": "16:55:34Z",
+      "alerts": [
+        "HttpServerErrorRatioHigh=pending application=clinical-assistant-service",
+        "LlmCircuitBreakerOpen=firing name=ollama",
+        "LlmUnavailableRatioHigh=firing",
+        "OutboxPublishingStalled=firing application=triage-service job=triage-service"
+      ]
+    },
+    {
+      "at": "16:56:00Z",
+      "alerts": [
+        "HttpServerErrorRatioHigh=firing application=clinical-assistant-service",
+        "LlmCircuitBreakerOpen=firing name=ollama",
+        "LlmUnavailableRatioHigh=firing",
+        "OutboxPublishingStalled=firing application=triage-service job=triage-service"
+      ]
+    }
+  ],
+  "timeoutTrace": {
+    "traceId": "94c1bb179c752536d8bfc69785a5eed5",
+    "status": 503
+  },
+  "statuses": {
+    "ask provider failure -> 503": 78,
+    "ask timeout -> 503": 3,
+    "register -> 201": 26
+  }
+}

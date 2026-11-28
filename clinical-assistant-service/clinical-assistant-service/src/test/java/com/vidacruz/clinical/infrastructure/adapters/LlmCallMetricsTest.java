@@ -52,10 +52,22 @@ class LlmCallMetricsTest {
 	}
 
 	@Test
-	void exposesBucketsUpToTheNodeTimeout() {
+	void exposesBucketsFineEnoughForTypicalAnswersAndTheNodeTimeout() {
 		assertThat(timer(LlmCallMetrics.SUCCESS).takeSnapshot().histogramCounts())
 				.extracting(bucket -> bucket.bucket(TimeUnit.SECONDS))
-				.containsExactly(0.5d, 1.0d, 2.0d, 5.0d, 10.0d, 15.0d, 30.0d);
+				.containsExactly(0.5d, 1.0d, 1.5d, 2.0d, 2.5d, 3.0d, 4.0d, 5.0d, 7.5d, 10.0d, 12.5d, 15.0d, 15.5d,
+						16.0d, 20.0d, 30.0d);
+	}
+
+	/** A quantile is interpolated inside its bucket, so the bucket just above the timeout must be narrow. */
+	@Test
+	void placesATimedOutAttemptWithinHalfASecondAboveTheNodeTimeout() {
+		timer(LlmCallMetrics.TIMEOUT).record(Duration.ofMillis(15_080));
+
+		assertThat(timer(LlmCallMetrics.TIMEOUT).takeSnapshot().histogramCounts())
+				.filteredOn(bucket -> bucket.count() > 0)
+				.extracting(bucket -> bucket.bucket(TimeUnit.SECONDS))
+				.first().isEqualTo(15.5d);
 	}
 
 	@ParameterizedTest

@@ -1,0 +1,12 @@
+# Evidence-run override: caps JVM heaps so a second local stack fits beside other workloads.
+# Used on top of docker-compose.yml and docker-compose.demo.yml; it changes no application behavior under test.
+services:
+  kafka:
+    environment:
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx384m
+  triage-service:
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx384m
+  clinical-assistant-service:
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx384m

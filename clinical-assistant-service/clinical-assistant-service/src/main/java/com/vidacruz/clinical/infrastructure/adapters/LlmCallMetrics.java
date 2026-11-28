@@ -34,8 +34,16 @@ public final class LlmCallMetrics {
 
 	private static final List<String> OUTCOMES = List.of(SUCCESS, TIMEOUT, RATE_LIMITED, SERVER_ERROR, REJECTED,
 			NETWORK, OTHER);
-	private static final Duration[] BUCKETS = { Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2),
-			Duration.ofSeconds(5), Duration.ofSeconds(10), Duration.ofSeconds(15), Duration.ofSeconds(30) };
+	/*
+	 * Quantiles are interpolated inside a bucket: fine steps where answers usually land, and a narrow one just above
+	 * the default node timeout (15 s) so that timed-out attempts do not read as twice as long. Revisit the upper
+	 * steps if rag.llm.timeout changes.
+	 */
+	private static final Duration[] BUCKETS = { Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofMillis(1500),
+			Duration.ofSeconds(2), Duration.ofMillis(2500), Duration.ofSeconds(3), Duration.ofSeconds(4),
+			Duration.ofSeconds(5), Duration.ofMillis(7500), Duration.ofSeconds(10), Duration.ofMillis(12_500),
+			Duration.ofSeconds(15), Duration.ofMillis(15_500), Duration.ofSeconds(16), Duration.ofSeconds(20),
+			Duration.ofSeconds(30) };
 	private static final int REQUEST_TIMEOUT = 408;
 	private static final int TOO_MANY_REQUESTS = 429;
 	private static final int FIRST_SERVER_ERROR = 500;

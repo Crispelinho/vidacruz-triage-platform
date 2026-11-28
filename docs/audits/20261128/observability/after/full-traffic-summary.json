@@ -1,0 +1,31 @@
+{
+  "startedAt": "2026-11-28T16:42:36Z",
+  "registrationTrace": {
+    "traceId": "e61ba1c1ba6b4bb13fd874ea689bf407",
+    "patientId": "3b029e68-aefb-42db-8bd0-8fbdac9c70dc"
+  },
+  "assistantTrace": {
+    "traceId": "c96ff4e6c5fee67f994c9809599e42bc",
+    "status": 200
+  },
+  "cycles": 16,
+  "statuses": {
+    "acknowledge -> 200": 26,
+    "acknowledge twice -> 409": 26,
+    "alerts without key -> 401": 16,
+    "ask -> 200": 16,
+    "ask invalid citation -> 200": 4,
+    "ask out of corpus -> 200": 16,
+    "ask provider failure -> 503": 5,
+    "ask traced -> 200": 1,
+    "get patient -> 200": 16,
+    "invalid registration -> 400": 16,
+    "invalid transition -> 409": 16,
+    "list alerts -> 200": 16,
+    "register -> 201": 97,
+    "to ALTA -> 200": 16,
+    "to EN_CONSULTA -> 200": 16,
+    "unknown patient -> 404": 16,
+    "urgency state -> 200": 16
+  }
+}

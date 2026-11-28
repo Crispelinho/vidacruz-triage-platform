@@ -1,0 +1,2282 @@
+{
+ "collectedAt": "2026-11-28T17:35:14Z",
+ "ports": {
+  "prometheus_port": 29090,
+  "grafana_port": 23000,
+  "jaeger_port": 26686,
+  "triage_port": 28081,
+  "assistant_port": 28082
+ },
+ "forbiddenTerms": [
+  "ZZCANARYNAME",
+  "ZZCANARYCOMPLAINT",
+  "ZZCANARYQUESTION",
+  "ZZCANARYANSWER",
+  "ZZCANARYRESPONDER",
+  "Crisis hipertensiva",
+  "<pregunta>",
+  "<evidencia",
+  "nifedipino"
+ ],
+ "prometheus": {
+  "targets": [
+   {
+    "job": "clinical-assistant-service",
+    "health": "up",
+    "lastError": ""
+   },
+   {
+    "job": "triage-service",
+    "health": "up",
+    "lastError": ""
+   }
+  ],
+  "ruleGroups": [
+   {
+    "name": "vidacruz",
+    "file": "/etc/prometheus/alerts.yml",
+    "rules": [
+     {
+      "state": "inactive",
+      "name": "TargetDown",
+      "query": "up == 0",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "critical"
+      },
+      "annotations": {
+       "summary": "{{ $labels.job }} is not being scraped"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000459351,
+      "lastEvaluation": "2026-11-28T17:35:15.442997649Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "HttpServerErrorRatioHigh",
+      "query": "sum by (application) (rate(http_server_requests_seconds_count{status=~\"5..\",uri!~\"/actuator.*\"}[5m])) / sum by (application) (rate(http_server_requests_seconds_count{uri!~\"/actuator.*\"}[5m])) > 0.05 and sum by (application) (increase(http_server_requests_seconds_count{uri!~\"/actuator.*\"}[5m])) >= 20",
+      "duration": 120,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "warning"
+      },
+      "annotations": {
+       "summary": "More than 5% of the requests to {{ $labels.application }} end in a server error"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.001221835,
+      "lastEvaluation": "2026-11-28T17:35:15.443477816Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "LlmUnavailableRatioHigh",
+      "query": "sum(rate(assistant_answers_total{outcome=\"unavailable\"}[5m])) / sum(rate(assistant_answers_total[5m])) > 0.5 and sum(increase(assistant_answers_total[5m])) >= 5",
+      "duration": 120,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "warning"
+      },
+      "annotations": {
+       "summary": "Most clinical questions are ending as unavailable"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000562143,
+      "lastEvaluation": "2026-11-28T17:35:15.44471556Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "LlmCircuitBreakerOpen",
+      "query": "max by (name) (resilience4j_circuitbreaker_state{state=~\"open|half_open\"}) == 1",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "warning"
+      },
+      "annotations": {
+       "summary": "The circuit breaker of the LLM node {{ $labels.name }} has not closed again"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000233397,
+      "lastEvaluation": "2026-11-28T17:35:15.445292072Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "UrgencyConsumerLagHigh",
+      "query": "max by (partition) (kafka_consumer_fetch_manager_records_lag{topic=\"triaje_eventos\"}) > 100",
+      "duration": 300,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "warning"
+      },
+      "annotations": {
+       "summary": "The urgency projection is behind on partition {{ $labels.partition }}"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000176691,
+      "lastEvaluation": "2026-11-28T17:35:15.445539131Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "OutboxPublishingStalled",
+      "query": "triage_outbox_oldest_pending_age_seconds > 120",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "critical"
+      },
+      "annotations": {
+       "summary": "The oldest unpublished outbox event is more than two minutes old"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 0.000108242,
+      "lastEvaluation": "2026-11-28T17:35:15.445726407Z",
+      "type": "alerting"
+     },
+     {
+      "state": "inactive",
+      "name": "OutboxEventsNeedReview",
+      "query": "triage_outbox_requires_review > 0",
+      "duration": 60,
+      "keepFiringFor": 0,
+      "labels": {
+       "severity": "warning"
+      },
+      "annotations": {
+       "summary": "Outbox events are flagged for operator review (ADR-03)"
+      },
+      "alerts": [],
+      "health": "ok",
+      "evaluationTime": 9.5159e-05,
+      "lastEvaluation": "2026-11-28T17:35:15.445839737Z",
+      "type": "alerting"
+     }
+    ],
+    "interval": 5,
+    "limit": 0,
+    "evaluationTime": 0.002996587,
+    "lastEvaluation": "2026-11-28T17:35:15.442941269Z"
+   }
+  ],
+  "alerts": [],
+  "alertmanagers": [],
+  "metrics": {
+   "triage_patients_classified_total": [
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "CRITICO"
+     },
+     "value": 11.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE"
+     },
+     "value": 10.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE_2"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE"
+     },
+     "value": 5.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE_2"
+     },
+     "value": 5.0
+    }
+   ],
+   "triage_patients_escalated_total": [
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "CRITICO"
+     },
+     "value": 11.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE_2"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE"
+     },
+     "value": 5.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE_2"
+     },
+     "value": 5.0
+    }
+   ],
+   "triage_alerts_acknowledged_total": [
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "CRITICO"
+     },
+     "value": 4.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "NO_URGENTE_2"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "triage-service",
+      "level": "URGENTE_2"
+     },
+     "value": 0.0
+    }
+   ],
+   "assistant_answers_total": [
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "answered"
+     },
+     "value": 6.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "invalid_citation"
+     },
+     "value": 1.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "no_evidence"
+     },
+     "value": 5.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "unavailable"
+     },
+     "value": 1.0
+    }
+   ],
+   "assistant_llm_latency_seconds_count": [
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "network"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "other"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "rate_limited"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "rejected"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "server_error"
+     },
+     "value": 1.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "success"
+     },
+     "value": 7.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "outcome": "timeout"
+     },
+     "value": 0.0
+    }
+   ],
+   "assistant_urgency_events_total": [
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "result": "applied"
+     },
+     "value": 62.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "result": "ignored_older"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "result": "skipped"
+     },
+     "value": 0.0
+    }
+   ],
+   "triage_outbox_pending": [
+    {
+     "labels": {
+      "application": "triage-service"
+     },
+     "value": 0.0
+    }
+   ],
+   "triage_outbox_failing": [
+    {
+     "labels": {
+      "application": "triage-service"
+     },
+     "value": 0.0
+    }
+   ],
+   "triage_outbox_requires_review": [
+    {
+     "labels": {
+      "application": "triage-service"
+     },
+     "value": 0.0
+    }
+   ],
+   "triage_outbox_oldest_pending_age_seconds": [
+    {
+     "labels": {
+      "application": "triage-service"
+     },
+     "value": 0.0
+    }
+   ],
+   "resilience4j_circuitbreaker_state": [
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "closed"
+     },
+     "value": 1.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "disabled"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "forced_open"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "half_open"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "metrics_only"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "llm",
+      "state": "open"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "closed"
+     },
+     "value": 1.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "disabled"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "forced_open"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "half_open"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "metrics_only"
+     },
+     "value": 0.0
+    },
+    {
+     "labels": {
+      "application": "clinical-assistant-service",
+      "name": "ollama",
+      "state": "open"
+     },
+     "value": 0.0
+    }
+   ]
+  },
+  "metricNamesByPrefix": {
+   "triage_": [
+    "triage_alerts_acknowledged_total",
+    "triage_outbox_failing",
+    "triage_outbox_oldest_pending_age_seconds",
+    "triage_outbox_pending",
+    "triage_outbox_requires_review",
+    "triage_patients_classified_total",
+    "triage_patients_escalated_total"
+   ],
+   "assistant_": [
+    "assistant_answers_total",
+    "assistant_llm_attempt_active_seconds_count",
+    "assistant_llm_attempt_active_seconds_max",
+    "assistant_llm_attempt_active_seconds_sum",
+    "assistant_llm_attempt_seconds_count",
+    "assistant_llm_attempt_seconds_max",
+    "assistant_llm_attempt_seconds_sum",
+    "assistant_llm_latency_seconds_bucket",
+    "assistant_llm_latency_seconds_count",
+    "assistant_llm_latency_seconds_max",
+    "assistant_llm_latency_seconds_sum",
+    "assistant_urgency_events_total"
+   ],
+   "r2dbc_pool_": [
+    "r2dbc_pool_acquired_connections",
+    "r2dbc_pool_allocated_connections",
+    "r2dbc_pool_idle_connections",
+    "r2dbc_pool_max_allocated_connections",
+    "r2dbc_pool_max_pending_connections",
+    "r2dbc_pool_pending_connections"
+   ],
+   "lettuce_": [
+    "lettuce_command_completion_seconds_count",
+    "lettuce_command_completion_seconds_max",
+    "lettuce_command_completion_seconds_sum",
+    "lettuce_command_firstresponse_seconds_count",
+    "lettuce_command_firstresponse_seconds_max",
+    "lettuce_command_firstresponse_seconds_sum"
+   ],
+   "kafka_consumer_fetch_manager_records_lag": [
+    "kafka_consumer_fetch_manager_records_lag",
+    "kafka_consumer_fetch_manager_records_lag_avg",
+    "kafka_consumer_fetch_manager_records_lag_max"
+   ],
+   "resilience4j_circuitbreaker_state": [
+    "resilience4j_circuitbreaker_state"
+   ],
+   "hikaricp_connections": [
+    "hikaricp_connections",
+    "hikaricp_connections_acquire_seconds_count",
+    "hikaricp_connections_acquire_seconds_max",
+    "hikaricp_connections_acquire_seconds_sum",
+    "hikaricp_connections_active",
+    "hikaricp_connections_creation_seconds_count",
+    "hikaricp_connections_creation_seconds_max",
+    "hikaricp_connections_creation_seconds_sum",
+    "hikaricp_connections_idle",
+    "hikaricp_connections_max",
+    "hikaricp_connections_min",
+    "hikaricp_connections_pending",
+    "hikaricp_connections_timeout_total",
+    "hikaricp_connections_usage_seconds_count",
+    "hikaricp_connections_usage_seconds_max",
+    "hikaricp_connections_usage_seconds_sum"
+   ]
+  },
+  "kafkaLagSeriesLabels": [
+   {
+    "application": "clinical-assistant-service",
+    "topic": "triaje_eventos",
+    "partition": "0"
+   },
+   {
+    "application": "clinical-assistant-service",
+    "topic": "triaje_eventos",
+    "partition": "1"
+   },
+   {
+    "application": "clinical-assistant-service",
+    "topic": "triaje_eventos",
+    "partition": "2"
+   }
+  ]
+ },
+ "grafana": {
+  "health": {
+   "database": "ok",
+   "version": "12.1.1",
+   "commit": "df5de8219b41d1e639e003bf5f3a85913761d167"
+  },
+  "datasources": [
+   {
+    "name": "Jaeger",
+    "type": "jaeger",
+    "url": "http://jaeger:16686",
+    "healthHttp": 200,
+    "status": "OK",
+    "message": "Data source is working"
+   },
+   {
+    "name": "Prometheus",
+    "type": "prometheus",
+    "url": "http://prometheus:9090",
+    "healthHttp": 200,
+    "status": "OK",
+    "message": "Successfully queried the Prometheus API."
+   }
+  ],
+  "jaegerPluginServices": {
+   "http": 200,
+   "body": "[\"triage-service\",\"clinical-assistant-service\",\"jaeger\"]"
+  },
+  "alertRules": {
+   "/api/v1/provisioning/alert-rules": {
+    "http": 200,
+    "body": "[]"
+   },
+   "/api/prometheus/grafana/api/v1/rules": {
+    "http": 200,
+    "body": "{\"status\":\"success\",\"data\":{\"groups\":[]}}"
+   }
+  },
+  "panels": [
+   {
+    "number": 1,
+    "title": "Pacientes clasificados",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(triage_patients_classified_total[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 31.2672,
+        "max": 31.8276
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 2,
+    "title": "Escalados por SLA",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(triage_patients_escalated_total[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 21.181,
+        "max": 21.3722
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 3,
+    "title": "Alertas reconocidas",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(triage_alerts_acknowledged_total[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 4.0345,
+        "max": 4.1068
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 4,
+    "title": "Escalados sin reconocer",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "round(clamp_min(sum(increase(triage_patients_escalated_total[$__range])) - sum(increase(triage_alerts_acknowledged_total[$__range])), 0))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 17,
+        "max": 17
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 5,
+    "title": "Clasificación y escalado por nivel",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (level) (rate(triage_patients_classified_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 5,
+      "series": [
+       {
+        "labels": {
+         "level": "CRITICO"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.1064
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.1064
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0532
+       },
+       {
+        "labels": {
+         "level": "URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0532
+       }
+      ]
+     },
+     {
+      "refId": "B",
+      "expr": "sum by (level) (rate(triage_patients_escalated_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 5,
+      "series": [
+       {
+        "labels": {
+         "level": "CRITICO"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0924
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0523
+       },
+       {
+        "labels": {
+         "level": "URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0532
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 6,
+    "title": "Alertas reconocidas por nivel",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (level) (rate(triage_alerts_acknowledged_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 5,
+      "series": [
+       {
+        "labels": {
+         "level": "CRITICO"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0.0699
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "NO_URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "URGENTE"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "level": "URGENTE_2"
+        },
+        "points": 65,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 7,
+    "title": "Preguntas respondidas",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(assistant_answers_total{outcome=\"answered\"}[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 63,
+        "last": 6.0884,
+        "max": 6.2453
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 8,
+    "title": "Sin protocolo",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(assistant_answers_total{outcome=\"no_evidence\"}[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 63,
+        "last": 5.0737,
+        "max": 5.2044
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 9,
+    "title": "Modo degradado (503)",
+    "type": "stat",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(assistant_answers_total{outcome=\"unavailable\"}[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 63,
+        "last": 1.0147,
+        "max": 1.0731
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 10,
+    "title": "Desenlace de consultas",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (outcome) (rate(assistant_answers_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 4,
+      "series": [
+       {
+        "labels": {
+         "outcome": "answered"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0.0564
+       },
+       {
+        "labels": {
+         "outcome": "invalid_citation"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0.0185
+       },
+       {
+        "labels": {
+         "outcome": "no_evidence"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0.0532
+       },
+       {
+        "labels": {
+         "outcome": "unavailable"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0.0181
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 11,
+    "title": "LLM provider latency (p50/p95 by outcome)",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(assistant_llm_latency_seconds_bucket[5m])))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "outcome": "server_error"
+        },
+        "points": 50,
+        "last": 0.975,
+        "max": 0.975
+       },
+       {
+        "labels": {
+         "outcome": "success"
+        },
+        "points": 61,
+        "last": 2.4588,
+        "max": 4.95
+       }
+      ]
+     },
+     {
+      "refId": "B",
+      "expr": "histogram_quantile(0.50, sum by (le, outcome) (rate(assistant_llm_latency_seconds_bucket[5m])))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "outcome": "server_error"
+        },
+        "points": 50,
+        "last": 0.75,
+        "max": 0.75
+       },
+       {
+        "labels": {
+         "outcome": "success"
+        },
+        "points": 61,
+        "last": 2.0875,
+        "max": 4.5
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 12,
+    "title": "Eventos de urgencia procesados",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (result) (rate(assistant_urgency_events_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 3,
+      "series": [
+       {
+        "labels": {
+         "result": "applied"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0.5496
+       },
+       {
+        "labels": {
+         "result": "ignored_older"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "result": "skipped"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 13,
+    "title": "Latencia HTTP p95 por servicio",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket[5m])))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 62,
+        "last": 2.0222,
+        "max": 5.2438
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 64,
+        "last": 0.171,
+        "max": 1.2508
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 14,
+    "title": "Respuestas HTTP 4xx/5xx por servicio",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (application, status) (clamp_min(http_server_requests_seconds_count{status=~\"4..|5..\"} - http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m, 0) or (http_server_requests_seconds_count{status=~\"4..|5..\"} unless http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 5,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service",
+         "status": "503"
+        },
+        "points": 50,
+        "last": 0,
+        "max": 1
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "status": "400"
+        },
+        "points": 60,
+        "last": 0,
+        "max": 3
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "status": "401"
+        },
+        "points": 60,
+        "last": 0,
+        "max": 3
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "status": "404"
+        },
+        "points": 60,
+        "last": 0,
+        "max": 3
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "status": "409"
+        },
+        "points": 60,
+        "last": 0,
+        "max": 7
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 15,
+    "title": "LLM attempts by outcome (selected range)",
+    "type": "bargauge",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (outcome) (increase(assistant_llm_latency_seconds_count[$__range]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 7,
+      "series": [
+       {
+        "labels": {
+         "outcome": "network"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "outcome": "other"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "outcome": "rate_limited"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "outcome": "rejected"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "outcome": "server_error"
+        },
+        "points": 63,
+        "last": 1.0147,
+        "max": 1.0731
+       },
+       {
+        "labels": {
+         "outcome": "success"
+        },
+        "points": 63,
+        "last": 7.1032,
+        "max": 7.2861
+       },
+       {
+        "labels": {
+         "outcome": "timeout"
+        },
+        "points": 63,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 16,
+    "title": "Kafka consumer lag by partition",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "max by (partition) (kafka_consumer_fetch_manager_records_lag{topic=\"triaje_eventos\"})",
+      "state": "ALL_ZERO",
+      "http": 200,
+      "error": null,
+      "seriesCount": 3,
+      "series": [
+       {
+        "labels": {
+         "partition": "0"
+        },
+        "points": 50,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "partition": "1"
+        },
+        "points": 50,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "partition": "2"
+        },
+        "points": 50,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 17,
+    "title": "JVM heap memory by service",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\"})",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 85500592,
+        "max": 97532192
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 66,
+        "last": 76157712,
+        "max": 86687912
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 18,
+    "title": "Process CPU by service",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "max by (application) (process_cpu_usage)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 0.0061,
+        "max": 0.2222
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 66,
+        "last": 0.0024,
+        "max": 0.1034
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 19,
+    "title": "PostgreSQL pool connections by service",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum by (application) (r2dbc_pool_acquired_connections)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 66,
+        "last": 0,
+        "max": 1
+       }
+      ]
+     },
+     {
+      "refId": "B",
+      "expr": "sum by (application) (r2dbc_pool_idle_connections)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 10,
+        "max": 10
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 66,
+        "last": 4,
+        "max": 4
+       }
+      ]
+     },
+     {
+      "refId": "C",
+      "expr": "sum by (application) (r2dbc_pool_pending_connections)",
+      "state": "ALL_ZERO",
+      "http": 200,
+      "error": null,
+      "seriesCount": 2,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 0,
+        "max": 0
+       },
+       {
+        "labels": {
+         "application": "triage-service"
+        },
+        "points": 66,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     },
+     {
+      "refId": "D",
+      "expr": "sum by (application) (hikaricp_connections_active)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 0,
+        "max": 1
+       }
+      ]
+     },
+     {
+      "refId": "E",
+      "expr": "sum by (application) (hikaricp_connections_idle)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 10,
+        "max": 10
+       }
+      ]
+     },
+     {
+      "refId": "F",
+      "expr": "sum by (application) (hikaricp_connections_pending)",
+      "state": "ALL_ZERO",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service"
+        },
+        "points": 64,
+        "last": 0,
+        "max": 0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 20,
+    "title": "Redis command latency",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(rate(lettuce_command_completion_seconds_sum[1m])) / (sum(rate(lettuce_command_completion_seconds_count[1m])) > 0)",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 55,
+        "last": 0.0067,
+        "max": 0.0067
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 21,
+    "title": "HTTP p95 by route",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "histogram_quantile(0.95, sum by (le, application, method, uri) (rate(http_server_requests_seconds_bucket{uri!~\"/actuator/.*|/health.*|/prometheus|/v3/api-docs.*|/swagger-ui.*|/webjars.*\"}[5m])))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 8,
+      "series": [
+       {
+        "labels": {
+         "application": "clinical-assistant-service",
+         "method": "GET",
+         "uri": "/asistente/estado-urgencias"
+        },
+        "points": 54,
+        "last": 0.0852,
+        "max": 0.0884
+       },
+       {
+        "labels": {
+         "application": "clinical-assistant-service",
+         "method": "POST",
+         "uri": "/asistente/consulta"
+        },
+        "points": 60,
+        "last": 2.4517,
+        "max": 5.4994
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "GET",
+         "uri": "/triage/alertas"
+        },
+        "points": 56,
+        "last": 0.1745,
+        "max": 0.1767
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "GET",
+         "uri": "/triage/pacientes/{id}"
+        },
+        "points": 56,
+        "last": 0.2147,
+        "max": 0.2215
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "GET",
+         "uri": "UNKNOWN"
+        },
+        "points": 56,
+        "last": 0.0124,
+        "max": 0.0196
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "PATCH",
+         "uri": "/triage/pacientes/{id}/estado"
+        },
+        "points": 56,
+        "last": 0.1753,
+        "max": 0.2295
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "POST",
+         "uri": "/triage/alertas/{id}/reconocimiento"
+        },
+        "points": 40,
+        "last": 0.0551,
+        "max": 0.0604
+       },
+       {
+        "labels": {
+         "application": "triage-service",
+         "method": "POST",
+         "uri": "/triage/pacientes"
+        },
+        "points": 62,
+        "last": 0.1737,
+        "max": 1.3363
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "number": 22,
+    "title": "Escalations and acknowledgements (per minute)",
+    "type": "timeseries",
+    "queries": [
+     {
+      "refId": "A",
+      "expr": "sum(increase(triage_patients_escalated_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 0,
+        "max": 9.4393
+       }
+      ]
+     },
+     {
+      "refId": "B",
+      "expr": "sum(increase(triage_alerts_acknowledged_total[1m]))",
+      "state": "DATA",
+      "http": 200,
+      "error": null,
+      "seriesCount": 1,
+      "series": [
+       {
+        "labels": {},
+        "points": 65,
+        "last": 0,
+        "max": 4.1929
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "jaeger": {
+  "services": {
+   "services": [
+    "clinical-assistant-service",
+    "jaeger",
+    "triage-service"
+   ]
+  },
+  "legacyApi": {
+   "/api/services": 200,
+   "/api/v3/services": 200,
+   "/api/traces?service=triage-service": 200
+  },
+  "scanned": {
+   "traces": 323,
+   "spans": 1281,
+   "bytes": 1601876
+  },
+  "spanNames": {
+   "triage-service": [
+    "authorize exchange",
+    "http get",
+    "http get /actuator/health",
+    "http get /actuator/prometheus",
+    "http get /triage/alertas",
+    "http get /triage/pacientes/{id}",
+    "http patch /triage/pacientes/{id}/estado",
+    "http post /triage/alertas/{id}/reconocimiento",
+    "http post /triage/pacientes",
+    "secured request",
+    "security filterchain after",
+    "security filterchain before",
+    "task outbox-backlog-metrics.scheduled-refresh",
+    "task sla-evaluation-scheduler.evaluate",
+    "triaje.eventos publish"
+   ],
+   "clinical-assistant-service": [
+    "authorize exchange",
+    "chat llama3.1:8b",
+    "http get /actuator/health",
+    "http get /actuator/prometheus",
+    "http get /asistente/estado-urgencias",
+    "http post /asistente/consulta",
+    "llm attempt ollama",
+    "secured request",
+    "security filterchain after",
+    "security filterchain before",
+    "triaje.eventos receive"
+   ]
+  },
+  "spanAttributes": {
+   "@jaeger@warnings": {
+    "distinct": 297,
+    "samples": [
+     "{'values': [{'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.049006957s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.049006957s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.049006957s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.049006957s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.049006957s'}]}",
+     "{'values': [{'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.208530566s'}]}",
+     "{'values': [{'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.632076112s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.632076112s'}]}",
+     "{'values': [{'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.645019749s'}, {'stringValue': 'clock skew adjustment disabled; not applying calculated delta of -1.645019749s'}]}"
+    ]
+   },
+   "code.function": {
+    "distinct": 2,
+    "samples": [
+     "evaluate",
+     "scheduledRefresh"
+    ]
+   },
+   "code.namespace": {
+    "distinct": 2,
+    "samples": [
+     "com.vidacruz.triageservice.event.infrastructure.OutboxBacklogMetrics",
+     "com.vidacruz.triageservice.infrastructure.config.SlaEvaluationScheduler"
+    ]
+   },
+   "exception": {
+    "distinct": 2,
+    "samples": [
+     "ServerErrorResponse",
+     "none"
+    ]
+   },
+   "gen_ai.operation.name": {
+    "distinct": 1,
+    "samples": [
+     "chat"
+    ]
+   },
+   "gen_ai.request.model": {
+    "distinct": 1,
+    "samples": [
+     "llama3.1:8b"
+    ]
+   },
+   "gen_ai.response.finish_reasons": {
+    "distinct": 1,
+    "samples": [
+     "[\"stop\"]"
+    ]
+   },
+   "gen_ai.response.model": {
+    "distinct": 2,
+    "samples": [
+     "llama3.1:8b",
+     "none"
+    ]
+   },
+   "gen_ai.system": {
+    "distinct": 1,
+    "samples": [
+     "ollama"
+    ]
+   },
+   "gen_ai.usage.input_tokens": {
+    "distinct": 1,
+    "samples": [
+     "1"
+    ]
+   },
+   "gen_ai.usage.output_tokens": {
+    "distinct": 1,
+    "samples": [
+     "1"
+    ]
+   },
+   "gen_ai.usage.total_tokens": {
+    "distinct": 1,
+    "samples": [
+     "2"
+    ]
+   },
+   "http.url": {
+    "distinct": 21,
+    "samples": [
+     "/actuator/health",
+     "/actuator/prometheus",
+     "/asistente/consulta",
+     "/asistente/estado-urgencias"
+    ]
+   },
+   "messaging.destination.name": {
+    "distinct": 1,
+    "samples": [
+     "triaje.eventos"
+    ]
+   },
+   "messaging.system": {
+    "distinct": 1,
+    "samples": [
+     "kafka"
+    ]
+   },
+   "method": {
+    "distinct": 3,
+    "samples": [
+     "GET",
+     "PATCH",
+     "POST"
+    ]
+   },
+   "outcome": {
+    "distinct": 5,
+    "samples": [
+     "CLIENT_ERROR",
+     "SERVER_ERROR",
+     "SUCCESS",
+     "server_error"
+    ]
+   },
+   "peer.service": {
+    "distinct": 1,
+    "samples": [
+     "Apache Kafka: kafka:29092"
+    ]
+   },
+   "provider": {
+    "distinct": 1,
+    "samples": [
+     "ollama"
+    ]
+   },
+   "reactor.kafka.client.id": {
+    "distinct": 1,
+    "samples": [
+     "triage-events-projection"
+    ]
+   },
+   "reactor.kafka.type": {
+    "distinct": 1,
+    "samples": [
+     "receiver"
+    ]
+   },
+   "spring.security.authentication.authorities": {
+    "distinct": 3,
+    "samples": [
+     "[SCOPE_corpus:admin, SCOPE_metrics:read, SCOPE_assistant:query]",
+     "[SCOPE_triage:read, SCOPE_triage:write, SCOPE_metrics:read]",
+     "n/a"
+    ]
+   },
+   "spring.security.authentication.type": {
+    "distinct": 2,
+    "samples": [
+     "UsernamePasswordAuthenticationToken",
+     "n/a"
+    ]
+   },
+   "spring.security.authorization.decision": {
+    "distinct": 1,
+    "samples": [
+     "true"
+    ]
+   },
+   "spring.security.authorization.decision.details": {
+    "distinct": 5,
+    "samples": [
+     "AuthorityAuthorizationDecision [granted=true, authorities=[SCOPE_assistant:query]]",
+     "AuthorityAuthorizationDecision [granted=true, authorities=[SCOPE_metrics:read]]",
+     "AuthorityAuthorizationDecision [granted=true, authorities=[SCOPE_triage:read]]",
+     "AuthorityAuthorizationDecision [granted=true, authorities=[SCOPE_triage:write]]"
+    ]
+   },
+   "spring.security.filterchain.position": {
+    "distinct": 1,
+    "samples": [
+     "8"
+    ]
+   },
+   "spring.security.filterchain.size": {
+    "distinct": 1,
+    "samples": [
+     "8"
+    ]
+   },
+   "spring.security.object": {
+    "distinct": 1,
+    "samples": [
+     "exchange"
+    ]
+   },
+   "spring.security.reached.filter.name": {
+    "distinct": 2,
+    "samples": [
+     "AuthorizationWebFilter",
+     "ServerWebExchangeReactorContextWebFilter"
+    ]
+   },
+   "spring.security.reached.filter.section": {
+    "distinct": 2,
+    "samples": [
+     "after",
+     "before"
+    ]
+   },
+   "status": {
+    "distinct": 7,
+    "samples": [
+     "200",
+     "201",
+     "400",
+     "401"
+    ]
+   },
+   "uri": {
+    "distinct": 10,
+    "samples": [
+     "/actuator/health",
+     "/actuator/prometheus",
+     "/asistente/consulta",
+     "/asistente/estado-urgencias"
+    ]
+   }
+  },
+  "eventAttributeKeys": [
+   "exception.message",
+   "exception.stacktrace",
+   "exception.type"
+  ],
+  "errorSpans": {
+   "clinical-assistant-service :: llm attempt ollama": {
+    "count": 1,
+    "messages": [
+     "LLM provider call failed: server_error"
+    ]
+   },
+   "clinical-assistant-service :: chat llama3.1:8b": {
+    "count": 1,
+    "messages": [
+     "500 Internal Server Error from POST http://host.docker.internal:21434/api/chat"
+    ]
+   },
+   "clinical-assistant-service :: http post /asistente/consulta": {
+    "count": 1,
+    "messages": [
+     "HTTP 503"
+    ]
+   }
+  },
+  "forbiddenHitsInSpans": {
+   "ZZCANARYNAME": 0,
+   "ZZCANARYCOMPLAINT": 0,
+   "ZZCANARYQUESTION": 0,
+   "ZZCANARYANSWER": 0,
+   "ZZCANARYRESPONDER": 0,
+   "Crisis hipertensiva": 0,
+   "<pregunta>": 0,
+   "<evidencia": 0,
+   "nifedipino": 0,
+   "<triage api key>": 0,
+   "<assistant api key>": 0
+  },
+  "registrationTrace": {
+   "traceId": "42feb24244c5bfd642514471b734027e",
+   "http": 200,
+   "spans": [
+    {
+     "service": "triage-service",
+     "operation": "http post /triage/pacientes",
+     "spanId": "c44f578aff789086",
+     "parent": "04260df0f049c06d",
+     "offsetMs": 0.0,
+     "durationMs": 1081.1,
+     "tags": [
+      "exception",
+      "http.url",
+      "method",
+      "otel.scope.name",
+      "otel.scope.version",
+      "outcome",
+      "span.kind",
+      "status",
+      "uri"
+     ]
+    },
+    {
+     "service": "triage-service",
+     "operation": "security filterchain before",
+     "spanId": "e08f061190948f11",
+     "parent": "c44f578aff789086",
+     "offsetMs": 11.9,
+     "durationMs": 27.3,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.filterchain.position",
+      "spring.security.filterchain.size",
+      "spring.security.reached.filter.name",
+      "spring.security.reached.filter.section"
+     ]
+    },
+    {
+     "service": "triage-service",
+     "operation": "authorize exchange",
+     "spanId": "25935fe4631f2e36",
+     "parent": "e08f061190948f11",
+     "offsetMs": 30.4,
+     "durationMs": 7.9,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.authentication.authorities",
+      "spring.security.authentication.type",
+      "spring.security.authorization.decision",
+      "spring.security.authorization.decision.details",
+      "spring.security.object"
+     ]
+    },
+    {
+     "service": "triage-service",
+     "operation": "secured request",
+     "spanId": "74a1b7662c6b3fbe",
+     "parent": "e08f061190948f11",
+     "offsetMs": 39.4,
+     "durationMs": 1028.5,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind"
+     ]
+    },
+    {
+     "service": "triage-service",
+     "operation": "security filterchain after",
+     "spanId": "545f7470413dcc80",
+     "parent": "e08f061190948f11",
+     "offsetMs": 1069.5,
+     "durationMs": 10.0,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.filterchain.position",
+      "spring.security.filterchain.size",
+      "spring.security.reached.filter.name",
+      "spring.security.reached.filter.section"
+     ]
+    },
+    {
+     "service": "triage-service",
+     "operation": "triaje.eventos publish",
+     "spanId": "393afb164c4e7371",
+     "parent": "74a1b7662c6b3fbe",
+     "offsetMs": 1383.3,
+     "durationMs": 3942.5,
+     "tags": [
+      "messaging.destination.name",
+      "messaging.system",
+      "otel.scope.name",
+      "otel.scope.version",
+      "span.kind"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "triaje.eventos receive",
+     "spanId": "e1539181e1122156",
+     "parent": "74a1b7662c6b3fbe",
+     "offsetMs": 7405.4,
+     "durationMs": 155.5,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "peer.service",
+      "reactor.kafka.client.id",
+      "reactor.kafka.type",
+      "span.kind"
+     ]
+    }
+   ],
+   "services": [
+    "clinical-assistant-service",
+    "triage-service"
+   ]
+  },
+  "assistantTrace": {
+   "traceId": "d65864ce6fdbfc3b0975682404abeab2",
+   "http": 200,
+   "spans": [
+    {
+     "service": "clinical-assistant-service",
+     "operation": "http post /asistente/consulta",
+     "spanId": "fce89bb0d2ab3035",
+     "parent": "f1bb57a8d25c1360",
+     "offsetMs": 0.0,
+     "durationMs": 5233.9,
+     "tags": [
+      "exception",
+      "http.url",
+      "method",
+      "otel.scope.name",
+      "otel.scope.version",
+      "outcome",
+      "span.kind",
+      "status",
+      "uri"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "security filterchain before",
+     "spanId": "719dd403a6b2ed1b",
+     "parent": "fce89bb0d2ab3035",
+     "offsetMs": 13.5,
+     "durationMs": 24.2,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.filterchain.position",
+      "spring.security.filterchain.size",
+      "spring.security.reached.filter.name",
+      "spring.security.reached.filter.section"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "authorize exchange",
+     "spanId": "9b6aaef79357e692",
+     "parent": "719dd403a6b2ed1b",
+     "offsetMs": 28.0,
+     "durationMs": 5.2,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.authentication.authorities",
+      "spring.security.authentication.type",
+      "spring.security.authorization.decision",
+      "spring.security.authorization.decision.details",
+      "spring.security.object"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "secured request",
+     "spanId": "b210c45db1ebed7c",
+     "parent": "719dd403a6b2ed1b",
+     "offsetMs": 37.9,
+     "durationMs": 5184.2,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "llm attempt ollama",
+     "spanId": "0d603b58f0c97abe",
+     "parent": "b210c45db1ebed7c",
+     "offsetMs": 926.2,
+     "durationMs": 4157.6,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "outcome",
+      "provider",
+      "span.kind"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "chat llama3.1:8b",
+     "spanId": "4e780b929f863669",
+     "parent": "0d603b58f0c97abe",
+     "offsetMs": 1524.6,
+     "durationMs": 3578.0,
+     "tags": [
+      "gen_ai.operation.name",
+      "gen_ai.request.model",
+      "gen_ai.response.finish_reasons",
+      "gen_ai.response.model",
+      "gen_ai.system",
+      "gen_ai.usage.input_tokens",
+      "gen_ai.usage.output_tokens",
+      "gen_ai.usage.total_tokens",
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind"
+     ]
+    },
+    {
+     "service": "clinical-assistant-service",
+     "operation": "security filterchain after",
+     "spanId": "3da602bc89a22c8a",
+     "parent": "719dd403a6b2ed1b",
+     "offsetMs": 5222.7,
+     "durationMs": 0.7,
+     "tags": [
+      "otel.scope.name",
+      "otel.scope.version",
+      "otel.status_code",
+      "span.kind",
+      "spring.security.filterchain.position",
+      "spring.security.filterchain.size",
+      "spring.security.reached.filter.name",
+      "spring.security.reached.filter.section"
+     ]
+    }
+   ],
+   "services": [
+    "clinical-assistant-service"
+   ]
+  }
+ },
+ "actuators": {
+  "triage-service": {
+   "withoutKeyHttp": 401,
+   "withKeyHttp": 200,
+   "forbiddenHits": 0
+  },
+  "clinical-assistant-service": {
+   "withoutKeyHttp": 401,
+   "withKeyHttp": 200,
+   "forbiddenHits": 0
+  }
+ }
+}

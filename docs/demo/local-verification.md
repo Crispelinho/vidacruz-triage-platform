@@ -129,9 +129,17 @@ Expected series after the flows above: `triage_patients_classified_total{level=.
 
 Open `http://localhost:9090` to query Prometheus and `http://localhost:3000` for the provisioned **VidaCruz — NFR-07 flow and latency** dashboard (anonymous viewer). If `TRIAGE_API_KEY` or `ASSISTANT_API_KEY` was overridden in `.env`, update the matching `secrets` in `observability/prometheus/prometheus.yml` so the scrapes keep returning `200` instead of `401`.
 
+Platform alert rules live in `observability/prometheus/alerts.yml` and show on `http://localhost:9090/alerts`: target down, server error ratio, unavailable answer ratio, open LLM circuit breaker, urgency consumer lag, stalled outbox and outbox events flagged for review. They notify nobody (no Alertmanager) and are not the SLA alerts of `/triage/alertas`. They use the outbox gauges `triage_outbox_{pending,failing,requires_review,oldest_pending_age_seconds}` and `resilience4j_circuitbreaker_state`. To see one fire, stop the broker (`docker compose stop kafka`), register a patient and wait about three minutes for `OutboxPublishingStalled`; `docker compose start kafka` clears it.
+
+Check the rules and the dashboard queries with `promtool` (needs Docker):
+
+```bash
+python -m unittest discover -s observability/tests -v
+```
+
 ## 8. NFR-16 — one trace across both services
 
-Compose starts Jaeger 2.x and points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.
+Compose starts Jaeger `2.20.0`. It is pinned below `2.23.0` on purpose: 2.21 removed the v1 query API that the Jaeger datasource of Grafana 12.1.1 uses, so with a newer release the datasource health check and the Explore search fail. The pin gives up the 2.21–2.23 hardening (among it, panic recovery in query handlers, input escaping and checks, an Apache Thrift update and a non-root group in the image; the group is set explicitly in Compose and in `k8s/local`), so keep the UI local. Upgrade when Grafana's datasource uses Jaeger's `/api/v3` ([grafana-jaeger-datasource#87](https://github.com/grafana/grafana-jaeger-datasource/issues/87)) and `observability/tests/test_jaeger.py` is updated with it. Compose points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.
 
 ```bash
 TRACE_ID=4bf92f3577b34da6a3ce929d0e0e4736

@@ -60,6 +60,8 @@ app:
     batch-size: ${OUTBOX_BATCH_SIZE:100}
     lease-seconds: ${OUTBOX_LEASE_SECONDS:30}
     publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS:5000}
+    # How often the backlog gauges re-read the outbox (NFR-07). Scrapes never query the database.
+    metrics-interval-ms: ${OUTBOX_METRICS_INTERVAL_MS:15000}
   idempotency:
     cleanup-enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:false}
     cleanup-interval-ms: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:3600000}

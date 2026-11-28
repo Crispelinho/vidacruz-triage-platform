@@ -102,7 +102,12 @@ services:
 
   # NFR-16: local trace collector and UI. Both services export OTLP/HTTP here; no cloud backend.
   jaeger:
-    image: jaegertracing/jaeger:2.23.0
+    # Pinned below 2.23.0 on purpose: 2.21 removed the v1 query API that the Jaeger datasource of Grafana 12.1.1
+    # calls (health check and search failed). 2.20.0 is the last release that serves it, and lacks the 2.21-2.23
+    # hardening. Upgrade once Grafana's datasource uses Jaeger's /api/v3 (grafana/grafana-jaeger-datasource#87) and
+    # observability/tests/test_jaeger.py is updated. Local UI only: do not expose it.
+    image: jaegertracing/jaeger:2.20.0
+    user: "10001:10001"
     ports:
       - "${JAEGER_PORT:-16686}:16686"
 
@@ -112,6 +117,7 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"

@@ -242,7 +242,7 @@ Requirements: NFR-03 (circuit breaker with explicit fallback, 503), TC-05 (Resil
 | Open-state behavior | "circuit open → 503" | Covered: a call on an open circuit fails immediately with 503 `LLM_UNAVAILABLE` and does not call the provider |
 | Retries | Not specified | PROPOSED: no automatic retries on the LLM call, to keep latency bounded. Retry belongs to the caller |
 | Fallback | 503 `LLM_UNAVAILABLE` | Covered (API-04 error table) |
-| Metrics | `vidacruz.llm.latency` timer, tag `outcome` ∈ {success, timeout, fallback} (D0 §13) | Covered. PROPOSED: add `citation_rejected` as an outcome of the answer path, not of the LLM timer |
+| Metrics | `assistant.llm.latency` timer, tag `outcome` ∈ {success, timeout, rate_limited, server_error, rejected, network, other}; planned in D0 §13 as `vidacruz.llm.latency` | Covered. PROPOSED: add `citation_rejected` as an outcome of the answer path, not of the LLM timer |
 
 **Mapping of failures to responses:**
 
@@ -428,7 +428,7 @@ Path: `clinical-assistant-service/clinical-assistant-service`. Spring Boot 3.5.1
 | NFR-04 Triage never depends on the Assistant | **Covered** (this side) | No Triage call; events only | — |
 | NFR-05 health, readiness, liveness | **Gap** | Readiness with empty corpus and Redis down is undefined | G-22 |
 | NFR-06 structured logs with correlation ID | **Covered** | Header and Kafka header propagation (DER-07) | G-16 (names and content policy) |
-| NFR-07 Micrometer metrics (LLM latency minimum) | **Covered** | `vidacruz.llm.latency` | — |
+| NFR-07 Micrometer metrics (LLM latency minimum) | **Covered** | `assistant.llm.latency` | — |
 | NFR-08 configurable properties | **Gap** | No property names or defaults exist | G-05, G-02 |
 | NFR-09 no hardcoded credentials; LLM key from env | **Covered** (requirement); DER-01 conflict | Startup failure vs 503 open | G-12 |
 | NFR-10 authentication (API key) | **Gap** | Filter design, key source, 401 body | G-21 |

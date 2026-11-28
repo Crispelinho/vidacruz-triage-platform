@@ -1,0 +1,7 @@
+# Memory-constrained variant: runs only the assistant side against the loopback LLM stub, without Kafka or triage.
+# OBS_ASSISTANT_IMAGE must name an image already built from the commit under test; start it with --no-build --no-deps.
+services:
+  clinical-assistant-service:
+    image: ${OBS_ASSISTANT_IMAGE:?set OBS_ASSISTANT_IMAGE to an image built from the commit under test}
+    environment:
+      URGENCY_CONSUMER_ENABLED: "false"

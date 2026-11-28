@@ -11,12 +11,15 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import reactor.core.Disposable;
@@ -40,13 +43,24 @@ public class OutboxPublisher {
 	private final String owner = UUID.randomUUID().toString();
 	private final long publishIntervalMs;
 	private Disposable timer;
+	private final OutboxPublishTracing tracing;
 
+	/** A publisher whose publications are not traced. */
+	OutboxPublisher(OutboxEventoRepository repository, KafkaTemplate<String, String> kafkaTemplate, String topic,
+			int batchSize, long leaseSeconds, long publishIntervalMs) {
+		this(repository, kafkaTemplate, topic, batchSize, leaseSeconds, publishIntervalMs,
+				new OutboxPublishTracing(Tracer.NOOP, Propagator.NOOP));
+	}
+
+	@Autowired
 	public OutboxPublisher(OutboxEventoRepository repository,
 			KafkaTemplate<String, String> kafkaTemplate,
 			@Value("${app.outbox.topic:${TRIAGE_EVENTS_TOPIC:triaje.eventos}}") String topic,
 			@Value("${app.outbox.batch-size:50}") int batchSize,
 			@Value("${app.outbox.lease-seconds:30}") long leaseSeconds,
-			@Value("${app.outbox.publish-interval-ms:5000}") long publishIntervalMs) {
+			@Value("${app.outbox.publish-interval-ms:5000}") long publishIntervalMs,
+			OutboxPublishTracing tracing) {
+		this.tracing = tracing;
 		this.repository = repository;
 		this.kafkaTemplate = kafkaTemplate;
 		this.topic = topic;
@@ -115,10 +129,11 @@ public class OutboxPublisher {
 					}
 					// KafkaTemplate.send() blocks on metadata before returning its future; keep it off the reactor
 					// event loop (TST-RXN). The bounded pool is the same non-blocking-boundary pattern as pgvector.
-					return Mono.defer(() -> Mono.fromFuture(
+					var send = Mono.defer(() -> Mono.fromFuture(
 									() -> kafkaTemplate.send(recordOf(event)), false))
 							.subscribeOn(Schedulers.boundedElastic())
-							.timeout(Duration.ofSeconds(leaseSeconds))
+							.timeout(Duration.ofSeconds(leaseSeconds));
+					return tracing.traced(event.getTraceParent(), topic, send)
 							.then(repository.markPublished(event.getEventId(),
 									OffsetDateTime.now(ZoneOffset.UTC)))
 							.thenReturn(1);
