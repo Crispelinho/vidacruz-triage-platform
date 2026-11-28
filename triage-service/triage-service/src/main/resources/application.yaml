@@ -72,9 +72,12 @@ triage:
   # Required (ADR-07): no default, so a missing TRIAGE_API_KEY stops startup instead of accepting a public key.
   # Docker Compose and the local K8s overlay supply their own local-only values.
   api-key: ${TRIAGE_API_KEY:}
-  # M-2: optional scoped keys, "id|scope,scope|key" entries separated by ";". Scopes: triage:read, triage:write,
-  # metrics:read. When blank, the single api-key above is accepted with every scope (backward compatible).
-  # Example: TRIAGE_API_KEYS="dashboard|triage:read|<key-1>;intake|triage:read,triage:write|<key-2>;prometheus|metrics:read|<key-3>"
+  # M-2: the api-key above is the owner key and always keeps every scope. The settings below are optional and add
+  # keys next to it. Scopes: triage:read, triage:write, metrics:read.
+  # Revocable evaluator key with triage:read + triage:write; unset it to revoke.
+  reviewer-api-key: ${TRIAGE_REVIEWER_API_KEY:}
+  # Extra scoped keys, "id|scope,scope|key" entries separated by ";".
+  # Example: TRIAGE_API_KEYS="dashboard|triage:read|<key-1>;prometheus|metrics:read|<key-2>"
   api-keys: ${TRIAGE_API_KEYS:}
   sla:
     evaluation-enabled: ${TRIAGE_SLA_EVALUATION_ENABLED:false}

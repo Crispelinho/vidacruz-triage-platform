@@ -16,6 +16,9 @@ public final class TriageScopes {
 
 	public static final Set<String> ALL = Set.of(READ, WRITE, METRICS);
 
+	/** The optional, revocable evaluator key: the whole triage API, but not the metrics scrape. */
+	public static final Set<String> REVIEWER = Set.of(READ, WRITE);
+
 	private TriageScopes() {
 	}
 

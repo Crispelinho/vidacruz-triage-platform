@@ -16,6 +16,9 @@ public final class ClinicalScopes {
 
 	public static final Set<String> ALL = Set.of(QUERY, CORPUS_ADMIN, METRICS);
 
+	/** The optional, revocable evaluator key: questions and reads, never corpus ingestion. */
+	public static final Set<String> REVIEWER = Set.of(QUERY);
+
 	private ClinicalScopes() {
 	}
 

@@ -20,7 +20,8 @@ import com.vidacruz.clinical.domain.ports.ConsultationMetrics;
 @WebFluxTest(controllers = ScopedRouteAuthorizationTest.StubRoutes.class)
 @Import({ SecurityConfiguration.class, ScopedRouteAuthorizationTest.StubRoutes.class })
 @TestPropertySource(properties = { "assistant.api-keys=frontend|assistant:query|query-key-0001;"
-		+ "curator|corpus:admin|corpus-key-0002;prometheus|metrics:read|metrics-key-0003" })
+		+ "curator|corpus:admin|corpus-key-0002;prometheus|metrics:read|metrics-key-0003",
+		"assistant.api-key=owner-key-0000", "assistant.reviewer-api-key=reviewer-key-0004" })
 class ScopedRouteAuthorizationTest {
 
 	@Autowired
@@ -66,8 +67,27 @@ class ScopedRouteAuthorizationTest {
 		client.get().uri("/actuator/health/liveness").exchange().expectStatus().isOk();
 		client.get().uri("/other").header("X-API-Key", "query-key-0001").exchange().expectStatus().isForbidden();
 		client.post().uri("/rag").exchange().expectStatus().isUnauthorized();
-		client.post().uri("/rag").header("X-API-Key", "test-assistant-key").exchange()
-				.expectStatus().isUnauthorized();
+		client.post().uri("/rag").header("X-API-Key", "wrong").exchange().expectStatus().isUnauthorized();
+	}
+
+	@Test
+	void ownerKeyKeepsEveryScopeIncludingCorpusIngestion() {
+		client.post().uri("/asistente/consulta").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+		client.post().uri("/clinical/corpus/ingest").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+		client.get().uri("/actuator/prometheus").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+	}
+
+	@Test
+	void reviewerKeyCanAskButCannotIngestCorpus() {
+		client.post().uri("/asistente/consulta").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isOk();
+		client.get().uri("/asistente/estado-urgencias").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isOk();
+		client.post().uri("/clinical/corpus/ingest").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isForbidden();
 	}
 
 	@RestController

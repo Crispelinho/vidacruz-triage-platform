@@ -31,7 +31,7 @@ import ch.qos.logback.core.read.ListAppender;
 @Import({ SecurityConfiguration.class, ScopedRouteAuthorizationTest.StubRoutes.class })
 @TestPropertySource(properties = { "triage.api-keys=dashboard|triage:read|reader-key-0001;"
 		+ "intake|triage:read,triage:write|writer-key-0002;prometheus|metrics:read|metrics-key-0003",
-		"triage.api-key=legacy-key-is-ignored" })
+		"triage.api-key=owner-key-0000", "triage.reviewer-api-key=reviewer-key-0004" })
 class ScopedRouteAuthorizationTest {
 
 	private static final String PATIENT = "/triage/pacientes/3f2c1b9e-0000-4000-8000-000000000001";
@@ -89,11 +89,31 @@ class ScopedRouteAuthorizationTest {
 	}
 
 	@Test
-	void missingWrongAndLegacyKeysGet401() {
+	void ownerKeyKeepsEveryScopeNextToTheScopedKeys() {
+		client.get().uri(PATIENT).header("X-API-Key", "owner-key-0000").exchange().expectStatus().isOk();
+		client.post().uri("/triage/pacientes").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+		client.patch().uri(PATIENT + "/estado").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+		client.get().uri("/actuator/prometheus").header("X-API-Key", "owner-key-0000").exchange()
+				.expectStatus().isOk();
+	}
+
+	@Test
+	void reviewerKeyUsesTheWholeTriageApiButNotMetrics() {
+		client.get().uri(PATIENT).header("X-API-Key", "reviewer-key-0004").exchange().expectStatus().isOk();
+		client.post().uri("/triage/pacientes").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isOk();
+		client.patch().uri(PATIENT + "/estado").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isOk();
+		client.get().uri("/actuator/prometheus").header("X-API-Key", "reviewer-key-0004").exchange()
+				.expectStatus().isForbidden();
+	}
+
+	@Test
+	void missingAndWrongKeysGet401() {
 		client.get().uri(PATIENT).exchange().expectStatus().isUnauthorized();
 		client.get().uri(PATIENT).header("X-API-Key", "wrong").exchange().expectStatus().isUnauthorized();
-		client.get().uri(PATIENT).header("X-API-Key", "legacy-key-is-ignored").exchange()
-				.expectStatus().isUnauthorized();
 	}
 
 	@Test

@@ -15,47 +15,60 @@ import java.util.regex.Pattern;
 /**
  * The accepted API keys, each with an id and a set of scopes (M-2, ADR-07).
  *
- * <p>Format of the multi-key property: entries separated by {@code ;}, each entry {@code id|scope,scope|key}. The key
- * is the last field, so it may contain {@code |} but not {@code ;}. Example:
- * {@code frontend|assistant:query|<key-1>;curator|assistant:query,corpus:admin|<key-2>}.
+ * <p>Three sources, all additive:
+ * <ul>
+ * <li>the owner key (the existing single key), always accepted with id {@value #OWNER_KEY_ID} and every scope, so
+ * current deployments keep working with no configuration change;</li>
+ * <li>an optional reviewer key, id {@value #REVIEWER_KEY_ID}, with a fixed scope set that never includes
+ * administrative scopes; revoke it by unsetting it;</li>
+ * <li>optional extra scoped keys: entries separated by {@code ;}, each {@code id|scope,scope|key}. The key is the last
+ * field, so it may contain {@code |} but not {@code ;}. Example: {@code frontend|assistant:query|<key-1>}.</li>
+ * </ul>
  *
- * <p>Backward compatibility: when the multi-key property is blank, the single legacy key is accepted with id
- * {@value #LEGACY_KEY_ID} and every scope. Only key ids are ever logged; key values are kept as SHA-256 digests.
+ * <p>Only key ids are ever logged; key values are kept as SHA-256 digests.
  */
 public final class ApiKeyRegistry {
 
-	public static final String LEGACY_KEY_ID = "default";
+	public static final String OWNER_KEY_ID = "owner";
+
+	public static final String REVIEWER_KEY_ID = "reviewer";
 
 	private static final Pattern KEY_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
 
 	private final List<Entry> entries;
 
 	private ApiKeyRegistry(List<Entry> entries) {
-		if (entries.isEmpty()) {
-			throw new IllegalArgumentException("at least one API key must be configured");
-		}
 		this.entries = List.copyOf(entries);
 	}
 
-	/** One key with every known scope: the pre-M-2 behaviour. */
-	public static ApiKeyRegistry single(String key, Set<String> allScopes) {
-		return new ApiKeyRegistry(List.of(new Entry(LEGACY_KEY_ID, digest(requireKey(key, LEGACY_KEY_ID)),
-				Set.copyOf(allScopes))));
+	/** Only the owner key, with every known scope: the pre-M-2 behaviour. */
+	public static ApiKeyRegistry single(String ownerKey, Set<String> allScopes) {
+		return create(ownerKey, null, Set.of(), null, allScopes);
 	}
 
 	/**
-	 * @param multiKeys   the {@code id|scopes|key;...} property; blank falls back to {@code legacyKey}
-	 * @param legacyKey   the single key used when {@code multiKeys} is blank
-	 * @param knownScopes scopes this service understands; anything else fails startup
+	 * @param ownerKey       the existing single key; required, always gets every known scope
+	 * @param reviewerKey    optional; blank means no reviewer key
+	 * @param reviewerScopes scopes of the reviewer key
+	 * @param extraKeys      optional {@code id|scopes|key;...} entries
+	 * @param knownScopes    scopes this service understands; anything else fails startup
 	 */
-	public static ApiKeyRegistry parse(String multiKeys, String legacyKey, Set<String> knownScopes) {
-		if (multiKeys == null || multiKeys.isBlank()) {
-			return single(legacyKey, knownScopes);
-		}
+	public static ApiKeyRegistry create(String ownerKey, String reviewerKey, Set<String> reviewerScopes,
+			String extraKeys, Set<String> knownScopes) {
 		List<Entry> entries = new ArrayList<>();
 		Set<String> ids = new HashSet<>();
 		Set<String> digests = new HashSet<>();
-		for (String raw : multiKeys.split(";")) {
+		add(entries, ids, digests, OWNER_KEY_ID, Set.copyOf(knownScopes), requireKey(ownerKey, OWNER_KEY_ID));
+		if (reviewerKey != null && !reviewerKey.isBlank()) {
+			if (!knownScopes.containsAll(reviewerScopes)) {
+				throw new IllegalArgumentException("reviewer scopes must be known scopes");
+			}
+			add(entries, ids, digests, REVIEWER_KEY_ID, Set.copyOf(reviewerScopes), reviewerKey.strip());
+		}
+		if (extraKeys == null || extraKeys.isBlank()) {
+			return new ApiKeyRegistry(entries);
+		}
+		for (String raw : extraKeys.split(";")) {
 			if (raw.isBlank()) {
 				continue;
 			}
@@ -67,9 +80,6 @@ public final class ApiKeyRegistry {
 			String id = fields[0].strip();
 			if (!KEY_ID.matcher(id).matches()) {
 				throw new IllegalArgumentException("API key id must match " + KEY_ID.pattern() + ": " + id);
-			}
-			if (!ids.add(id)) {
-				throw new IllegalArgumentException("duplicate API key id: " + id);
 			}
 			Set<String> scopes = new LinkedHashSet<>();
 			for (String scope : fields[1].split(",")) {
@@ -85,13 +95,21 @@ public final class ApiKeyRegistry {
 			if (scopes.isEmpty()) {
 				throw new IllegalArgumentException("API key id " + id + " has no scope");
 			}
-			byte[] digest = digest(requireKey(fields[2].strip(), id));
-			if (!digests.add(Arrays.toString(digest))) {
-				throw new IllegalArgumentException("API key id " + id + " reuses the value of another key");
-			}
-			entries.add(new Entry(id, digest, Set.copyOf(scopes)));
+			add(entries, ids, digests, id, Set.copyOf(scopes), requireKey(fields[2].strip(), id));
 		}
 		return new ApiKeyRegistry(entries);
+	}
+
+	private static void add(List<Entry> entries, Set<String> ids, Set<String> digests, String id, Set<String> scopes,
+			String key) {
+		if (!ids.add(id)) {
+			throw new IllegalArgumentException("duplicate API key id: " + id);
+		}
+		byte[] digest = digest(key);
+		if (!digests.add(Arrays.toString(digest))) {
+			throw new IllegalArgumentException("API key id " + id + " reuses the value of another key");
+		}
+		entries.add(new Entry(id, digest, scopes));
 	}
 
 	/**

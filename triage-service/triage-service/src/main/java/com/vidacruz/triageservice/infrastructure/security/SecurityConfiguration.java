@@ -29,13 +29,13 @@ public class SecurityConfiguration {
 	static final String FORBIDDEN_MESSAGE = "The X-API-Key does not grant the scope this operation requires";
 
 	/**
-	 * Fail-closed (ADR-07): no default key. With both {@code triage.api-keys} and {@code triage.api-key} blank,
-	 * {@link ApiKeyRegistry#parse} throws and startup stops instead of accepting a public key.
+	 * Fail-closed (ADR-07): no default key. With {@code triage.api-key} blank,
+	 * {@link ApiKeyRegistry#create} throws and startup stops instead of accepting a public key.
 	 */
 	@Bean
-	ApiKeyRegistry triageApiKeyRegistry(@Value("${triage.api-keys:}") String apiKeys,
-			@Value("${triage.api-key:}") String legacyApiKey) {
-		return ApiKeyRegistry.parse(apiKeys, legacyApiKey, TriageScopes.ALL);
+	ApiKeyRegistry triageApiKeyRegistry(@Value("${triage.api-key:}") String ownerApiKey,
+			@Value("${triage.reviewer-api-key:}") String reviewerApiKey, @Value("${triage.api-keys:}") String apiKeys) {
+		return ApiKeyRegistry.create(ownerApiKey, reviewerApiKey, TriageScopes.REVIEWER, apiKeys, TriageScopes.ALL);
 	}
 
 	/** Runs right after CorrelationIdWebFilter, so a 401 carries the request's correlation id. */
