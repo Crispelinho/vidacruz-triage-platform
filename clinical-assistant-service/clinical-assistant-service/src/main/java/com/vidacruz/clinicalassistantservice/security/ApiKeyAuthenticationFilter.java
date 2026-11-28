@@ -33,9 +33,17 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 	static final String UNAUTHORIZED_CODE = "UNAUTHORIZED";
 	static final String UNAUTHORIZED_MESSAGE = "Invalid or missing X-API-Key header";
 
-	private static final Set<String> PUBLIC_PATHS = Set.of("/actuator/health", "/health");
+	private static final Set<String> PUBLIC_PATHS = Set.of(
+			"/actuator/health",
+			"/health",
+			"/swagger-ui.html",
+			"/v3/api-docs",
+			"/v3/api-docs/swagger-config");
 	private static final String ACTUATOR_HEALTH_PREFIX = "/actuator/health/";
 	private static final String HEALTH_PREFIX = "/health/";
+	private static final String SWAGGER_UI_PREFIX = "/swagger-ui";
+	private static final String WEBJARS_PREFIX = "/webjars/";
+	private static final String OPENAPI_DOCS_PREFIX = "/v3/api-docs/";
 	private static final Logger LOGGER = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
 
 	private final String expectedKey;
@@ -65,7 +73,12 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 	}
 
 	private static boolean isPublic(String path) {
-		return PUBLIC_PATHS.contains(path) || path.startsWith(ACTUATOR_HEALTH_PREFIX) || path.startsWith(HEALTH_PREFIX);
+		return PUBLIC_PATHS.contains(path)
+				|| path.startsWith(ACTUATOR_HEALTH_PREFIX)
+				|| path.startsWith(HEALTH_PREFIX)
+				|| path.startsWith(SWAGGER_UI_PREFIX)
+				|| path.startsWith(WEBJARS_PREFIX)
+				|| path.startsWith(OPENAPI_DOCS_PREFIX);
 	}
 
 	private boolean matches(String providedKey) {
