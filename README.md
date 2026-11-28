@@ -138,7 +138,6 @@ Owner decisions from the 2026-11-27 security review that are **not in `main` yet
 | A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Merged into `develop`; not released to `main` yet |
 | One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Merged into `develop`; not released to `main` yet. GitHub side applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
 | M-5 gap: PII redaction also for the optional OpenRouter node | PR #189 | Open |
-| Remove the repository-level copies of the seven secrets, then the empty `gemini-verification` and `openrouter-verification` environments | GitHub settings | Pending. Unblocked: every workflow on `develop` that reads secrets now uses `azure` |
 
 **Deferred improvements**
 
@@ -153,6 +152,7 @@ Owner decisions from the 2026-11-27 security review that are **not in `main` yet
 | B-4 | Size and rate limits on corpus ingestion to cap embedding costs |
 | B-5 | Remove Azure identifiers and personal data from versioned documentation |
 | B-6 | Remove dead scaffolding that can be mistaken for the real code |
+| CI/CD secrets | After the next `develop` → `main` release, delete the repository-level copies of the seven secrets (already inside `azure`) and the empty `gemini-verification` and `openrouter-verification` environments. Not done earlier on purpose: on `main`, `deploy.yml` already reads them from `azure`, but the two real-provider verifications still use the old environments and would lose `GEMINI_API_KEY` / `OPENROUTER_API_KEY` |
 
 ## Known limits
 
