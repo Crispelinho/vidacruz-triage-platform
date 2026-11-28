@@ -4,6 +4,7 @@ Run from the repository root (needs Docker): python -m unittest discover -s obse
 """
 
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -59,7 +60,11 @@ class QueryArithmetic(unittest.TestCase):
         document = {"evaluation_interval": "15s", "tests": tests}
         with tempfile.TemporaryDirectory() as directory:
             # promtool reads YAML, and JSON is valid YAML.
-            pathlib.Path(directory, "queries.test.yml").write_text(json.dumps(document), encoding="utf-8")
+            queries = pathlib.Path(directory, "queries.test.yml")
+            queries.write_text(json.dumps(document), encoding="utf-8")
+            # The image runs promtool as an unprivileged user; on Linux the temporary directory is private by default.
+            os.chmod(directory, 0o755)
+            os.chmod(queries, 0o644)
             result = promtool.run(directory, "test", "rules", "queries.test.yml")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
@@ -89,12 +94,26 @@ class QueryArithmetic(unittest.TestCase):
             "promql_expr_test": [{"expr": expression, "eval_time": "5m", "exp_samples": []}],
         }])
 
-    def test_error_responses_count_the_first_occurrence_of_a_new_series(self):
+    def test_error_responses_do_not_report_lifetime_totals_after_a_failed_scrape(self):
         expression = PANELS[ERRORS_PANEL]["targets"][0]["expr"]
-        series = 'http_server_requests_seconds_count{{application="triage-service",status="{}"}}'
+        # The scrape at 4m fails, which marks the series stale; one minute later it is back with its old total.
         self.assert_promql([{
             "interval": "15s",
             "input_series": [
+                {"series": 'up{job="triage"}', "values": "1x15 0 1x4"},
+                {"series": 'http_server_requests_seconds_count{application="triage-service",job="triage",status="503"}',
+                 "values": "40x15 stale 40x4"},
+            ],
+            "promql_expr_test": [{"expr": expression, "eval_time": "5m", "exp_samples": []}],
+        }])
+
+    def test_error_responses_count_the_first_occurrence_of_a_new_series(self):
+        expression = PANELS[ERRORS_PANEL]["targets"][0]["expr"]
+        series = 'http_server_requests_seconds_count{{application="triage-service",job="triage",status="{}"}}'
+        self.assert_promql([{
+            "interval": "15s",
+            "input_series": [
+                {"series": 'up{job="triage"}', "values": "1x20"},
                 # Existing series: two more errors during the last minute.
                 {"series": series.format("409"), "values": "5x16 6 7x3"},
                 # New series: its first error appears 30 s before the evaluation.

@@ -160,14 +160,14 @@
     {
       "type": "timeseries",
       "title": "Respuestas HTTP 4xx/5xx por servicio",
-      "description": "Error responses during the previous minute, including the first one of a new status or route.",
+      "description": "Error responses during the previous minute, including the first one of a new status or route. A series that appears while its target was not being scraped a minute earlier is left out, so a failed scrape does not show lifetime totals.",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [{
         "refId": "A",
-        "expr": "sum by (application, status) (clamp_min(http_server_requests_seconds_count{status=~\"4..|5..\"} - http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m, 0) or (http_server_requests_seconds_count{status=~\"4..|5..\"} unless http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m))",
+        "expr": "sum by (application, status) (clamp_min(http_server_requests_seconds_count{status=~\"4..|5..\"} - http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m, 0) or ((http_server_requests_seconds_count{status=~\"4..|5..\"} unless http_server_requests_seconds_count{status=~\"4..|5..\"} offset 1m) and on (job, instance) (up offset 1m == 1)))",
         "legendFormat": "{{application}} {{status}}"
       }]
     },

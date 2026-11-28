@@ -35,9 +35,12 @@ groups:
         annotations:
           summary: "Most clinical questions are ending as unavailable"
 
-      # Half-open counts: a failing node cycles between open and half-open, and it is only recovered once closed.
+      # A failing node cycles between open and half-open, so half-open counts while the breaker was open in the last two
+      # minutes. A node that stays half-open because nothing calls it any more stops alerting.
       - alert: LlmCircuitBreakerOpen
-        expr: max by (name) (resilience4j_circuitbreaker_state{state=~"open|half_open"}) == 1
+        expr: |
+          max by (name) (max_over_time(resilience4j_circuitbreaker_state{state="open"}[2m])) == 1
+          and max by (name) (resilience4j_circuitbreaker_state{state=~"open|half_open"}) == 1
         for: 1m
         labels:
           severity: warning

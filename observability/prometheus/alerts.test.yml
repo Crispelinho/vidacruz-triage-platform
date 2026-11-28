@@ -135,6 +135,19 @@ tests:
           - labels: '{alertname="LlmCircuitBreakerOpen", alertstate="firing", name="ollama"}'
             value: 1
 
+  # A node nobody calls any more, such as a fallback after the primary recovered, never leaves half-open.
+  - name: an idle half-open breaker stops alerting
+    interval: 30s
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{name="gemini",state="open"}'
+        values: "1 1 0x20"
+      - series: 'resilience4j_circuitbreaker_state{name="gemini",state="half_open"}'
+        values: "0 0 1x20"
+    promql_expr_test:
+      - expr: ALERTS
+        eval_time: 6m
+        exp_samples: []
+
   - name: a breaker that closed again stays quiet
     interval: 30s
     input_series:
