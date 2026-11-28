@@ -61,6 +61,7 @@ public class SecurityConfiguration {
 				.securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
 				.authorizeExchange(exchanges -> exchanges
 						.pathMatchers("/actuator/health", "/actuator/health/**", "/health", "/health/**").permitAll()
+						.pathMatchers("/triage/actuator/health", "/triage/actuator/health/**", "/triage/health", "/triage/health/**", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
 						.pathMatchers("/actuator/**").hasAuthority(TriageScopes.authority(TriageScopes.METRICS))
 						.pathMatchers(HttpMethod.GET, "/triage/**").hasAuthority(TriageScopes.authority(TriageScopes.READ))
 						.pathMatchers(HttpMethod.POST, "/triage/**")

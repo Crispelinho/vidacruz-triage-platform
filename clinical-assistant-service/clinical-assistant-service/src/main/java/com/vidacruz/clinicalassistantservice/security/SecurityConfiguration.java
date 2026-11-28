@@ -57,6 +57,7 @@ public class SecurityConfiguration {
 				.securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
 				.authorizeExchange(exchanges -> exchanges
 						.pathMatchers("/actuator/health", "/actuator/health/**", "/health", "/health/**").permitAll()
+						.pathMatchers("/asistente/actuator/health", "/asistente/actuator/health/**", "/asistente/health", "/asistente/health/**", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
 						.pathMatchers("/actuator/**").hasAuthority(ClinicalScopes.authority(ClinicalScopes.METRICS))
 						.pathMatchers(HttpMethod.POST, "/clinical/corpus/ingest")
 						.hasAuthority(ClinicalScopes.authority(ClinicalScopes.CORPUS_ADMIN))
