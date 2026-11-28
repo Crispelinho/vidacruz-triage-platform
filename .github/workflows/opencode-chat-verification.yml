@@ -1,0 +1,42 @@
+name: OpenCode chat verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tst-rag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+          cache-dependency-path: clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Require the OpenCode Secret
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: test -n "$OPENCODE_API_KEY"
+
+      - name: Run real-provider chat gates
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        working-directory: clinical-assistant-service/clinical-assistant-service
+        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.OpenCodeChatVerificationTest'
+
+      - name: Upload chat verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-chat-verification
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/opencode-chat-verification/results.json
+          if-no-files-found: warn
