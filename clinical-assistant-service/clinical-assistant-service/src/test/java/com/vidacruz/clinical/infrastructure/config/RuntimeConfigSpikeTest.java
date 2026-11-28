@@ -46,6 +46,12 @@ class RuntimeConfigSpikeTest {
             assertThat(chain.providerKeys()).containsExactly("ollama", "gemini", "opencode");
             assertThat(chain.timeout()).isEqualTo(Duration.ofSeconds(15));
 
+            GroundingProperties grounding = context.getBean(GroundingProperties.class);
+            assertThat(grounding.markerlessMinOverlap()).isEqualTo(0.2d);
+            assertThat(grounding.minLexicalOverlap()).isEqualTo(0.2d);
+            assertThat(grounding.requireMarkers()).isFalse();
+            assertThat(grounding.numbersMustAppearInEvidence()).isFalse();
+
             OllamaProperties ollama = context.getBean(OllamaProperties.class);
             assertThat(ollama.url()).isEqualTo("http://localhost:11434");
             assertThat(ollama.model()).isEqualTo("llama3.1:8b");

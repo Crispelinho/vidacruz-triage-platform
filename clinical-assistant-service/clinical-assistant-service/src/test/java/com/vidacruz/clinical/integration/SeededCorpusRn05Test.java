@@ -209,7 +209,7 @@ class SeededCorpusRn05Test {
 	private static String jsonAnswer(EvidenceFragment fragment) {
 		ObjectMapper mapper = new ObjectMapper();
 		var root = mapper.createObjectNode();
-		root.put("respuesta", "respuesta valida [1]");
+		root.put("respuesta", "respuesta valida " + fragment.content() + " [1]");
 		var sources = root.putArray("fuentes");
 		sources.addObject().put("protocolo", fragment.protocol()).put("seccion", fragment.section());
 		return root.toString();
