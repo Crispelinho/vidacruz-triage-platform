@@ -35,6 +35,11 @@ dependencies {
 	// springdoc 2.x targets Spring Boot 3.x and serves /v3/api-docs plus the Swagger UI behind the public /docs routes.
 	implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.10.1")
 	implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
+	// ADR-05 experiment: all three C17 chat nodes run on Spring AI ChatClient. The ollama starter supplies its
+	// ChatModel; the other two providers are built explicitly from custom properties (no second autoconfiguration).
+	implementation("org.springframework.ai:spring-ai-starter-model-ollama")
+	implementation("org.springframework.ai:spring-ai-google-genai")
+	implementation("org.springframework.ai:spring-ai-openai")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.flywaydb:flyway-database-postgresql")

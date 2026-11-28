@@ -27,6 +27,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -258,9 +259,18 @@ class GeminiEmbeddingVerificationTest {
 	private static RAGService service(AtomicBoolean llmCalled) {
 		LLMRouter router = (question, evidence) -> {
 			llmCalled.set(true);
-			String answer = "{\"respuesta\":\"respuesta valida [1]\",\"fuentes\":[{\"protocolo\":\""
-					+ evidence.get(0).protocol() + "\",\"seccion\":\"" + evidence.get(0).section() + "\"}]}";
-			return reactor.core.publisher.Mono.just(new LLMCompletion("stub", "stub", answer));
+			var answerNode = MAPPER.createObjectNode();
+			answerNode.put("respuesta", "respuesta valida " + evidence.get(0).content() + " [1]");
+			var sources = answerNode.putArray("fuentes");
+			sources.addObject().put("protocolo", evidence.get(0).protocol())
+					.put("seccion", evidence.get(0).section());
+			try {
+				return reactor.core.publisher.Mono
+						.just(new LLMCompletion("stub", "stub", MAPPER.writeValueAsString(answerNode)));
+			}
+			catch (JsonProcessingException exception) {
+				throw new IllegalStateException("Cannot serialise the stub answer", exception);
+			}
 		};
 		return new RAGService(embeddings, store, router, new JacksonGroundedAnswerDecoder(), corpusIndex, CALIBRATION_TARGET);
 	}

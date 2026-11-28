@@ -134,10 +134,10 @@ Owner decisions from the 2026-11-27 security review that are **not in `main` yet
 
 | Item | Where | Status |
 |---|---|---|
-| M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Open; its README section *Security improvements (backlog)* lists what each item leaves for later |
-| A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Open |
-| One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Open. GitHub side already applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
-| Remove the repository-level copies of the seven secrets, then the empty `gemini-verification` and `openrouter-verification` environments | GitHub settings | Only after PR #184 merges: until then the two verification workflows on `develop` still read the repository copies |
+| M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Merged into `develop`; its README section *Security improvements (backlog)* lists the residual items |
+| A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Merged into `develop`; partial by design |
+| One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Merged into `develop`. GitHub side applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
+| Remove the repository-level copies of the seven secrets, then the empty `gemini-verification` and `openrouter-verification` environments | GitHub settings | Pending owner confirmation. No workflow references the old scopes; the seven names were confirmed present in `azure` |
 
 **Deferred improvements**
 

@@ -1,0 +1,53 @@
+# Real-provider chat gates against Gemini through the migrated Spring AI node, started by hand.
+# GEMINI_API_KEY comes from the protected "azure" environment only in the steps that need it; no value is persisted.
+# The job requests no id-token permission, so it cannot mint the Azure OIDC token allowed by that environment.
+# The job-level `if` limits dispatch to develop/main; ad-hoc verification uses a disposable branch.
+# Actions are pinned to full commit SHAs.
+
+name: Gemini chat verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tst-rag:
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: azure
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+          cache-dependency-path: clinical-assistant-service/clinical-assistant-service/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Require the Gemini Secret
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: test -n "$GEMINI_API_KEY"
+
+      - name: Run real-provider chat gates
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
+        working-directory: clinical-assistant-service/clinical-assistant-service
+        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.GeminiChatVerificationTest'
+
+      - name: Upload chat verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gemini-chat-verification
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/gemini-chat-verification/results.json
+          if-no-files-found: warn

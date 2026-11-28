@@ -40,7 +40,8 @@ class GroundingCheckTest {
 
 	@Test
 	void defaultPolicyAcceptsAnAnswerWithAMarker() {
-		accepts(GroundingCheck.Policy.defaults(), "Respuesta simulada a partir de la evidencia [1].");
+		accepts(GroundingCheck.Policy.defaults(),
+				"Se debe administrar adrenalina intravenosa durante la reanimación [1].");
 	}
 
 	@Test
@@ -73,6 +74,13 @@ class GroundingCheckTest {
 	@Test
 	void numericCheckAcceptsNumbersPresentInTheCitedEvidenceAndIgnoresMarkers() {
 		accepts(new GroundingCheck.Policy(false, 0.0d, 0.0d, true), "Adrenalina 1 mg cada 3 a 5 minutos [1].");
+	}
+
+	@Test
+	void baselineOverlapAppliesEvenWhenTheAnswerHasAMarker() {
+		// A fabricated [n] must not launder text that shares no vocabulary with the cited fragment.
+		rejects(new GroundingCheck.Policy(false, 0.2d, 0.2d, false),
+				"Dar de alta sin electrocardiograma ni seguimiento [1].");
 	}
 
 	@Test

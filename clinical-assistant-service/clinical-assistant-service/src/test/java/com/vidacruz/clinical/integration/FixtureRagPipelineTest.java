@@ -12,11 +12,14 @@ import org.junit.jupiter.api.Test;
 import com.vidacruz.clinical.domain.exceptions.InvalidCitationException;
 import com.vidacruz.clinical.domain.models.Citation;
 import com.vidacruz.clinical.domain.models.EvidenceFragment;
+import com.vidacruz.clinical.domain.models.LLMCompletion;
 import com.vidacruz.clinical.domain.models.PromptRequest;
 import com.vidacruz.clinical.domain.models.RAGResponse;
 import com.vidacruz.clinical.domain.ports.EmbeddingProvider;
+import com.vidacruz.clinical.domain.ports.LLMRouter;
 import com.vidacruz.clinical.domain.ports.LLMProvider;
 import com.vidacruz.clinical.domain.services.CorpusIndex;
+import com.vidacruz.clinical.domain.services.GroundingCheck;
 import com.vidacruz.clinical.domain.services.RAGService;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
@@ -53,7 +56,11 @@ class FixtureRagPipelineTest {
 		LLMProvider llm = new OllamaLLMAdapter(new OllamaProperties("http://unused:11434", "fixture-model",
 				Duration.ofSeconds(5), new OllamaProperties.Fixture(Duration.ZERO)));
 		// Fixture embeddings are non-semantic; the operational 0.65 gate would reject every unrelated fragment.
-		service = new RAGService(embeddings, store, llm, new JacksonGroundedAnswerDecoder(), corpusIndex, 0.0d);
+		// Fixture embeddings are non-semantic and the fixture LLM deliberately never echoes evidence text.
+		LLMRouter router = (question, evidence) -> llm.generate(question, evidence)
+				.map(answer -> new LLMCompletion("fixture", "fixture-model", answer));
+		service = new RAGService(embeddings, store, router, new JacksonGroundedAnswerDecoder(), corpusIndex, 0.0d,
+				new GroundingCheck(GroundingCheck.Policy.disabled()));
 	}
 
 	/** Ingests a synthetic fragment whose embedding is derived from {@code topic}. */
@@ -121,7 +128,10 @@ class FixtureRagPipelineTest {
 		ingest("tema-alfa", "FIXTURE-A", "Seccion A");
 		LLMProvider hallucinating = (question, evidence) -> Mono.just(
 				"{\"respuesta\":\"segun [1]\",\"fuentes\":[{\"protocolo\":\"FIXTURE-INVENTADO\",\"seccion\":\"Seccion inventada\"}]}");
-		RAGService strict = new RAGService(embeddings, store, hallucinating, new JacksonGroundedAnswerDecoder(), corpusIndex, 0.0d);
+		LLMRouter hallucinatingRouter = (question, evidence) -> hallucinating.generate(question, evidence)
+				.map(answer -> new LLMCompletion("fixture", "hallucinating", answer));
+		RAGService strict = new RAGService(embeddings, store, hallucinatingRouter, new JacksonGroundedAnswerDecoder(),
+				corpusIndex, 0.0d, new GroundingCheck(GroundingCheck.Policy.disabled()));
 
 		StepVerifier.create(strict.answer(PromptRequest.of("tema-alfa")))
 				.expectError(InvalidCitationException.class)

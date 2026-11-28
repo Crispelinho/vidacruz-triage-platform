@@ -7,6 +7,9 @@ import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -32,18 +35,16 @@ import com.vidacruz.clinical.domain.services.RagRetrievalService;
 import com.vidacruz.clinical.domain.services.TextChunker;
 import com.vidacruz.clinical.infrastructure.adapters.FixtureVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.GeminiEmbeddingAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.GeminiHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.InMemoryClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.JacksonGroundedAnswerDecoder;
 import com.vidacruz.clinical.infrastructure.adapters.JdbcClinicalDocumentAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LexicalEmbeddingAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.LlmCallMetrics;
-import com.vidacruz.clinical.infrastructure.adapters.OllamaHttpLLMAdapter;
-import com.vidacruz.clinical.infrastructure.adapters.OpenCodeHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.OpenRouterHttpLLMAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PgvectorVectorStoreAdapter;
 import com.vidacruz.clinical.infrastructure.adapters.PiiRedactingLLMProvider;
 import com.vidacruz.clinical.infrastructure.adapters.ResilientLLMRouter;
+import com.vidacruz.clinical.infrastructure.adapters.SpringAIChatAdapter;
 import com.vidacruz.clinical.infrastructure.db.VectorRepository;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -58,10 +59,11 @@ import reactor.core.scheduler.Schedulers;
  * <p>{@code clinical.vector-store.mode} picks the {@code VectorStore} and the document repository: {@code pgvector}
  * (default, real JDBC adapters) or {@code fixture} (in-memory, no database, for pipeline tests only).
  * {@code rag.llm.chain} picks and orders the LLM nodes; every node has its own circuit breaker from
- * {@link Resilience4jConfiguration}.
+ * {@link Resilience4jConfiguration}. All three C17 nodes run on qualified Spring AI {@code ChatClient} beans built by
+ * {@link SpringAIChatConfiguration} (ADR-05 experiment); the optional {@code openrouter} node keeps its WebClient adapter.
  */
 @Configuration(proxyBeanMethods = false)
-@Import(Resilience4jConfiguration.class)
+@Import({ Resilience4jConfiguration.class, SpringAIChatConfiguration.class })
 @EnableConfigurationProperties({ OllamaProperties.class, GeminiProperties.class, GeminiEmbeddingProperties.class,
 		OpenCodeProperties.class, OpenRouterProperties.class, LLMRouterProperties.class, VectorStoreProperties.class,
 		GroundingProperties.class })
@@ -110,21 +112,30 @@ class RAGConfiguration {
 		return WebClient.builder();
 	}
 
+	/**
+	 * First C17 node. {@link OllamaChatModel} comes from {@code spring-ai-starter-model-ollama}, configured through
+	 * {@code spring.ai.ollama.*}, which {@code application.yaml} maps from {@code ollama.url} and {@code ollama.model}.
+	 * The reported model is read from the chat model's own options so {@code modelo_usado} names what is actually sent.
+	 */
 	@Bean
-	NamedLLMProvider ollamaNode(WebClient.Builder builder, OllamaProperties properties) {
-		return new OllamaHttpLLMAdapter(builder, properties);
+	NamedLLMProvider ollamaNode(OllamaChatModel ollamaChatModel,
+			@Qualifier("ollamaChatClient") ChatClient chatClient) {
+		return new SpringAIChatAdapter("ollama", chatClient, ollamaChatModel.getDefaultOptions().getModel());
 	}
 
 	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
-	NamedLLMProvider geminiNode(WebClient.Builder builder, GeminiProperties properties) {
-		return new PiiRedactingLLMProvider(new GeminiHttpLLMAdapter(builder, properties));
+	NamedLLMProvider geminiNode(@Qualifier("geminiChatClient") ChatClient chatClient, GeminiProperties properties) {
+		// The Google GenAI SDK stream is a blocking Iterable; offload its subscription off the Netty event loop.
+		return new PiiRedactingLLMProvider(
+				new SpringAIChatAdapter("gemini", chatClient, properties.model(), Schedulers.boundedElastic()));
 	}
 
 	/** External provider: the question is PII-redacted before it leaves the cluster (M-5). */
 	@Bean
-	NamedLLMProvider opencodeNode(WebClient.Builder builder, OpenCodeProperties properties) {
-		return new PiiRedactingLLMProvider(new OpenCodeHttpLLMAdapter(builder, properties));
+	NamedLLMProvider opencodeNode(@Qualifier("opencodeChatClient") ChatClient chatClient,
+			OpenCodeProperties properties) {
+		return new PiiRedactingLLMProvider(new SpringAIChatAdapter("opencode", chatClient, properties.model()));
 	}
 
 	/** Optional node: registered for {@code rag.llm.chain=openrouter}, never part of the default chain. */
