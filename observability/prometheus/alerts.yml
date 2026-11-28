@@ -35,13 +35,14 @@ groups:
         annotations:
           summary: "Most clinical questions are ending as unavailable"
 
+      # Half-open counts: a failing node cycles between open and half-open, and it is only recovered once closed.
       - alert: LlmCircuitBreakerOpen
-        expr: max by (name) (resilience4j_circuitbreaker_state{state="open"}) == 1
+        expr: max by (name) (resilience4j_circuitbreaker_state{state=~"open|half_open"}) == 1
         for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "The circuit breaker of the LLM node {{ $labels.name }} is open"
+          summary: "The circuit breaker of the LLM node {{ $labels.name }} has not closed again"
 
       # A stopped consumer reports no lag at all; TargetDown covers a stopped service.
       - alert: UrgencyConsumerLagHigh
