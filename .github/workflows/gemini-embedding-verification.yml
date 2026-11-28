@@ -13,10 +13,9 @@ permissions:
 
 jobs:
   tst-rag:
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: azure
+    environment: gemini-verification
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -35,17 +34,18 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: test -n "$GEMINI_API_KEY"
 
-      - name: Run real-provider TST-RAG
+      - name: Run real-provider chat gates
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
         working-directory: clinical-assistant-service/clinical-assistant-service
-        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.GeminiEmbeddingVerificationTest'
+        run: ./gradlew test --no-daemon --tests 'com.vidacruz.clinical.integration.GeminiChatVerificationTest'
 
-      - name: Upload calibration evidence
+      - name: Upload chat evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gemini-embedding-verification
-          path: clinical-assistant-service/clinical-assistant-service/build/reports/gemini-embedding-verification/results.json
+          name: gemini-chat-verification-post173
+          path: clinical-assistant-service/clinical-assistant-service/build/reports/gemini-chat-verification/results.json
           if-no-files-found: warn
