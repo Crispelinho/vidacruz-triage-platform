@@ -236,6 +236,7 @@ resource postgresVectorExtension 'Microsoft.DBforPostgreSQL/flexibleServers/conf
   name: 'azure.extensions'
   properties: {
     value: 'vector'
+    source: 'user-override'
   }
 }
 
