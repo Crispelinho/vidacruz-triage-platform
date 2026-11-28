@@ -2,6 +2,16 @@
 
 All notable changes to the Vida Cruz triage platform are documented in this file. The format follows Keep a Changelog and releases use semantic versioning.
 
+## [1.0.6] - 2026-11-28
+
+### Fixed
+
+- Swagger UI, `swagger-config` and WebJars are reachable through the gateway `/docs/...` routes without an API key. Both API-key filters now normalize the gateway prefixes injected into the request path before checking public paths, while business endpoints remain protected (#172, issue #171).
+
+### Notes
+
+- Newman on the public Azure host at `6dddcf5` ran 31 requests / 70 assertions with 0 failures after applying the `/ops` health routes to the existing cluster. ADR-05 and ADR-11 remain `Proposed`.
+
 ## [1.0.5] - 2026-11-28
 
 ### Added
