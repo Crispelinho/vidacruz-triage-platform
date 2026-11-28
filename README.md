@@ -137,7 +137,7 @@ Owner decisions from the [2026-11-27 security review](docs/audits/20261127/secur
 | M-1 … M-6: prompt delimiters and grounding check, scoped keys with reviewer keys and PHI read audit, no unscoped CI permissions, Dependabot + report-only Trivy, PII redaction before cloud LLMs, default-deny NetworkPolicies | PR #173 | Merged into `develop`; not released to `main` yet. *Security improvements (backlog)* lists what each item leaves for later |
 | A-1 / A-2 (partial): no default keys in `application.yaml`; the reviewer key cannot ingest corpus | PR #173 | Merged into `develop`; not released to `main` yet |
 | One protected environment `azure` for deployment and the real-provider verifications | PR #184 | Merged into `develop`; not released to `main` yet. GitHub side applied: branches `develop`/`main` only, required reviewer, the seven secrets inside `azure`, legacy *Free models probe* and *OpenCode status probe* workflows disabled |
-| M-5 gap: PII redaction also for the optional OpenRouter node | PR #189 | Open |
+| M-5 gap: PII redaction also for the optional OpenRouter node | PR #189 | Merged into `develop`; not released to `main` yet |
 
 **Deferred improvements**
 
