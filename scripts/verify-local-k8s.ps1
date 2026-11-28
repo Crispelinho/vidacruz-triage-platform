@@ -129,7 +129,7 @@ $cases = @(
     @{ Id = 'E2'; Hr = 95; Sys = 150; Dia = 95; Spo2 = 91; Temp = 37.0; Pain = 4; Gcs = 15; Complaint = 'Breathing difficulty'; Expected = 'URGENTE' },
     @{ Id = 'E3'; Hr = 88; Sys = 130; Dia = 85; Spo2 = 98; Temp = 38.2; Pain = 6; Gcs = 15; Complaint = 'Fever'; Expected = 'URGENTE_2' },
     @{ Id = 'E4'; Hr = 72; Sys = 120; Dia = 80; Spo2 = 99; Temp = 36.5; Pain = 2; Gcs = 15; Complaint = 'Cut wound'; Expected = 'NO_URGENTE' },
-    @{ Id = 'E5'; Hr = 70; Sys = 115; Dia = 75; Spo2 = 99; Temp = 36.4; Pain = 0; Gcs = 15; Complaint = 'Prescription renewal'; Expected = 'NO_URGENTE_2' },
+    @{ Id = 'E5'; Hr = 70; Sys = 115; Dia = 75; Spo2 = 99; Temp = 36.4; Pain = 0; Gcs = 15; Complaint = 'Renovacion de recetario'; Expected = 'NO_URGENTE_2' },
     @{ Id = 'E6'; Hr = 35; Sys = 80; Dia = 50; Spo2 = 85; Temp = 35.9; Pain = 0; Gcs = 6; Complaint = 'Unconscious'; Expected = 'CRITICO' }
 )
 $patientIds = @{}
@@ -214,7 +214,8 @@ Check 'RF-05 invalid parameters' ($badReport.Status -eq 400 -and $badReport.Json
 
 # RF-04 degraded assistant response
 $consultHeaders = @{ 'X-API-Key' = $assistantKey; 'X-Correlation-Id' = "demo-$suffix" }
-$consult = Invoke-Api -Method POST -Url "$assistant/asistente/consulta" -Headers $consultHeaders -Body @{ pregunta = 'Which interventions are used in a hypertensive crisis?' }
+# The seeded corpus is Spanish; an English question retrieves no evidence and never reaches the LLM.
+$consult = Invoke-Api -Method POST -Url "$assistant/asistente/consulta" -Headers $consultHeaders -Body @{ pregunta = 'Cuales son las medidas iniciales ante una crisis hipertensiva?' }
 Check 'RF-04 degraded consultation' ($consult.Status -eq 503 -and $consult.Text -match 'LLM_UNAVAILABLE') "status=$($consult.Status) body=$($consult.Text.Substring(0, [Math]::Min(180, $consult.Text.Length)))"
 
 # Auth negatives
