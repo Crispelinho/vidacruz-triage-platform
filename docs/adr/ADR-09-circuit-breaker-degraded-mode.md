@@ -79,4 +79,6 @@ These values are recorded by the Developer/User and implemented in `application.
 - **TST-RAG boundary:** the no-match question returns the fixed notice with `fuentes: []` and zero LLM invocations; ownership of the gate remains in C-06.
 - **NFR-20 evidence:** the 503 body contains `code`, `message` and `correlationId`.
 - **NFR-07/NFR-19 evidence:** `vidacruz.llm.latency` exposes bounded `outcome` tags and no patient data.
+  Implementation note (2026-11-28): the meter shipped as `assistant.llm.latency`; breaker state is published as
+  `resilience4j.circuitbreaker.state`.
 - The evidence belongs in the `assistant-llm-resilience` change of `implementation-roadmap.md` (T-14, T-15).

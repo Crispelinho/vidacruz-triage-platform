@@ -129,6 +129,14 @@ Expected series after the flows above: `triage_patients_classified_total{level=.
 
 Open `http://localhost:9090` to query Prometheus and `http://localhost:3000` for the provisioned **VidaCruz — NFR-07 flow and latency** dashboard (anonymous viewer). If `TRIAGE_API_KEY` or `ASSISTANT_API_KEY` was overridden in `.env`, update the matching `secrets` in `observability/prometheus/prometheus.yml` so the scrapes keep returning `200` instead of `401`.
 
+Platform alert rules live in `observability/prometheus/alerts.yml` and show on `http://localhost:9090/alerts`: target down, server error ratio, unavailable answer ratio, open LLM circuit breaker, urgency consumer lag, stalled outbox and outbox events flagged for review. They notify nobody (no Alertmanager) and are not the SLA alerts of `/triage/alertas`. They use the outbox gauges `triage_outbox_{pending,failing,requires_review,oldest_pending_age_seconds}` and `resilience4j_circuitbreaker_state`. To see one fire, stop the broker (`docker compose stop kafka`), register a patient and wait about three minutes for `OutboxPublishingStalled`; `docker compose start kafka` clears it.
+
+Check the rules and the dashboard queries with `promtool` (needs Docker):
+
+```bash
+python -m unittest discover -s observability/tests -v
+```
+
 ## 8. NFR-16 — one trace across both services
 
 Compose starts Jaeger 2.x and points both services at its OTLP/HTTP receiver (`http://jaeger:4318/v1/traces`). Sampling is `1` in Compose so the demo trace is never dropped; a plain JVM run defaults to `0.1`. Send a registration with a W3C `traceparent` and the outbox carries that context into the Kafka header for the assistant.

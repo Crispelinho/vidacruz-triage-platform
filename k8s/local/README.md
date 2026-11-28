@@ -142,6 +142,8 @@ curl -sS "http://localhost:16686/api/traces/$TRACE_ID" | jq -r '.data[].spans[].
   entrypoint cannot chown a hostpath volume under `restricted` PodSecurity. All local data is disposable.
 - **Jaeger:** Jaeger 2.x has no `all-in-one` subcommand. The default binary serves the UI on `16686` and OTLP
   on `4317`/`4318`; both services must set `MANAGEMENT_OTLP_TRACING_ENDPOINT`.
+- **Metrics:** this overlay deploys no Prometheus or Grafana. Dashboards and alert rules exist only in the Compose
+  stack (`docs/demo/local-verification.md`); here the actuators can be read through `kubectl port-forward`.
 - **Report range:** `REPORT_MAX_RANGE` stays `P31D`. Requests covering more than 31 days are rejected.
 - **NetworkPolicy:** the overlay applies the base default-deny policies plus `local-network-policies.yaml`
   (local-db, Jaeger). Docker Desktop's default CNI does not enforce them; on Minikube, start with
