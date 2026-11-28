@@ -2,6 +2,7 @@ package com.vidacruz.clinicalassistantservice.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -22,8 +23,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.publisher.Mono;
 
 /**
- * Validates the {@code X-API-Key} header on every non-probe endpoint (ADR-07, NFR-10).
- * The key value is never logged; failures are logged with a correlation id only.
+ * Validates the {@code X-API-Key} header on every business endpoint (ADR-07, NFR-10). Health probes and the
+ * published OpenAPI/Swagger documentation are public. The key value is never logged; failures are logged with a
+ * correlation id only.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public final class ApiKeyAuthenticationFilter implements WebFilter {
@@ -33,17 +35,10 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 	static final String UNAUTHORIZED_CODE = "UNAUTHORIZED";
 	static final String UNAUTHORIZED_MESSAGE = "Invalid or missing X-API-Key header";
 
-	private static final Set<String> PUBLIC_PATHS = Set.of(
-			"/actuator/health",
-			"/health",
-			"/swagger-ui.html",
-			"/v3/api-docs",
-			"/v3/api-docs/swagger-config");
-	private static final String ACTUATOR_HEALTH_PREFIX = "/actuator/health/";
-	private static final String HEALTH_PREFIX = "/health/";
-	private static final String SWAGGER_UI_PREFIX = "/swagger-ui";
-	private static final String WEBJARS_PREFIX = "/webjars/";
-	private static final String OPENAPI_DOCS_PREFIX = "/v3/api-docs/";
+	private static final Set<String> PUBLIC_PATHS = Set.of("/actuator/health", "/health", "/asistente/actuator/health",
+			"/asistente/health", "/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui", "/webjars");
+	private static final List<String> PUBLIC_PREFIXES = List.of("/actuator/health/", "/health/",
+			"/asistente/actuator/health/", "/asistente/health/", "/v3/api-docs/", "/swagger-ui/", "/webjars/");
 	private static final Logger LOGGER = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
 
 	private final String expectedKey;
@@ -73,12 +68,7 @@ public final class ApiKeyAuthenticationFilter implements WebFilter {
 	}
 
 	private static boolean isPublic(String path) {
-		return PUBLIC_PATHS.contains(path)
-				|| path.startsWith(ACTUATOR_HEALTH_PREFIX)
-				|| path.startsWith(HEALTH_PREFIX)
-				|| path.startsWith(SWAGGER_UI_PREFIX)
-				|| path.startsWith(WEBJARS_PREFIX)
-				|| path.startsWith(OPENAPI_DOCS_PREFIX);
+		return PUBLIC_PATHS.contains(path) || PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
 	}
 
 	private boolean matches(String providedKey) {
