@@ -11,7 +11,7 @@ All notable changes to the Vida Cruz triage platform are documented in this file
 
 ### Fixed
 
-- Swagger UI, WebJars and `/v3/api-docs` are public in both API key filters while business endpoints stay protected (#165, issue #164).
+- Swagger UI, WebJars and `/v3/api-docs` are public in both API key filters while business endpoints stay protected (#165, issue #164). Both services now also include the springdoc WebFlux dependency that actually serves those endpoints, and gateway-prefixed health probes no longer require an API key (#169, issue #168).
 
 ### Notes
 
